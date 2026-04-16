@@ -1,0 +1,19 @@
+{
+  "devDependencies": {
+    "prisma": "^7.7.0",
+    "tailwindcss": "^4.2.2"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "ejs": "^5.0.2",
+    "express": "^5.2.1",
+    "express-ejs-layouts": "^2.5.1",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "scripts": {
+    "dev": "tailwindcss -i ./public/css/input.css -o ./public/css/style.css --watch & node server.js"
+  }
+}
