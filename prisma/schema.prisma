@@ -1,13 +1,68 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Admins who log into this panel
+model Employee {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // Added for auditing
+}
+
+// Master Data
+model City {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  nakas     Naka[] 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Naka {
+  id        Int      @id @default(autoincrement())
+  name      String
+  pincode   String?  // <--- ADD THIS LINE
+  latitude  Float?   
+  longitude Float?   
+  cityId    Int
+  city      City     @relation(fields: [cityId], references: [id])
+  workers   Worker[] 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Skill {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  workers   Worker[] 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The Laborers
+model Worker {
+  id          Int      @id @default(autoincrement())
+  fullName    String
+  phoneNumber String   @unique
+  hourlyRate  Float    @default(0.0)
+  
+  // The "Digital Naka" Toggle
+  isAvailable Boolean  @default(false) // Turns true when they open the app looking for work
+  rating      Float    @default(5.0)   // For the matchmaking trust system
+  
+  nakaId      Int
+  naka        Naka     @relation(fields: [nakaId], references: [id])
+  skills      Skill[]  
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
