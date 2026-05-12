@@ -10,6 +10,9 @@ const requireAuth = require('../middlewares/authBouncer');
 const employeeRoutes = require('./employeeRoutes');
 const cityRoutes = require('./cityRoutes');
 const nakaRoutes = require('./nakaRoutes');
+const skillRoutes = require('./skillRoutes');
+const workerRoutes = require('./workerRoutes');
+
 
 // --- PUBLIC ROUTES (No bouncer needed) ---
 router.get('/login', authController.getLoginPage);
@@ -38,5 +41,9 @@ router.use('/employees', requireAuth, employeeRoutes);
 router.use('/cities', requireAuth, cityRoutes);
 
 router.use('/nakas', requireAuth, nakaRoutes);
+
+router.use('/skills', requireAuth, skillRoutes);
+
+router.use('/workers', requireAuth, workerRoutes);
 
 module.exports = router;

@@ -41,28 +41,59 @@ model Naka {
 }
 
 model Skill {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  workers   Worker[] 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  description String?     @db.Text
+  isActive    Boolean     @default(true)
+  rates       SkillRate[] // This links to our dynamic pricing tiers
+  workers     Worker[]    // Keeps the link to the workers
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
 }
 
-// The Laborers
+model SkillRate {
+  id        Int      @id @default(autoincrement())
+  skillId   Int
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  star      Float    // Using Float allows for 1, 2, 3, but also 3.5 or 4.5!
+  rate      Float    
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([skillId, star]) // Prevents having two different prices for "3 stars"
+}
+
 model Worker {
-  id          Int      @id @default(autoincrement())
-  fullName    String
-  phoneNumber String   @unique
-  hourlyRate  Float    @default(0.0)
+  id                Int       @id @default(autoincrement())
+  name              String
+
+  // --- NEW LOGIN FIELDS ---
+  phone             String    @unique
+  email             String?   @unique // Optional, as some laborers might not have email
+  password          String
+  // ------------------------
   
-  // The "Digital Naka" Toggle
-  isAvailable Boolean  @default(false) // Turns true when they open the app looking for work
-  rating      Float    @default(5.0)   // For the matchmaking trust system
+  dob               DateTime  @db.Date
+  age               Int
+  qualification     String?
+  photoUrl          String?   // Path to the uploaded photo
+  idProofType       String    // AADHAR, PAN, VOTING, DRIVING
+  idNumber          String    @unique
+  consentVoiceUrl   String?   // Path to the uploaded voice recording
+  address           String    @db.Text
+  pincode           String
   
-  nakaId      Int
-  naka        Naka     @relation(fields: [nakaId], references: [id])
-  skills      Skill[]  
+  // Payment Details (Optional, but one should ideally be filled)
+  bankDetails       String?   @db.Text 
+  upiId             String?
+  upiNumber         String?
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive          Boolean   @default(true)
+  
+  // Many-to-Many Relationships
+  nakas             Naka[]    // Allows assigning up to 3 Nakas
+  skills            Skill[]   // Allows assigning multiple skills
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
 }

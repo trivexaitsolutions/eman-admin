@@ -1,0 +1,220 @@
+<div class="mb-8 flex items-center">
+    <a href="/admin/workers" class="mr-4 text-stone-400 hover:text-stone-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg></a>
+    <h1 class="text-3xl font-bold text-stone-900"><%= isEdit ? 'Edit Worker Profile' : 'Register New Worker' %></h1>
+</div>
+
+<div class="bg-white border border-stone-200 rounded-xl shadow-sm p-8 max-w-5xl mx-auto">
+    <% if (error) { %><div class="bg-red-50 text-red-700 p-4 rounded-lg mb-6 text-sm font-medium"><%= error %></div><% } %>
+
+    <form action="/admin/workers/save" method="POST" enctype="multipart/form-data">
+        <% if (isEdit) { %> <input type="hidden" name="id" value="<%= worker.id %>"> <% } %>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            
+            <div class="space-y-6">
+                <h3 class="text-lg font-semibold text-stone-800 border-b border-stone-100 pb-2">Personal Information</h3>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Full Name *</label>
+                        <input type="text" name="name" value="<%= isEdit ? worker.name : '' %>" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Phone Number (Login ID) *</label>
+                        <input type="tel" name="phone" value="<%= isEdit ? worker.phone : '' %>" required pattern="[0-9]{10}" placeholder="10-digit mobile number" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Email Address</label>
+                        <input type="email" name="email" value="<%= isEdit ? worker.email : '' %>" placeholder="worker@example.com (Optional)" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-stone-700 text-xs font-bold mb-2">App Password <%= !isEdit ? '*' : '' %></label>
+                        <input type="password" name="password" <%= !isEdit ? 'required' : '' %> placeholder="<%= isEdit ? 'Leave blank to keep current password' : 'Create a strong password' %>" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Date of Birth *</label>
+                        <input type="date" name="dob" id="dob" value="<%= isEdit && worker.dob ? worker.dob.toISOString().split('T')[0] : '' %>" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Age (Auto-calculated)</label>
+                        <input type="number" name="age" id="age" value="<%= isEdit ? worker.age : '' %>" readonly class="w-full px-4 py-2.5 bg-stone-100 border border-stone-200 rounded-lg text-stone-500 cursor-not-allowed">
+                    </div>
+                </div>
+
+                
+
+                <h3 class="text-lg font-semibold text-stone-800 border-b border-stone-100 pb-2 mt-8">Verification & ID</h3>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">ID Proof Type *</label>
+                        <select name="idProofType" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                            <option value="AADHAR" <%= isEdit && worker.idProofType === 'AADHAR' ? 'selected' : '' %>>Aadhar Card</option>
+                            <option value="PAN" <%= isEdit && worker.idProofType === 'PAN' ? 'selected' : '' %>>PAN Card</option>
+                            <option value="VOTING" <%= isEdit && worker.idProofType === 'VOTING' ? 'selected' : '' %>>Voting Card</option>
+                            <option value="DRIVING" <%= isEdit && worker.idProofType === 'DRIVING' ? 'selected' : '' %>>Driving License</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">ID Number *</label>
+                        <input type="text" name="idNumber" value="<%= isEdit ? worker.idNumber : '' %>" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Voice Consent (Audio File)</label>
+                        <input type="file" name="consentVoiceUrl" accept="audio/*" class="w-full px-2 py-2 text-sm text-stone-500 border border-stone-200 rounded-lg bg-stone-50 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+                        <% if(isEdit && worker.consentVoiceUrl) { %><p class="text-[10px] text-emerald-600 mt-1">✓ Voice consent recorded</p><% } %>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <h3 class="text-lg font-semibold text-stone-800 border-b border-stone-100 pb-2">Location & Nakas</h3>
+                
+                <div>
+                    <label class="block text-stone-700 text-xs font-bold mb-2">Full Address *</label>
+                    <textarea name="address" rows="2" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500 resize-none"><%= isEdit ? worker.address : '' %></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-stone-700 text-xs font-bold mb-2">Pincode * <span class="text-stone-400 font-normal">(Type to fetch Nakas)</span></label>
+                    <input type="text" name="pincode" id="pincode" value="<%= isEdit ? worker.pincode : '' %>" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500 font-mono tracking-wider">
+                </div>
+
+                <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                    <label class="block text-stone-700 text-xs font-bold mb-2">Available Nakas <span class="text-emerald-600 font-normal">(Max 3)</span></label>
+                    <div id="nakaContainer" class="space-y-2 text-sm text-stone-600">
+                        <span class="text-xs text-stone-400 italic">Enter a valid pincode above to load Nakas...</span>
+                    </div>
+                </div>
+
+                <h3 class="text-lg font-semibold text-stone-800 border-b border-stone-100 pb-2 mt-8">Skills & Payment</h3>
+                
+                <div class="bg-stone-50 p-4 rounded-xl border border-stone-200 max-h-40 overflow-y-auto space-y-2">
+                    <label class="block text-stone-700 text-xs font-bold mb-2">Select Skills</label>
+                    <% skills.forEach(skill => { %>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" name="skillIds" value="<%= skill.id %>" class="w-4 h-4 text-emerald-600 rounded border-stone-300"
+                            <%= isEdit && worker.skills.some(ws => ws.id === skill.id) ? 'checked' : '' %>>
+                            <span class="text-sm font-medium text-stone-700"><%= skill.name %></span>
+                        </label>
+                    <% }) %>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    <div class="col-span-2">
+                        <label class="block text-stone-700 text-xs font-bold mb-2">Bank Details (Optional)</label>
+                        <input type="text" name="bankDetails" value="<%= isEdit ? worker.bankDetails : '' %>" placeholder="Account No. / IFSC" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">UPI ID</label>
+                        <input type="text" name="upiId" value="<%= isEdit ? worker.upiId : '' %>" placeholder="example@ybl" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-stone-700 text-xs font-bold mb-2">UPI Number</label>
+                        <input type="text" name="upiNumber" value="<%= isEdit ? worker.upiNumber : '' %>" placeholder="Phone Number" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <label class="flex items-center cursor-pointer mt-6 pt-6 border-t border-stone-100">
+                    <input type="checkbox" name="isActive" class="w-5 h-5 text-emerald-600 rounded" <%= worker.isActive ? 'checked' : '' %>>
+                    <span class="ml-3 text-stone-700 text-sm font-bold">Worker is Active</span>
+                </label>
+
+            </div>
+        </div>
+
+        <div class="flex justify-end pt-6 border-t border-stone-200 mt-8">
+            <button type="submit" class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
+                <%= isEdit ? 'Update Worker Profile' : 'Register New Worker' %>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // 1. Auto Calculate Age
+    document.getElementById('dob').addEventListener('change', function() {
+        const dob = new Date(this.value);
+        if(!isNaN(dob.getTime())) {
+            const ageDifMs = Date.now() - dob.getTime();
+            const ageDate = new Date(ageDifMs);
+            document.getElementById('age').value = Math.abs(ageDate.getUTCFullYear() - 1970);
+        }
+    });
+
+    // 2. Fetch Nakas by Pincode & Limit to 3 Checkboxes
+    const pincodeInput = document.getElementById('pincode');
+    const nakaContainer = document.getElementById('nakaContainer');
+    
+    // If editing, we pass the existing assigned Naka IDs so they stay checked
+    const existingNakaIds = <%- isEdit ? JSON.stringify(worker.nakas.map(n => n.id)) : '[]' %>;
+
+    async function fetchNakas(pincode) {
+        if(pincode.length < 5) return; // Wait until they type a valid looking pincode
+        
+        nakaContainer.innerHTML = '<span class="text-xs text-stone-400 italic">Searching Nakas...</span>';
+        
+        try {
+            const response = await fetch('/admin/nakas/api/by-pincode/' + pincode);
+            const nakas = await response.json();
+            
+            if(nakas.length === 0) {
+                nakaContainer.innerHTML = '<span class="text-xs text-red-500 font-medium">No Nakas found for this pincode.</span>';
+                return;
+            }
+
+            nakaContainer.innerHTML = ''; // Clear container
+            
+            nakas.forEach(naka => {
+                const isChecked = existingNakaIds.includes(naka.id) ? 'checked' : '';
+                
+                const label = document.createElement('label');
+                label.className = "flex items-center space-x-3 cursor-pointer p-2 hover:bg-emerald-100/50 rounded-lg transition-colors";
+                label.innerHTML = `
+                    <input type="checkbox" name="nakaIds" value="${naka.id}" class="w-4 h-4 text-emerald-600 rounded border-stone-300 naka-checkbox" ${isChecked}>
+                    <div>
+                        <span class="text-sm font-bold text-stone-700 block">${naka.name}</span>
+                        <span class="text-[10px] text-stone-500 uppercase tracking-wide">${naka.city.name}</span>
+                    </div>
+                `;
+                nakaContainer.appendChild(label);
+            });
+
+            // Enforce Max 3 Checkboxes Rule
+            const checkboxes = document.querySelectorAll('.naka-checkbox');
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const checkedCount = document.querySelectorAll('.naka-checkbox:checked').length;
+                    if(checkedCount >= 3) {
+                        // Disable all unchecked boxes
+                        document.querySelectorAll('.naka-checkbox:not(:checked)').forEach(un => un.disabled = true);
+                    } else {
+                        // Re-enable all
+                        document.querySelectorAll('.naka-checkbox').forEach(un => un.disabled = false);
+                    }
+                });
+            });
+            
+            // Trigger check on load if editing
+            if(existingNakaIds.length > 0) {
+                const firstCheckbox = document.querySelector('.naka-checkbox');
+                if(firstCheckbox) {
+                    const event = new Event('change');
+                    firstCheckbox.dispatchEvent(event);
+                }
+            }
+
+        } catch(e) {
+            nakaContainer.innerHTML = '<span class="text-xs text-red-500 font-medium">Error loading Nakas.</span>';
+        }
+    }
+
+    // Listen for typing
+    pincodeInput.addEventListener('input', (e) => fetchNakas(e.target.value));
+
+    // If editing, trigger the fetch immediately so the user sees their existing Nakas!
+    if(pincodeInput.value) {
+        fetchNakas(pincodeInput.value);
+    }
+</script>

@@ -3,9 +3,11 @@ const express = require('express');
 const path = require('path');
 const expressLayouts = require('express-ejs-layouts');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+app.use(cors());
 const PORT = process.env.PORT || 3000;
 
 // --- 1. VIEW ENGINE SETUP ---
@@ -31,7 +33,11 @@ app.get('/', (req, res) => {
     res.redirect('/admin/login');
 });
 
+// Add these right above your Admin routes in server.js
+app.use('/api/worker', require('./src/routes/api/workerRoutes'));
+app.use('/api/user', require('./src/routes/api/userRoutes'));
+
 // --- 4. START SERVER ---
-app.listen(PORT, () => {
-    console.log(`🚀 E-man Server running clean on http://localhost:${PORT}`);
+app.listen(PORT,"0.0.0.0", () => {
+    console.log(`🚀 E-man Server running clean on http://0.0.0.0:${PORT}`);
 });
