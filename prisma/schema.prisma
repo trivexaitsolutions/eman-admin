@@ -96,4 +96,41 @@ model Worker {
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @default(now()) @updatedAt
+
+  isAvailable Boolean  @default(false) // Naya field!
+  lastActive  DateTime @default(now())
+  bookings    Booking[]
 }
+
+model Customer {
+  id          Int       @id @default(autoincrement())
+  name        String
+  phone       String    @unique
+  email       String    @unique
+  
+  // OTP ke liye fields
+  otp         String?   
+  otpExpiry   DateTime? 
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  bookings    Booking[]
+}
+
+model Booking {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  nakaId      Int
+  skillId     Int
+  workerCount Int
+  status      String   @default("ASSIGNED") // "ASSIGNED", "COMPLETED", "CANCELLED"
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations (Jo link banayenge)
+  customer    Customer @relation(fields: [customerId], references: [id])
+  workers     Worker[] // Jo workers is booking me assign hue hain
+}
+

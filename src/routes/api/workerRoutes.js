@@ -5,5 +5,6 @@ const workerController = require('../../controllers/workerController');
 // This route will now be accessed via /api/worker/login
 router.post('/login', workerController.loginWorker);
 router.get('/profile/:id', workerController.getWorkerProfile);
+router.post('/update-status', workerController.updateStatus);
 
 module.exports = router;

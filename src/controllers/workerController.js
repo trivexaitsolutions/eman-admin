@@ -181,4 +181,17 @@ const deleteWorker = async (req, res) => {
     }
 };
 
-module.exports = { listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile };
+const updateStatus = async (req, res) => {
+    const { workerId, status } = req.body; // status: true or false
+    try {
+        await prisma.worker.update({
+            where: { id: parseInt(workerId) },
+            data: { isAvailable: status }
+        });
+        res.json({ success: true, message: status ? "Aap Live hain!" : "Aap Offline hain!" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: "Status update nahi ho paya" });
+    }
+};
+
+module.exports = { listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile, updateStatus };
