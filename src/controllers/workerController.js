@@ -194,4 +194,21 @@ const updateStatus = async (req, res) => {
     }
 };
 
-module.exports = { listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile, updateStatus };
+const savePushToken = async (req, res) => {
+    const { workerId, pushToken } = req.body;
+
+    try {
+        await prisma.worker.update({
+            where: { id: parseInt(workerId) },
+            data: { pushToken: pushToken }
+        });
+        
+        console.log(`Worker ${workerId} ka Push Token save ho gaya!`);
+        res.json({ success: true, message: "Token saved in Database!" });
+    } catch (error) {
+        console.error("Token save karne me error:", error);
+        res.status(500).json({ success: false, message: "Database error" });
+    }
+};
+
+module.exports = { listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile, updateStatus, savePushToken };

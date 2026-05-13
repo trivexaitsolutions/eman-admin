@@ -122,18 +122,29 @@ const verifyOtp = async (req, res) => {
         res.status(500).json({ success: false, message: "Server error" });
     }
 };
-
 const getBookingOptions = async (req, res) => {
     try {
-        // Prisma se saare Skills aur Nakas fetch karein
-        const skills = await prisma.skill.findMany();
-        const nakas = await prisma.naka.findMany();
+        // 🛠️ YAHAN UPDATE KIYA HAI: include { rates: true } add kiya
+        const skills = await prisma.skill.findMany({ 
+            where: { isActive: true },
+            include: { rates: true } 
+        });
         
-        res.json({ success: true, skills, nakas });
+        const cities = await prisma.city.findMany(); 
+        const nakas = await prisma.naka.findMany();  
+
+        res.json({ 
+            success: true, 
+            skills, 
+            cities, 
+            nakas 
+        });
     } catch (error) {
-        console.error("Error fetching options:", error);
-        res.status(500).json({ success: false, message: "Options load nahi ho paye" });
+        console.error("Options fetch error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
+
+
 
 module.exports = { sendOtp, verifyOtp, getBookingOptions };
