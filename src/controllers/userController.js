@@ -91,7 +91,7 @@ const sendOtp = async (req, res) => {
 
 // 2. Verify OTP
 const verifyOtp = async (req, res) => {
-    const { customerId, otp } = req.body;
+    const { customerId, otp, pushToken } = req.body;
 
     try {
         const customer = await prisma.customer.findUnique({ where: { id: customerId } });
@@ -115,6 +115,13 @@ const verifyOtp = async (req, res) => {
             data: { otp: null, otpExpiry: null }
         });
 
+
+        const updatedUser = await prisma.customer.update({ // Ya prisma.user
+            where: { id: customerId },
+            data: { 
+                pushToken: pushToken || null // Agar token mila toh save karo, warna null
+            }
+        });
         res.json({ success: true, message: "Login Successful!", customer: { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone } });
 
     } catch (error) {

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../../controllers/userController');
-const { initiateBooking, verifyPayment, bookWorkers /*, baaki purane functions */, } = require('../../controllers/bookingController');
+const { initiateBooking, verifyPayment, bookWorkers,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory /*, baaki purane functions */, } = require('../../controllers/bookingController');
 
 // Placeholder for future customer app routes!
 router.get('/test', (req, res) => {
@@ -17,5 +17,14 @@ router.post('/initiate-booking', initiateBooking);
 
 // Frontend '/user/verify-payment' pe call karega toh ye chalega
 router.post('/verify-payment', verifyPayment);
+router.get('/current-booking/:customerId', getCurrentBooking);
+
+router.get('/worker/current-duty/:workerId', getCurrentDuty);
+
+// Worker app QR scan karke yahan request bhejega
+router.post('/worker/verify-qr', verifyQrAndStartDuty);
+router.post('/complete-booking', completeBooking);
+
+router.get('/booking-history/:customerId', getBookingHistory);
 
 module.exports = router;
