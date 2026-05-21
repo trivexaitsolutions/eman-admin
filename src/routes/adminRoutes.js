@@ -2,48 +2,45 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const mitraRoutes = require('./mitraRoutes'); // <-- YEH LINE ADD KAREIN
 
-// Import the Bouncer
-const requireAuth = require('../middlewares/authBouncer');
+// 🚀 FIX 1: Curly braces {} laga kar exact function import kiya
+const { authBouncer } = require('../middlewares/authBouncer');
 
-// Add this under your protected dashboard route in adminRoutes.js
 const employeeRoutes = require('./employeeRoutes');
 const cityRoutes = require('./cityRoutes');
 const nakaRoutes = require('./nakaRoutes');
 const skillRoutes = require('./skillRoutes');
 const workerRoutes = require('./workerRoutes');
 
-
 // --- PUBLIC ROUTES (No bouncer needed) ---
 router.get('/login', authController.getLoginPage);
 router.post('/login', authController.login);
 
-// --- PROTECTED ROUTES (Bouncer checks ID) ---
-// Notice we put requireAuth in the middle!
-router.get('/dashboard', requireAuth, (req, res) => {
-    // Now we can pass data to EJS, and 'user' is already available thanks to the bouncer!
-    // res.send(`<h1>Welcome to the Control Center, ${req.user.name}!</h1><br><a href="/admin/logout">Logout</a>`);
-    res.render('admin/dashboard');
-});
-
-// Let's add a quick logout route while we are here
 router.get('/logout', (req, res) => {
-    res.clearCookie('token');
+    // 🚀 FIX 2: Token hatane ke sath session bhi destroy karna zaroori hai
+    res.clearCookie('token'); 
+    if (req.session) {
+        req.session.destroy();
+    }
     res.redirect('/admin/login');
 });
 
+// --- PROTECTED ROUTES (Smart Bouncer) ---
 
+// Dashboard sab access kar sakte hain
+router.get('/dashboard', authBouncer(['superadmin', 'admin', 'employee']), (req, res) => {
+    res.render('admin/dashboard');
+});
 
-// Protect all employee routes with the Bouncer
-router.use('/employees', requireAuth, employeeRoutes);
-// Add this under your protected dashboard route in adminRoutes.js
+// Master Data aur Employees sirf Admin/Superadmin access kar sakte hain (Employee nahi!)
+router.use('/employees', authBouncer(['superadmin', 'admin']), employeeRoutes);
+router.use('/cities', authBouncer(['superadmin', 'admin']), cityRoutes);
+router.use('/nakas', authBouncer(['superadmin', 'admin']), nakaRoutes);
+router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
 
-router.use('/cities', requireAuth, cityRoutes);
-
-router.use('/nakas', requireAuth, nakaRoutes);
-
-router.use('/skills', requireAuth, skillRoutes);
-
-router.use('/workers', requireAuth, workerRoutes);
+// Workers ko Admin aur Employee dono manage kar sakte hain
+router.use('/workers', authBouncer(['superadmin', 'admin', 'employee']), workerRoutes);
+router.use('/mitras', authBouncer(['superadmin', 'admin']), mitraRoutes);
 
 module.exports = router;

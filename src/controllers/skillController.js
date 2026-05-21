@@ -39,18 +39,27 @@ const saveSkill = async (req, res) => {
 
     try {
         let skillId = id ? parseInt(id) : null;
-        const skillData = { name: name.trim(), description: description?.trim(), isActive };
+        
+        // Basic data prepare karein
+        const skillData = { 
+            name: name.trim(), 
+            description: description?.trim(), 
+            isActive 
+        };
+
+        // 🚀 NAYA LOGIC: Agar image upload hui hai, toh path set karein
+        if (req.file) {
+            skillData.imageUrl = '/uploads/skills/' + req.file.filename;
+        }
 
         if (skillId) {
             await prisma.skill.update({ where: { id: skillId }, data: skillData });
-            // Wipe old rates to replace with the new dynamic list
             await prisma.skillRate.deleteMany({ where: { skillId } });
         } else {
             const newSkill = await prisma.skill.create({ data: skillData });
             skillId = newSkill.id;
         }
 
-        // Convert the form arrays into database records
         const starArray = Array.isArray(stars) ? stars : [stars];
         const rateArray = Array.isArray(rates) ? rates : [rates];
         

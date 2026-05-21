@@ -50,7 +50,6 @@ const saveNaka = async (req, res) => {
         res.redirect('/admin/nakas');
     }
 };
-
 const deleteNaka = async (req, res) => {
     try {
         await prisma.naka.delete({ where: { id: parseInt(req.params.id) } });

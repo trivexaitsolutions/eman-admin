@@ -4,7 +4,10 @@ const path = require('path');
 const expressLayouts = require('express-ejs-layouts');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const session = require('express-session');
+const flash = require('connect-flash');
 require('dotenv').config();
+
 
 const app = express();
 app.use(cors());
@@ -22,11 +25,27 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(require('./src/middlewares/viewGlobals'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(session({
+    secret: 'trivexait_eman_secret', // Aap ise kuch bhi rakh sakte hain
+    resave: false,
+    saveUninitialized: true
+}));
+
+app.use(flash());
+
+// 🚀 GLOBAL VARIABLES: Yeh aapke har EJS page me available honge
+app.use((req, res, next) => {
+    res.locals.success_msg = req.flash('success_msg');
+    res.locals.error_msg = req.flash('error_msg');
+    next();
+});
 
 // --- 3. ROUTES ---
 // Funnel all admin traffic through our nested router hub
 const adminRoutes = require('./src/routes/adminRoutes');
+const mitraPortalRoutes = require('./src/routes/mitraPortalRoutes');
 app.use('/admin', adminRoutes);
+app.use('/mitra', mitraPortalRoutes);
 
 // If someone just types localhost:3000, send them to the admin login
 app.get('/', (req, res) => {

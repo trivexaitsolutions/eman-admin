@@ -410,4 +410,70 @@ const getBookingHistory = async (req, res) => {
     }
 };
 
-module.exports = { bookWorkers,initiateBooking,verifyPayment,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory };
+// src/controllers/bookingController.js (getBookingById)
+const getBookingById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const booking = await prisma.booking.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                workers: true,
+                ratings: true // 👈 YEH NAYI LINE ADD KI HAI (Purani rating laane ke liye)
+            }
+        });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking nahi mili" });
+        }
+
+        const isRated = booking.isRated || false; 
+
+        res.json({ success: true, booking: { ...booking, isRated } });
+
+    } catch (error) {
+        console.error("Fetch Booking Details Error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+// src/controllers/bookingController.js (submitRating)
+const submitRating = async (req, res) => {
+    try {
+        const { bookingId, ratings } = req.body;
+
+        await prisma.$transaction(async (tx) => {
+            
+            // 🚀 SMART FIX: Agar pehle se is booking ki koi rating hai, toh usko delete kar do (Edit mode ke liye)
+            await tx.rating.deleteMany({
+                where: { bookingId: parseInt(bookingId) }
+            });
+
+            const ratingData = ratings.map(r => ({
+                bookingId: parseInt(bookingId),
+                workerId: parseInt(r.workerId),
+                mehnat: parseInt(r.mehnat),
+                vyavhaar: parseInt(r.vyavhaar)
+            }));
+
+            // Nayi ratings insert karo
+            await tx.rating.createMany({
+                data: ratingData
+            });
+
+            await tx.booking.update({
+                where: { id: parseInt(bookingId) },
+                data: { isRated: true }
+            });
+        });
+
+        res.json({ success: true, message: "Ratings submitted successfully!" });
+
+    } catch (error) {
+        console.error("Submit Rating Error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+
+module.exports = { submitRating,bookWorkers,initiateBooking,verifyPayment,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory,getBookingById };

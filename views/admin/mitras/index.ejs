@@ -1,0 +1,75 @@
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Manage Mitras (Field Agents)</h1>
+    <a href="/admin/mitras/create" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+        + Add New Mitra
+    </a>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200 text-gray-600 text-xs font-semibold uppercase tracking-wider">
+                    <th class="px-6 py-4">ID</th>
+                    <th class="px-6 py-4">Name</th>
+                    <th class="px-6 py-4">Contact Info</th>
+                    <th class="px-6 py-4">Assigned Nakas</th>
+                    <th class="px-6 py-4">Status</th>
+                    <th class="px-6 py-4 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 text-sm text-gray-700">
+                <% if (mitras.length === 0) { %>
+                    <tr>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-400">
+                            Koi Mitra registered nahi hai. Naya Mitra add karein!
+                        </td>
+                    </tr>
+                <% } %>
+                
+                <% mitras.forEach(mitra => { %>
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 font-mono text-xs text-gray-500">#<%= mitra.id %></td>
+                        <td class="px-6 py-4 font-semibold text-gray-900"><%= mitra.name %></td>
+                        <td class="px-6 py-4">
+                            <div class="text-gray-900 font-medium"><%= mitra.phone %></div>
+                            <div class="text-xs text-gray-400"><%= mitra.email || 'No Email' %></div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                <% if (mitra.nakas && mitra.nakas.length > 0) { %>
+                                    <% mitra.nakas.forEach(naka => { %>
+                                        <span class="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded border border-blue-100">
+                                            <%= naka.name %>
+                                        </span>
+                                    <% }) %>
+                                <% } else { %>
+                                    <span class="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                                        No Naka Assigned
+                                    </span>
+                                <% } %>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full <%= mitra.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                                <%= mitra.isActive ? 'Active' : 'Inactive' %>
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end space-x-3">
+                                <a href="/admin/mitras/edit/<%= mitra.id %>" class="text-blue-600 hover:text-blue-900">
+                                    Edit
+                                </a>
+                                <a href="/admin/mitras/delete/<%= mitra.id %>" 
+                                   onclick="return confirm('Kya aap sach mein is Mitra ko delete karna chahte hain?')" 
+                                   class="text-red-600 hover:text-red-900">
+                                    Delete
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>

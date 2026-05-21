@@ -211,4 +211,134 @@ const savePushToken = async (req, res) => {
     }
 };
 
-module.exports = { listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile, updateStatus, savePushToken };
+
+const getWorkerDashboard = async (req, res) => {
+    try {
+        const { workerId } = req.params;
+
+        const worker = await prisma.worker.findUnique({
+            where: { id: parseInt(workerId) },
+            include: {
+                bookings: {
+                    where: { status: 'COMPLETED' }
+                }
+            }
+        });
+
+        if (!worker) {
+            return res.status(404).json({ success: false, message: "Worker nahi mila" });
+        }
+
+        // Calculate Total Earnings from completed jobs (Basic logic for now)
+        // Note: Asli system me hum isko weekly basis par filter karenge
+        const totalEarned = worker.bookings.reduce((sum, job) => sum + (job.amount || 600), 0);
+
+        // Dummy calculations for E-MAN Score & Level (Jab tak Rating engine poora nahi hota)
+        const emanScore = 4.2; 
+        const level = "Silver Imaandar";
+
+        res.json({ 
+            success: true, 
+            data: {
+                id: worker.id,
+                name: worker.name,
+                emanId: `EMN-MUM-00${worker.id}`,
+                score: emanScore,
+                level: level,
+                weeklyEarning: totalEarned > 0 ? totalEarned : 2400 // Default for demo
+            }
+        });
+
+    } catch (error) {
+        console.error("Worker Dashboard Error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+
+const showMitraAddForm = async (req, res) => {
+    try {
+        const skills = await prisma.skill.findMany({ where: { isActive: true } });
+        const mitra = await prisma.mitra.findUnique({
+            where: { id: req.user.id },
+            include: { nakas: true }
+        });
+
+        res.render('mitra/add-worker', { 
+            layout: false, 
+            skills, 
+            nakas: mitra.nakas || [], 
+            error: req.query.error || null 
+        });
+    } catch (error) {
+        res.redirect('/mitra/dashboard');
+    }
+};
+
+const saveMitraWorker = async (req, res) => {
+    try {
+        // Saare naye fields ko destructure kiya
+        const { 
+            name, phone, email, password, 
+            dob, age, qualification, 
+            idProofType, idNumber, address, pincode, 
+            bankDetails, upiId, upiNumber, 
+            skillIds, nakaIds 
+        } = req.body;
+
+        // 1. Password Hash (Encrypt) karein
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 2. Arrays handle karein (Kyunki multiple select boxes hain)
+        // Agar ek select kiya hai toh string aayega, multiple me array. Isliye convert kar rahe hain.
+        const connectSkills = Array.isArray(skillIds) ? skillIds.map(id => ({ id: parseInt(id) })) : (skillIds ? [{ id: parseInt(skillIds) }] : []);
+        const connectNakas = Array.isArray(nakaIds) ? nakaIds.map(id => ({ id: parseInt(id) })) : (nakaIds ? [{ id: parseInt(nakaIds) }] : []);
+
+        // 3. Date Object banayein
+        const dobDate = new Date(dob);
+
+        // 4. Video File Handle karein
+        let videoUrl = null;
+        if (req.file) {
+            videoUrl = '/uploads/consents/' + req.file.filename;
+        }
+
+        // 5. Database Query
+        await prisma.worker.create({
+            data: {
+                name,
+                phone,
+                email: email ? email.trim() : null,
+                password: hashedPassword, // Hashed password
+                dob: dobDate,
+                age: parseInt(age),
+                qualification: qualification || null,
+                idProofType,
+                idNumber,
+                address,
+                pincode,
+                bankDetails: bankDetails || null,
+                upiId: upiId || null,
+                upiNumber: upiNumber || null,
+                consentVoiceUrl: videoUrl, // Aapke schema me yehi field hai, main video link isi me save kar rahi hu
+                skills: { connect: connectSkills }, // Multiple Skills Link
+                nakas: { connect: connectNakas },   // Multiple Nakas Link
+                mitraId: req.user.id,
+                isActive: true
+            }
+        });
+
+        res.redirect('/mitra/dashboard');
+    } catch (error) {
+        if (error.code === 'P2002') {
+            // NAYA TARIQA: Global error message set karo
+            req.flash('error_msg', 'Yeh Mobile Number ya Aadhaar pehle se system mein mojud hai!');
+            return res.redirect('/mitra/workers/add');
+        }
+        
+        req.flash('error_msg', 'Kuch galat ho gaya. Kripya dobara koshish karein.');
+        res.redirect('/mitra/workers/add');
+    }
+};
+
+module.exports = { getWorkerDashboard, listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile, updateStatus, savePushToken, showMitraAddForm, saveMitraWorker };

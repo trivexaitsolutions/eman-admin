@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../../controllers/userController');
-const { initiateBooking, verifyPayment, bookWorkers,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory /*, baaki purane functions */, } = require('../../controllers/bookingController');
+const { submitRating,initiateBooking, verifyPayment, bookWorkers,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory,getBookingById /*, baaki purane functions */, } = require('../../controllers/bookingController');
 
 // Placeholder for future customer app routes!
 router.get('/test', (req, res) => {
@@ -26,5 +26,8 @@ router.post('/worker/verify-qr', verifyQrAndStartDuty);
 router.post('/complete-booking', completeBooking);
 
 router.get('/booking-history/:customerId', getBookingHistory);
+
+router.get('/booking/:id', getBookingById);
+router.post('/submit-rating', submitRating);
 
 module.exports = router;

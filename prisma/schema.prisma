@@ -38,12 +38,31 @@ model Naka {
   workers   Worker[] 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  mitras    Mitra[]
+}
+
+model Mitra {
+  id          Int       @id @default(autoincrement())
+  name        String
+  phone       String    @unique
+  email       String?   @unique
+  password    String
+  photoUrl    String?
+  isActive    Boolean   @default(true)
+  
+  // Relationships
+  nakas       Naka[]    // Yeh Mitra kaun-kaun se Naka manage karta hai
+  workers     Worker[]  // Is Mitra ne kitne workers ko onboard kiya (Commission tracking)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Skill {
   id          Int         @id @default(autoincrement())
   name        String      @unique
   description String?     @db.Text
+  imageUrl    String?   // <--- YEH NAYI LINE ADD KAREIN
   isActive    Boolean     @default(true)
   rates       SkillRate[] // This links to our dynamic pricing tiers
   workers     Worker[]    // Keeps the link to the workers
@@ -101,6 +120,8 @@ model Worker {
   lastActive  DateTime @default(now())
   bookings    Booking[]
   pushToken         String?   @db.Text // @db.Text isliye kyunki Expo token thoda lamba hota hai
+  mitraId   Int?      // Optional: Kyunki kuch workers khud app se aayenge bina Mitra ke
+  mitra     Mitra?    @relation(fields: [mitraId], references: [id])
 }
 
 model Customer {
@@ -142,5 +163,19 @@ model Booking {
   customer    Customer @relation(fields: [customerId], references: [id])
   workers     Worker[] 
   arrivedWorkerIds  String  @default("[]")  // NAYA FIELD
+  isRated          Boolean  @default(false)
+  ratings   Rating[]  // Relation with Rating table
 }
 
+model Rating {
+  id        Int      @id @default(autoincrement())
+  bookingId Int
+  workerId  Int
+  mehnat    Int
+  vyavhaar  Int
+  createdAt DateTime @default(now())
+
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  // Note: Agar aapka worker model 'Worker' naam se hai toh niche wali line chalegi
+  // worker    Worker   @relation(fields: [workerId], references: [id])
+}
