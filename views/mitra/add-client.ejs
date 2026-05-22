@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+
+  <title>Add Client | E-MAN Mitra</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      width: 100%;
+      height: 100dvh;
+      background: #f8fafc;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin: 0 auto;
+    }
+
+    .scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 112px;
+    }
+
+    .scroll-area::-webkit-scrollbar {
+      display: none;
+    }
+
+    .bottom-safe {
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+
+    .hero-gradient {
+      background:
+        radial-gradient(circle at top right, rgba(255,255,255,0.25), transparent 35%),
+        linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .dark-card {
+      background:
+        radial-gradient(circle at top right, rgba(16,185,129,0.25), transparent 38%),
+        linear-gradient(135deg, #111827, #030712);
+    }
+
+    .app-input {
+      width: 100%;
+      border: 1.5px solid #e5e7eb;
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 14px 16px;
+      outline: none;
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      transition: 0.2s ease;
+    }
+
+    .app-input:focus {
+      border-color: #10b981;
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.10);
+    }
+
+    .input-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 900;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 7px;
+    }
+
+    .section-card {
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-radius: 30px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .step-content {
+      display: none;
+    }
+
+    .step-content.active {
+      display: block;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateX(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .type-radio:checked + div {
+      background: #ecfdf5;
+      border-color: #10b981;
+      color: #047857;
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.12);
+    }
+
+    .type-radio:checked + div .radio-dot {
+      background: #10b981;
+      border-color: #10b981;
+    }
+
+    @media (max-width: 767px) {
+      .app {
+        max-width: 430px;
+      }
+
+      .tablet-container {
+        width: 100%;
+      }
+
+      .tablet-grid {
+        display: block;
+      }
+
+      .tablet-summary {
+        display: none;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .app {
+        max-width: 100%;
+        background: #eef2f7;
+      }
+
+      .tablet-container {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+
+      .tablet-grid {
+        display: grid;
+        grid-template-columns: 0.72fr 0.28fr;
+        gap: 28px;
+        align-items: start;
+      }
+
+      .scroll-area {
+        padding-bottom: 110px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
+    <div class="tablet-container">
+
+      <div class="flex items-center justify-between gap-4 mb-5">
+
+        <div class="flex items-center gap-3 min-w-0">
+          <a
+            href="/mitra/dashboard"
+            class="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-50 flex items-center justify-center active:bg-gray-100 shrink-0"
+          >
+            <span class="text-2xl font-black text-gray-900">←</span>
+          </a>
+
+          <div class="min-w-0">
+            <p class="text-xs font-black text-emerald-600 uppercase tracking-wide">
+              B2B Onboarding
+            </p>
+
+            <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
+              Add New Client
+            </h1>
+
+            <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
+              Register client and verify mobile OTP
+            </p>
+          </div>
+        </div>
+
+        <div class="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-sm font-black">Mitra Portal</span>
+        </div>
+
+      </div>
+
+      <!-- Step Progress -->
+      <div class="relative">
+        <div class="absolute left-6 right-6 top-4 h-1 bg-gray-100 rounded-full"></div>
+        <div id="progressBar" class="absolute left-6 top-4 h-1 bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%;"></div>
+
+        <div class="relative z-10 grid grid-cols-3 gap-1">
+
+          <div class="flex flex-col items-center gap-1.5">
+            <div id="ind-1" class="step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md">
+              1
+            </div>
+            <span class="text-[9px] md:text-[10px] font-black text-gray-700">BASIC</span>
+          </div>
+
+          <div class="flex flex-col items-center gap-1.5">
+            <div id="ind-2" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
+              2
+            </div>
+            <span class="text-[9px] md:text-[10px] font-black text-gray-700">BUSINESS</span>
+          </div>
+
+          <div class="flex flex-col items-center gap-1.5">
+            <div id="ind-3" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
+              3
+            </div>
+            <span class="text-[9px] md:text-[10px] font-black text-gray-700">OTP</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="scroll-area">
+
+    <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
+
+      <form id="addClientForm" action="/mitra/clients/add" method="POST">
+
+        <div class="tablet-grid">
+
+          <!-- Form Column -->
+          <div>
+
+            <!-- Step 1 -->
+            <section id="step-1" class="step-content active">
+
+              <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
+                <div class="relative z-10">
+                  <p class="text-sm font-bold text-emerald-50">Step 1 of 3</p>
+                  <h2 class="text-2xl md:text-3xl font-black mt-1">Basic Client Profile</h2>
+                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
+                    Client ka type, contact person aur mobile number add karein.
+                  </p>
+                </div>
+              </div>
+
+              <div class="section-card mb-5">
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
+                    👥
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-black text-gray-900">Client Type</h3>
+                    <p class="text-xs font-bold text-gray-500">Individual ya company select karein</p>
+                  </div>
+                </div>
+
+                <label class="input-label">Client Type *</label>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="relative cursor-pointer">
+                    <input type="radio" name="clientType" value="Individual" class="type-radio hidden" checked />
+                    <div class="border-2 border-gray-100 rounded-2xl p-4 flex items-center gap-3 transition">
+                      <div class="radio-dot w-5 h-5 rounded-full border-2 border-gray-300 transition shrink-0"></div>
+                      <div>
+                        <span class="font-black text-gray-800 text-sm block">Individual</span>
+                        <span class="text-[11px] font-bold text-gray-500">Single client</span>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label class="relative cursor-pointer">
+                    <input type="radio" name="clientType" value="Company" class="type-radio hidden" />
+                    <div class="border-2 border-gray-100 rounded-2xl p-4 flex items-center gap-3 transition">
+                      <div class="radio-dot w-5 h-5 rounded-full border-2 border-gray-300 transition shrink-0"></div>
+                      <div>
+                        <span class="font-black text-gray-800 text-sm block">Company</span>
+                        <span class="text-[11px] font-bold text-gray-500">B2B client</span>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">
+                    📞
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-black text-gray-900">Contact Details</h3>
+                    <p class="text-xs font-bold text-gray-500">Primary person details</p>
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div>
+                    <label class="input-label">Full Name / Contact Person *</label>
+                    <input
+                      type="text"
+                      name="contactName"
+                      required
+                      class="app-input"
+                      placeholder="e.g. Rahul Sharma"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="input-label">Mobile Number *</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      required
+                      maxlength="10"
+                      pattern="[0-9]{10}"
+                      class="app-input"
+                      placeholder="10-digit mobile number"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="input-label">Email Address</label>
+                    <input
+                      type="email"
+                      name="email"
+                      class="app-input"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </section>
+
+            <!-- Step 2 -->
+            <section id="step-2" class="step-content">
+
+              <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
+                <div class="relative z-10">
+                  <p class="text-sm font-bold text-emerald-50">Step 2 of 3</p>
+                  <h2 class="text-2xl md:text-3xl font-black mt-1">Site & Business Details</h2>
+                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
+                    Work location, company details aur worker requirement add karein.
+                  </p>
+                </div>
+              </div>
+
+              <div class="section-card mb-5">
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
+                    📍
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-black text-gray-900">Work Site</h3>
+                    <p class="text-xs font-bold text-gray-500">Jahan workers ki requirement hai</p>
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div>
+                    <label class="input-label">Full Site Address *</label>
+                    <textarea
+                      name="siteAddress"
+                      required
+                      rows="3"
+                      class="app-input resize-none"
+                      placeholder="Where is work required?"
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label class="input-label">Worker Requirement *</label>
+                    <select name="workerRequirement" required class="app-input bg-white">
+                      <option value="" disabled selected>Select approx daily requirement</option>
+                      <option value="1-5">1 to 5 Workers</option>
+                      <option value="5-15">5 to 15 Workers</option>
+                      <option value="15-50">15 to 50 Workers</option>
+                      <option value="50+">50+ Workers</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                id="dynamicCompanyFields"
+                style="display: none;"
+                class="section-card border-emerald-100 bg-emerald-50/40"
+              >
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl shadow-sm">
+                    🏢
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-black text-gray-900">Company Information</h3>
+                    <p class="text-xs font-bold text-gray-500">Only for company clients</p>
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div>
+                    <label class="input-label">Company Name *</label>
+                    <input
+                      type="text"
+                      id="companyNameInput"
+                      name="businessName"
+                      class="app-input"
+                      placeholder="e.g. Sai Logistics Pvt Ltd"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="input-label">Industry Type *</label>
+                    <select id="industryInput" name="businessType" class="app-input bg-white">
+                      <option value="" disabled selected>Select Industry...</option>
+                      <option value="Warehouse">Warehouse & Logistics</option>
+                      <option value="Construction">Construction</option>
+                      <option value="Retail">Retail</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="input-label">GST Number</label>
+                    <input
+                      type="text"
+                      name="gstNumber"
+                      class="app-input uppercase"
+                      placeholder="22AAAAA0000A1Z5"
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </section>
+
+            <!-- Step 3 -->
+            <section id="step-3" class="step-content">
+
+              <div class="dark-card rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-gray-300 mb-5 relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/20 rounded-full"></div>
+                <div class="relative z-10">
+                  <p class="text-sm font-bold text-emerald-300">Final Step</p>
+                  <h2 class="text-2xl md:text-3xl font-black mt-1">Verify Mobile Number</h2>
+                  <p class="text-sm md:text-base font-semibold text-gray-300 mt-2">
+                    Client ke mobile par bheja gaya OTP verify karein.
+                  </p>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
+                    🔐
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-black text-gray-900">OTP Verification</h3>
+                    <p class="text-xs font-bold text-gray-500">Testing ke liye OTP 1234 use karo</p>
+                  </div>
+                </div>
+
+                <div class="rounded-[24px] bg-gray-50 border border-gray-100 p-5 text-center mb-5">
+                  <p class="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">
+                    Enter 4 Digit OTP
+                  </p>
+
+                  <input
+                    type="text"
+                    id="otpInput"
+                    maxlength="4"
+                    class="w-full text-center tracking-[0.65em] text-3xl md:text-4xl bg-white border border-gray-200 text-gray-900 font-black rounded-[24px] px-4 py-6 focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 focus:outline-none"
+                    placeholder="----"
+                  />
+
+                  <p id="otpMessage" class="text-sm font-bold hidden"></p>
+                </div>
+
+                <button
+                  type="button"
+                  id="verifyOtpBtn"
+                  class="w-full h-[56px] rounded-[22px] bg-gray-900 text-white font-black shadow-lg active:bg-black transition"
+                >
+                  Verify OTP
+                </button>
+
+                <div class="mt-5 rounded-[24px] bg-emerald-50 border border-emerald-100 p-4">
+                  <div class="flex gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black">
+                      i
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-black text-gray-900">Verification Note</h4>
+                      <p class="text-xs font-bold text-gray-600 leading-5 mt-1">
+                        OTP verify hone ke baad hi Save Client button active hoga.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </section>
+
+          </div>
+
+          <!-- Tablet Summary -->
+          <aside class="tablet-summary">
+            <div class="sticky top-6 space-y-5">
+
+              <div class="section-card">
+                <h3 class="text-lg font-black text-gray-900 mb-2">
+                  Client Checklist
+                </h3>
+
+                <p class="text-sm font-semibold text-gray-500 leading-6">
+                  B2B client onboarding complete karne ke liye 3 steps follow karein.
+                </p>
+
+                <div class="space-y-3 mt-5">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-2xl bg-emerald-50 flex items-center justify-center">👥</div>
+                    <p class="text-sm font-black text-gray-700">Basic Profile</p>
+                  </div>
+
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-2xl bg-blue-50 flex items-center justify-center">📍</div>
+                    <p class="text-sm font-black text-gray-700">Site Details</p>
+                  </div>
+
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-2xl bg-gray-100 flex items-center justify-center">🔐</div>
+                    <p class="text-sm font-black text-gray-700">OTP Verify</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="hero-gradient rounded-[30px] p-5 text-white shadow-xl shadow-emerald-100">
+                <p class="text-sm font-bold text-emerald-50">Current Step</p>
+                <h3 id="summaryStepTitle" class="text-2xl font-black mt-1">Basic Profile</h3>
+                <p id="summaryStepText" class="text-sm font-semibold text-emerald-50 leading-6 mt-2">
+                  Client type aur contact person details add karein.
+                </p>
+              </div>
+
+            </div>
+          </aside>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 px-5 md:px-8 pt-3 bottom-safe shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
+    <div class="tablet-container">
+      <div class="flex gap-3">
+
+        <button
+          type="button"
+          id="prevBtn"
+          class="hidden w-1/3 md:w-[180px] h-[58px] rounded-[22px] bg-gray-100 text-gray-700 text-base md:text-lg font-black active:bg-gray-200 transition"
+        >
+          Back
+        </button>
+
+        <button
+          type="button"
+          id="nextBtn"
+          class="flex-1 h-[58px] rounded-[22px] bg-gray-900 text-white text-base md:text-lg font-black shadow-lg active:bg-black transition"
+        >
+          Next Step
+        </button>
+
+        <button
+          type="submit"
+          form="addClientForm"
+          id="submitBtn"
+          disabled
+          class="hidden flex-1 h-[58px] rounded-[22px] bg-emerald-500 text-white text-base md:text-lg font-black shadow-lg shadow-emerald-100 opacity-50 cursor-not-allowed transition"
+        >
+          Save Client
+        </button>
+
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  let currentStep = 1;
+  const totalSteps = 3;
+  let isOtpVerified = false;
+
+  const steps = [
+    document.getElementById('step-1'),
+    document.getElementById('step-2'),
+    document.getElementById('step-3')
+  ];
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const progressBar = document.getElementById('progressBar');
+
+  const summaryStepTitle = document.getElementById('summaryStepTitle');
+  const summaryStepText = document.getElementById('summaryStepText');
+
+  const stepInfo = {
+    1: {
+      title: 'Basic Profile',
+      text: 'Client type aur contact person details add karein.'
+    },
+    2: {
+      title: 'Site & Business Details',
+      text: 'Work location, company details aur requirement add karein.'
+    },
+    3: {
+      title: 'OTP Verification',
+      text: 'Client ke mobile number par OTP verify karein.'
+    }
+  };
+
+  // Conditional Rendering Logic (Individual vs Company)
+  const clientTypeRadios = document.querySelectorAll('input[name="clientType"]');
+  const dynamicCompanyFields = document.getElementById('dynamicCompanyFields');
+  const companyNameInput = document.getElementById('companyNameInput');
+  const industryInput = document.getElementById('industryInput');
+
+  clientTypeRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'Company') {
+        dynamicCompanyFields.style.display = 'block';
+        companyNameInput.required = true;
+        industryInput.required = true;
+      } else {
+        dynamicCompanyFields.style.display = 'none';
+        companyNameInput.required = false;
+        industryInput.required = false;
+      }
+    });
+  });
+
+  // OTP Logic
+  document.getElementById('verifyOtpBtn').addEventListener('click', () => {
+    const otpVal = document.getElementById('otpInput').value;
+    const msg = document.getElementById('otpMessage');
+
+    msg.classList.remove('hidden');
+
+    if (otpVal === '1234') {
+      msg.textContent = '✅ Verified Successfully!';
+      msg.className = 'text-sm font-black text-emerald-600 mt-4';
+      isOtpVerified = true;
+
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      submitBtn.classList.add('active:scale-[0.98]');
+
+      document.getElementById('verifyOtpBtn').style.display = 'none';
+    } else {
+      msg.textContent = '❌ Invalid OTP. Try 1234.';
+      msg.className = 'text-sm font-black text-red-600 mt-4';
+    }
+  });
+
+  // Navigation Logic
+  function updateUI() {
+    steps.forEach((step, index) => {
+      step.classList.toggle('active', index + 1 === currentStep);
+    });
+
+    for (let i = 1; i <= totalSteps; i++) {
+      let ind = document.getElementById(`ind-${i}`);
+
+      if (i < currentStep) {
+        ind.className = 'step-indicator w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-sm shadow-md shadow-emerald-100';
+        ind.innerHTML = '✓';
+      } else if (i === currentStep) {
+        ind.className = 'step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md';
+        ind.innerHTML = i;
+      } else {
+        ind.className = 'step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm';
+        ind.innerHTML = i;
+      }
+    }
+
+    progressBar.style.width = ((currentStep - 1) / (totalSteps - 1)) * 100 + '%';
+
+    prevBtn.classList.toggle('hidden', currentStep === 1);
+
+    if (currentStep === totalSteps) {
+      nextBtn.classList.add('hidden');
+      submitBtn.classList.remove('hidden');
+    } else {
+      nextBtn.classList.remove('hidden');
+      submitBtn.classList.add('hidden');
+    }
+
+    if (summaryStepTitle && summaryStepText) {
+      summaryStepTitle.textContent = stepInfo[currentStep].title;
+      summaryStepText.textContent = stepInfo[currentStep].text;
+    }
+
+    document.querySelector('.scroll-area').scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  }
+
+  nextBtn.addEventListener('click', () => {
+    const inputs = steps[currentStep - 1].querySelectorAll('input[required], select[required], textarea[required]');
+    let isValid = true;
+
+    inputs.forEach(input => {
+      if (!input.checkValidity()) {
+        input.reportValidity();
+        isValid = false;
+      }
+    });
+
+    if (isValid && currentStep < totalSteps) {
+      currentStep++;
+      updateUI();
+    }
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (currentStep > 1) {
+      currentStep--;
+      updateUI();
+    }
+  });
+
+  document.getElementById('addClientForm').addEventListener('submit', (e) => {
+    if (!isOtpVerified) {
+      e.preventDefault();
+      alert('Please verify OTP before submitting.');
+    }
+  });
+
+  updateUI();
+</script>
+
+</body>
+</html>

@@ -53,6 +53,7 @@ model Mitra {
   // Relationships
   nakas       Naka[]    // Yeh Mitra kaun-kaun se Naka manage karta hai
   workers     Worker[]  // Is Mitra ne kitne workers ko onboard kiya (Commission tracking)
+  customers   Customer[]
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -125,20 +126,29 @@ model Worker {
 }
 
 model Customer {
-  id          Int       @id @default(autoincrement())
-  name        String
-  phone       String    @unique
-  email       String    @unique
+  id                Int       @id @default(autoincrement())
+  phone             String    @unique
+  email             String?   @unique
+  name              String    // Contact Person Name
   
-  // OTP ke liye fields
-  otp         String?   
-  otpExpiry   DateTime? 
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  bookings    Booking[]
-  pushToken String?
+  // 🚀 Naye fields as per instructions
+  clientType        String?   // "Individual" ya "Company"
+  businessName      String?   // Agar Company hai toh
+  businessType      String?   // Industry Type
+  siteAddress       String?   @db.Text
+  gstNumber         String?   
+  workerRequirement String?   // "1-5", "5-15", etc.
+  
+  otp               String?
+  otpExpiry         DateTime? 
+  isVerified        Boolean   @default(false)
+  pushToken         String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  bookings          Booking[]
+  mitraId     Int?
+  mitra       Mitra?   @relation(fields: [mitraId], references: [id])
 }
 
 model Booking {

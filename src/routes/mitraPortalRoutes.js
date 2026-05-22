@@ -34,4 +34,8 @@ router.get('/dashboard', mitraBouncer, mitraPortalController.showDashboard);
 router.get('/workers/add', mitraBouncer, workerController.showMitraAddForm);
 router.post('/workers/save', mitraBouncer, upload.single('videoConsent'), workerController.saveMitraWorker);
 
+// Client Onboarding Routes
+router.get('/clients/add', mitraBouncer, mitraPortalController.getAddClient);
+router.post('/clients/add', mitraBouncer, mitraPortalController.postAddClient);
+
 module.exports = router;
