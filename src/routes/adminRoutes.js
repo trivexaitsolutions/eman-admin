@@ -2,6 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+// const adminConflictController = require("../controllers/adminConflictController");
+const conflictRoutes = require("./conflictRoutes");
 const mitraRoutes = require('./mitraRoutes'); // <-- YEH LINE ADD KAREIN
 
 // 🚀 FIX 1: Curly braces {} laga kar exact function import kiya
@@ -42,5 +44,11 @@ router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
 // Workers ko Admin aur Employee dono manage kar sakte hain
 router.use('/workers', authBouncer(['superadmin', 'admin', 'employee']), workerRoutes);
 router.use('/mitras', authBouncer(['superadmin', 'admin']), mitraRoutes);
+
+router.use(
+  "/conflicts",
+  authBouncer(["superadmin", "admin", "employee"]),
+  conflictRoutes
+);
 
 module.exports = router;

@@ -134,4 +134,270 @@ const postAddClient = async (req, res) => {
 };
 
 
-module.exports = { login, showDashboard, logout, getAddClient, postAddClient };
+
+const calculateMitraConflictAmounts = (conflict) => {
+    const booking = conflict.booking;
+    const totalBookingAmount = Math.round(Number(booking?.amount || 0));
+
+    const perWorkerAmount =
+        booking?.amount && booking?.workerCount
+            ? Math.round(Number(booking.amount) / Number(booking.workerCount))
+            : 0;
+
+    let suggestedRefundAmount = 0;
+
+    if (conflict.requestedAction === "CANCEL_BOOKING") {
+        suggestedRefundAmount = totalBookingAmount;
+    }
+
+    if (
+        conflict.requestedAction === "CANCEL_WORKER" ||
+        conflict.requestedAction === "CANCEL_DUTY"
+    ) {
+        suggestedRefundAmount = perWorkerAmount;
+    }
+
+    return {
+        totalBookingAmount,
+        perWorkerAmount,
+        suggestedRefundAmount,
+    };
+};
+
+const formatMitraConflict = (conflict) => {
+    const booking = conflict.booking;
+    const customer = booking?.customer || null;
+
+    const worker =
+        booking?.workers?.find(
+            (w) => Number(w.id) === Number(conflict.workerId)
+        ) || null;
+
+    const amountData = calculateMitraConflictAmounts(conflict);
+
+    return {
+        id: conflict.id,
+        bookingId: conflict.bookingId,
+
+        raisedByType: conflict.raisedByType,
+        raisedById: conflict.raisedById,
+
+        reason: conflict.reason,
+        description: conflict.description,
+
+        status: conflict.status,
+        requestedAction: conflict.requestedAction,
+        continueWork: conflict.continueWork,
+
+        penaltyAmount: conflict.penaltyAmount || 0,
+
+        totalBookingAmount: amountData.totalBookingAmount,
+        perWorkerAmount: amountData.perWorkerAmount,
+        suggestedRefundAmount: amountData.suggestedRefundAmount,
+
+        createdAt: conflict.createdAt,
+        updatedAt: conflict.updatedAt,
+
+        customer: customer
+            ? {
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+                email: customer.email,
+            }
+            : null,
+
+        worker: worker
+            ? {
+                id: worker.id,
+                name: worker.name,
+                phone: worker.phone,
+                email: worker.email,
+            }
+            : null,
+
+        timeline: conflict.timeline || [],
+    };
+};
+
+const getMitraConflicts = async (req, res) => {
+    try {
+        const mitraId = req.user ? req.user.id : 1;
+
+        const { status, fromDate, toDate } = req.query;
+
+        const now = new Date();
+
+        const defaultFromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        const defaultToDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        const finalFromDate =
+            fromDate || defaultFromDate.toISOString().split("T")[0];
+
+        const finalToDate =
+            toDate || defaultToDate.toISOString().split("T")[0];
+
+        const where = {
+            mitraId: Number(mitraId),
+        };
+
+        if (status && status !== "ALL") {
+            where.status = status;
+        }
+
+        if (finalFromDate && finalToDate) {
+            const start = new Date(finalFromDate);
+            const end = new Date(finalToDate);
+            end.setDate(end.getDate() + 1);
+
+            where.createdAt = {
+                gte: start,
+                lt: end,
+            };
+        }
+
+        const conflicts = await prisma.conflict.findMany({
+            where,
+            include: {
+                booking: {
+                    include: {
+                        customer: true,
+                        workers: true,
+                    },
+                },
+                timeline: {
+                    orderBy: {
+                        createdAt: "desc",
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+
+        const formattedConflicts = conflicts.map(formatMitraConflict);
+
+        return res.render("mitra/conflicts", {
+            layout: false,
+            mitra: req.user,
+            conflicts: formattedConflicts,
+            filters: {
+                status: status || "ALL",
+                fromDate: finalFromDate,
+                toDate: finalToDate,
+            },
+        });
+    } catch (error) {
+        console.error("Mitra Conflicts Error:", error);
+        return res.status(500).send("Server Error while loading conflicts");
+    }
+};
+
+const getMitraConflictDetails = async (req, res) => {
+    try {
+        const mitraId = req.user ? req.user.id : 1;
+        const { id } = req.params;
+
+        const conflict = await prisma.conflict.findFirst({
+            where: {
+                id: parseInt(id),
+                mitraId: Number(mitraId),
+            },
+            include: {
+                booking: {
+                    include: {
+                        customer: true,
+                        workers: true,
+                    },
+                },
+                timeline: {
+                    orderBy: {
+                        createdAt: "desc",
+                    },
+                },
+            },
+        });
+
+        if (!conflict) {
+            return res.status(404).send("Conflict not found or not assigned to you");
+        }
+
+        const formattedConflict = formatMitraConflict(conflict);
+
+        return res.render("mitra/conflict-review", {
+            layout: false,
+            mitra: req.user,
+            conflict: formattedConflict,
+        });
+    } catch (error) {
+        console.error("Mitra Conflict Details Error:", error);
+        return res.status(500).send("Server Error while loading conflict details");
+    }
+};
+
+const updateMitraConflictStatus = async (req, res) => {
+    try {
+        const mitraId = req.user ? req.user.id : 1;
+        const { id } = req.params;
+        const { status, note } = req.body;
+
+        if (!status || !["PENDING", "IN_PROGRESS", "SOLVED", "UNRESOLVED"].includes(status)) {
+            return res.status(400).send("Invalid status");
+        }
+
+        if (!note || !note.trim()) {
+            return res.status(400).send("Note is required");
+        }
+
+        const conflict = await prisma.conflict.findFirst({
+            where: {
+                id: parseInt(id),
+                mitraId: Number(mitraId),
+            },
+        });
+
+        if (!conflict) {
+            return res.status(404).send("Conflict not found or not assigned to you");
+        }
+
+        await prisma.$transaction(async (tx) => {
+            await tx.conflict.update({
+                where: {
+                    id: parseInt(id),
+                },
+                data: {
+                    status,
+                },
+            });
+
+            await tx.conflictTimeline.create({
+                data: {
+                    conflictId: parseInt(id),
+                    updatedByType: "MITRA",
+                    updatedById: Number(mitraId),
+                    oldStatus: conflict.status,
+                    newStatus: status,
+                    note: note.trim(),
+                },
+            });
+        });
+
+        return res.redirect(`/mitra/conflicts/${id}`);
+    } catch (error) {
+        console.error("Mitra Conflict Update Error:", error);
+        return res.status(500).send("Server Error while updating conflict");
+    }
+};
+
+
+module.exports = {
+    login,
+    showDashboard,
+    logout,
+    getAddClient,
+    postAddClient,
+    getMitraConflicts,
+    getMitraConflictDetails,
+    updateMitraConflictStatus,
+};

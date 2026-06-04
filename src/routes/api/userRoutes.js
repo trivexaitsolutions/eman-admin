@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../../controllers/userController');
 const { submitRating,initiateBooking, verifyPayment, bookWorkers,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory,getBookingById /*, baaki purane functions */, } = require('../../controllers/bookingController');
+const conflictController = require('../../controllers/conflictController');
+const customerAddressController = require("../../controllers/customerAddressController");
 
 // Placeholder for future customer app routes!
 router.get('/test', (req, res) => {
@@ -29,5 +31,28 @@ router.get('/booking-history/:customerId', getBookingHistory);
 
 router.get('/booking/:id', getBookingById);
 router.post('/submit-rating', submitRating);
+
+router.post('/conflicts/create', conflictController.createConflict);
+
+router.get(
+  "/customer-addresses/:customerId",
+  customerAddressController.getAddresses
+);
+
+router.post(
+  "/customer-addresses",
+  customerAddressController.addAddress
+);
+
+router.put(
+  "/customer-addresses/:id",
+  customerAddressController.updateAddress
+);
+
+router.delete(
+  "/customer-addresses/:id",
+  customerAddressController.deleteAddress
+);
+
 
 module.exports = router;

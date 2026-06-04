@@ -30,6 +30,13 @@ router.get('/logout', mitraPortalController.logout);
 // --- PROTECTED ROUTES ---
 router.get('/dashboard', mitraBouncer, mitraPortalController.showDashboard);
 
+// Conflict Management Routes
+router.get('/conflicts', mitraBouncer, mitraPortalController.getMitraConflicts);
+
+router.get('/conflicts/:id', mitraBouncer, mitraPortalController.getMitraConflictDetails);
+
+router.post('/conflicts/:id/status', mitraBouncer, mitraPortalController.updateMitraConflictStatus);
+
 // 🚀 WORKER ROUTES UPDATE: upload.single('videoConsent') add kiya
 router.get('/workers/add', mitraBouncer, workerController.showMitraAddForm);
 router.post('/workers/save', mitraBouncer, upload.single('videoConsent'), workerController.saveMitraWorker);
@@ -37,5 +44,7 @@ router.post('/workers/save', mitraBouncer, upload.single('videoConsent'), worker
 // Client Onboarding Routes
 router.get('/clients/add', mitraBouncer, mitraPortalController.getAddClient);
 router.post('/clients/add', mitraBouncer, mitraPortalController.postAddClient);
+
+
 
 module.exports = router;

@@ -31,6 +31,12 @@ const viewGlobals = (req, res, next) => {
             roles: ['superadmin', 'admin'] // Employee ko nahi dikhega
         },
         {
+            name: 'Conflict Management',
+            path: '/admin/conflicts',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>',
+            roles: ['superadmin', 'admin', 'employee']
+        },
+        {
             name: 'Master: Cities', 
             path: '/admin/cities',  
             icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>',

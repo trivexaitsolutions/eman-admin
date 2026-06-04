@@ -238,57 +238,131 @@ const bookWorkers = async (req, res) => {
 };
 
 const getCurrentBooking = async (req, res) => {
-    try {
-        const { customerId } = req.params;
-        
-        // Sabse latest ASSIGNED booking dhoondo
-        const activeBooking = await prisma.booking.findFirst({
-            where: { 
-                customerId: parseInt(customerId),
-                status: { in: ["ASSIGNED", "IN_PROGRESS"] }
-            },
-            include: { workers: true }, // Workers ka data (naam, photo) bhi sath laao
-            orderBy: { createdAt: 'desc' }
-        });
+  try {
+    const { customerId } = req.params;
 
-        if (activeBooking) {
-            res.json({ success: true, booking: activeBooking });
-        } else {
-            res.json({ success: false, message: "Koi active booking nahi hai" });
-        }
-    } catch (error) {
-        console.error("Current Booking Error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+    const activeBooking = await prisma.booking.findFirst({
+      where: {
+        customerId: parseInt(customerId),
+        status: { in: ["ASSIGNED", "IN_PROGRESS"] },
+      },
+      include: {
+        workers: true,
+        conflicts: {
+          where: {
+            raisedByType: "WORKER",
+            requestedAction: "CANCEL_DUTY",
+            continueWork: false,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (activeBooking) {
+      const workerAmount =
+        activeBooking.amount && activeBooking.workerCount
+          ? Math.round(
+              Number(activeBooking.amount) / Number(activeBooking.workerCount)
+            )
+          : 0;
+
+      const cancelledConflictInfo = activeBooking.conflicts.map((conflict) => {
+        const worker = activeBooking.workers.find(
+          (w) => Number(w.id) === Number(conflict.workerId)
+        );
+
+        return {
+          workerId: conflict.workerId,
+          workerName: worker?.name || "Worker",
+          reason: conflict.reason,
+          description: conflict.description,
+          amount: workerAmount,
+          conflictId: conflict.id,
+          createdAt: conflict.createdAt,
+        };
+      });
+
+      return res.json({
+        success: true,
+        booking: {
+          ...activeBooking,
+          cancelledConflictInfo,
+        },
+      });
+    } else {
+      return res.json({
+        success: false,
+        message: "Koi active booking nahi hai",
+      });
     }
+  } catch (error) {
+    console.error("Current Booking Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
 };
-
 
 // 1. WORKER: Current duty (kaam) fetch karne ke liye
 const getCurrentDuty = async (req, res) => {
-    try {
-        const { workerId } = req.params;
+  try {
+    const { workerId } = req.params;
 
-        // Wo booking dhoondo jisme yeh worker hai aur jiska status 'ASSIGNED' hai
-        const activeDuty = await prisma.booking.findFirst({
-    where: {
-        // Dhyaan dein: IN_PROGRESS ko bhi allow karna hai
+    const activeDuty = await prisma.booking.findFirst({
+      where: {
         status: { in: ["ASSIGNED", "IN_PROGRESS"] },
         workers: {
-            some: { id: parseInt(workerId) }
-        }
-    },
-    include: { customer: true }
-});
+          some: { id: parseInt(workerId) },
+        },
+      },
+      include: {
+        customer: true,
+        // naka: true, // agar tumhare Booking model me naka relation hai
+        workers: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-        if (activeDuty) {
-            res.json({ success: true, duty: activeDuty });
-        } else {
-            res.json({ success: false, message: "Koi active duty nahi hai" });
-        }
-    } catch (error) {
-        console.error("Current Duty Error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+    if (!activeDuty) {
+      return res.json({
+        success: false,
+        message: "Koi active duty nahi hai",
+      });
     }
+
+    let cancelledWorkerIds = [];
+
+    try {
+      cancelledWorkerIds = JSON.parse(activeDuty.cancelledWorkerIds || "[]");
+    } catch (e) {
+      cancelledWorkerIds = [];
+    }
+
+    if (cancelledWorkerIds.map(Number).includes(Number(workerId))) {
+      return res.json({
+        success: false,
+        message: "This duty has been cancelled for this worker.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      duty: activeDuty,
+    });
+  } catch (error) {
+    console.error("Current Duty Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
 };
 
 // 2. WORKER: QR scan hone ke baad Duty 'IN_PROGRESS' karne ke liye
@@ -311,6 +385,9 @@ const verifyQrAndStartDuty = async (req, res) => {
         // 3. Check karo kya sab workers aa gaye?
         const allArrived = arrivedList.length >= booking.workerCount;
         const newStatus = allArrived ? "IN_PROGRESS" : "ASSIGNED";
+
+        console.log('Old arrival list:', booking.arrivedWorkerIds);
+        console.log('Updated arrival list:', arrivedList, parseInt(bookingId));
 
         // 4. Database update karo
         const updatedBooking = await prisma.booking.update({

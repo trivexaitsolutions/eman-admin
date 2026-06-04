@@ -9,4 +9,9 @@ router.get('/profile/:id', workerController.getWorkerProfile);
 router.post('/update-status', workerController.updateStatus);
 router.post('/save-push-token', savePushToken);
 router.get('/dashboard/:workerId', getWorkerDashboard);
+
+router.post('/login', workerController.loginWorker);
+router.get('/profile/:id', workerController.getWorkerProfile);
+router.post('/update-status', workerController.updateStatus);
+
 module.exports = router;

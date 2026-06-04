@@ -149,6 +149,7 @@ model Customer {
   bookings          Booking[]
   mitraId     Int?
   mitra       Mitra?   @relation(fields: [mitraId], references: [id])
+  addresses CustomerAddress[]
 }
 
 model Booking {
@@ -173,8 +174,10 @@ model Booking {
   customer    Customer @relation(fields: [customerId], references: [id])
   workers     Worker[] 
   arrivedWorkerIds  String  @default("[]")  // NAYA FIELD
+  cancelledWorkerIds String @default("[]")
   isRated          Boolean  @default(false)
   ratings   Rating[]  // Relation with Rating table
+  conflicts Conflict[]
 }
 
 model Rating {
@@ -188,4 +191,97 @@ model Rating {
   booking   Booking  @relation(fields: [bookingId], references: [id])
   // Note: Agar aapka worker model 'Worker' naam se hai toh niche wali line chalegi
   // worker    Worker   @relation(fields: [workerId], references: [id])
+}
+
+model Conflict {
+  id              Int              @id @default(autoincrement())
+
+  bookingId       Int
+  booking         Booking          @relation(fields: [bookingId], references: [id])
+
+  raisedByType    ConflictRaisedBy
+  raisedById      Int?
+
+  customerId      Int?
+  workerId        Int?
+  mitraId         Int?
+
+  reason          String
+  description     String?
+
+  penaltyAmount   Int?
+  status          ConflictStatus   @default(PENDING)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  timeline        ConflictTimeline[]
+  continueWork Boolean @default(true)
+  requestedAction String?
+}
+
+enum ConflictRaisedBy {
+  CLIENT
+  WORKER
+}
+
+enum ConflictStatus {
+  PENDING
+  IN_PROGRESS
+  SOLVED
+  UNRESOLVED
+}
+
+model ConflictTimeline {
+  id              Int              @id @default(autoincrement())
+
+  conflictId      Int
+  conflict        Conflict         @relation(fields: [conflictId], references: [id])
+
+  updatedByType   ConflictUpdatedBy
+  updatedById     Int?
+
+  oldStatus       ConflictStatus?
+  newStatus       ConflictStatus
+
+  note            String?
+
+  createdAt       DateTime         @default(now())
+}
+
+model CustomerAddress {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+
+  title       String?
+  fullName    String?
+  phone       String?
+
+  addressLine String
+  landmark    String?
+
+  cityId      Int?
+  city        String?
+
+  nakaId      Int?
+  nakaName    String?
+
+  state       String?
+  pincode     String?
+
+  latitude    String?
+  longitude   String?
+
+  isDefault   Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+}
+
+enum ConflictUpdatedBy {
+  ADMIN
+  MITRA
+  SYSTEM
 }
