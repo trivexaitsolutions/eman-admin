@@ -123,6 +123,11 @@ model Worker {
   pushToken         String?   @db.Text // @db.Text isliye kyunki Expo token thoda lamba hota hai
   mitraId   Int?      // Optional: Kyunki kuch workers khud app se aayenge bina Mitra ke
   mitra     Mitra?    @relation(fields: [mitraId], references: [id])
+
+  availabilityType String?  // FULL_DAY / SHORT_PERIOD
+  availabilityStart DateTime?
+  availabilityHours Int?
+  availabilityUntil DateTime?
 }
 
 model Customer {
@@ -178,6 +183,8 @@ model Booking {
   isRated          Boolean  @default(false)
   ratings   Rating[]  // Relation with Rating table
   conflicts Conflict[]
+  workerClientRatings WorkerClientRating[]
+  completedWorkerIds String? @db.Text
 }
 
 model Rating {
@@ -191,6 +198,27 @@ model Rating {
   booking   Booking  @relation(fields: [bookingId], references: [id])
   // Note: Agar aapka worker model 'Worker' naam se hai toh niche wali line chalegi
   // worker    Worker   @relation(fields: [workerId], references: [id])
+}
+
+model WorkerClientRating {
+  id        Int      @id @default(autoincrement())
+
+  bookingId Int
+  workerId  Int
+  customerId Int
+
+  rating    Int
+  behaviour Int?
+  locationAccuracy Int?
+  coordination Int?
+  comment   String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, workerId])
 }
 
 model Conflict {

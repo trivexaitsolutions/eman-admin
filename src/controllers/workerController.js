@@ -181,16 +181,243 @@ const deleteWorker = async (req, res) => {
     }
 };
 
+const getTodayPoolTimes = () => {
+    const now = new Date();
+
+    const startHour = parseInt(process.env.POOL_START_HOUR || "8");
+    const startMinute = parseInt(process.env.POOL_START_MINUTE || "0");
+    const endHour = parseInt(process.env.POOL_END_HOUR || "20");
+    const endMinute = parseInt(process.env.POOL_END_MINUTE || "0");
+
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(now);
+
+    const year = parts.find((p) => p.type === "year").value;
+    const month = parts.find((p) => p.type === "month").value;
+    const day = parts.find((p) => p.type === "day").value;
+
+    const pad = (num) => String(num).padStart(2, "0");
+
+    const poolStart = new Date(
+        `${year}-${month}-${day}T${pad(startHour)}:${pad(startMinute)}:00+05:30`
+    );
+
+    const poolEnd = new Date(
+        `${year}-${month}-${day}T${pad(endHour)}:${pad(endMinute)}:00+05:30`
+    );
+
+    return { poolStart, poolEnd, now };
+};
+
+const getRemainingSeconds = (untilDate) => {
+    if (!untilDate) return 0;
+
+    const diff = new Date(untilDate).getTime() - new Date().getTime();
+    return Math.max(0, Math.floor(diff / 1000));
+};
+
 const updateStatus = async (req, res) => {
-    const { workerId, status } = req.body; // status: true or false
+    const {
+        workerId,
+        status,
+        availabilityType = "FULL_DAY",
+        availabilityHours,
+    } = req.body;
+
     try {
-        await prisma.worker.update({
-            where: { id: parseInt(workerId) },
-            data: { isAvailable: status }
+        if (!workerId) {
+            return res.status(400).json({
+                success: false,
+                message: "workerId required",
+            });
+        }
+
+        const workerIdNumber = parseInt(workerId);
+
+        // OFFLINE
+        if (status === false || status === "false") {
+            await prisma.worker.update({
+                where: { id: workerIdNumber },
+                data: {
+                    isAvailable: false,
+                    availabilityType: null,
+                    availabilityStart: null,
+                    availabilityHours: null,
+                    availabilityUntil: null,
+                    lastActive: new Date(),
+                },
+            });
+
+            return res.json({
+                success: true,
+                message: "Aap Offline hain!",
+            });
+        }
+
+        const { poolStart, poolEnd, now } = getTodayPoolTimes();
+
+        let finalAvailabilityType = availabilityType || "FULL_DAY";
+let finalAvailabilityHours = null;
+let availabilityUntil = poolEnd;
+
+// Full day ke liye 8 PM ke baad allow nahi
+if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
+    await prisma.worker.update({
+        where: { id: workerIdNumber },
+        data: {
+            isAvailable: false,
+            availabilityType: null,
+            availabilityStart: null,
+            availabilityHours: null,
+            availabilityUntil: null,
+            lastActive: new Date(),
+        },
+    });
+
+    return res.status(400).json({
+        success: false,
+        message: "Full day pool has ended. You can use short hours availability.",
+        code: "FULL_DAY_POOL_ENDED",
+    });
+}
+
+        // FULL DAY
+        if (finalAvailabilityType === "FULL_DAY") {
+            availabilityUntil = poolEnd;
+            finalAvailabilityHours = null;
+        }
+
+        // SHORT PERIOD
+        else if (finalAvailabilityType === "SHORT_PERIOD") {
+            finalAvailabilityHours = parseInt(availabilityHours);
+
+            if (!finalAvailabilityHours || finalAvailabilityHours <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please select valid hours.",
+                });
+            }
+
+            availabilityUntil = new Date(
+                now.getTime() + finalAvailabilityHours * 60 * 60 * 1000
+            );
+
+            
+        }
+
+        else {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid availability type.",
+            });
+        }
+
+        const updatedWorker = await prisma.worker.update({
+            where: { id: workerIdNumber },
+            data: {
+                isAvailable: true,
+                availabilityType: finalAvailabilityType,
+                availabilityStart: now,
+                availabilityHours: finalAvailabilityHours,
+                availabilityUntil,
+                lastActive: now,
+            },
         });
-        res.json({ success: true, message: status ? "Aap Live hain!" : "Aap Offline hain!" });
+
+        return res.json({
+            success: true,
+            message:
+                finalAvailabilityType === "FULL_DAY"
+                    ? "Aap full day ke liye pool mein add ho gaye hain!"
+                    : `Aap ${finalAvailabilityHours} hours ke liye pool mein add ho gaye hain!`,
+            pool: {
+                isAvailable: updatedWorker.isAvailable,
+                availabilityType: updatedWorker.availabilityType,
+                availabilityStart: updatedWorker.availabilityStart,
+                availabilityHours: updatedWorker.availabilityHours,
+                availabilityUntil: updatedWorker.availabilityUntil,
+                remainingSeconds: getRemainingSeconds(updatedWorker.availabilityUntil),
+            },
+        });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Status update nahi ho paya" });
+        console.error("Status update error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Status update nahi ho paya",
+        });
+    }
+};
+
+const getPoolStatus = async (req, res) => {
+    try {
+        const { workerId } = req.params;
+
+        const worker = await prisma.worker.findUnique({
+            where: { id: parseInt(workerId) },
+            select: {
+                id: true,
+                isAvailable: true,
+                availabilityType: true,
+                availabilityStart: true,
+                availabilityHours: true,
+                availabilityUntil: true,
+            },
+        });
+
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: "Worker not found",
+            });
+        }
+
+        const now = new Date();
+
+        if (
+            worker.isAvailable &&
+            worker.availabilityUntil &&
+            new Date(worker.availabilityUntil) <= now
+        ) {
+            await prisma.worker.update({
+                where: { id: parseInt(workerId) },
+                data: {
+                    isAvailable: false,
+                    availabilityType: null,
+                    availabilityStart: null,
+                    availabilityHours: null,
+                    availabilityUntil: null,
+                    lastActive: now,
+                },
+            });
+
+            return res.json({
+                success: false,
+                message: "Pool time ended. Worker is now offline.",
+                code: "POOL_ENDED",
+                isAvailable: false,
+                remainingSeconds: 0,
+            });
+        }
+
+        return res.json({
+            success: true,
+            isAvailable: worker.isAvailable,
+            availabilityType: worker.availabilityType,
+            availabilityStart: worker.availabilityStart,
+            availabilityHours: worker.availabilityHours,
+            availabilityUntil: worker.availabilityUntil,
+            remainingSeconds: getRemainingSeconds(worker.availabilityUntil),
+        });
+    } catch (error) {
+        console.error("Pool status error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Pool status fetch nahi ho paya",
+        });
     }
 };
 
@@ -341,4 +568,17 @@ const saveMitraWorker = async (req, res) => {
     }
 };
 
-module.exports = { getWorkerDashboard, listWorkers, showForm, saveWorker, deleteWorker, loginWorker, getWorkerProfile, updateStatus, savePushToken, showMitraAddForm, saveMitraWorker };
+module.exports = {
+    getWorkerDashboard,
+    listWorkers,
+    showForm,
+    saveWorker,
+    deleteWorker,
+    loginWorker,
+    getWorkerProfile,
+    updateStatus,
+    getPoolStatus,
+    savePushToken,
+    showMitraAddForm,
+    saveMitraWorker,
+};

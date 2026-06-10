@@ -9,6 +9,28 @@ let expo = new Expo();
 // const { sendPushNotification } = require('../utils/sendNotification');
 
 
+const expireOldAvailableWorkers = async () => {
+    const now = new Date();
+
+    await prisma.worker.updateMany({
+        where: {
+            isAvailable: true,
+            availabilityUntil: {
+                lte: now,
+            },
+        },
+        data: {
+            isAvailable: false,
+            availabilityType: null,
+            availabilityStart: null,
+            availabilityHours: null,
+            availabilityUntil: null,
+            lastActive: now,
+        },
+    });
+};
+
+
 // Razorpay Setup (Aap apni test keys .env file me daaliyega)
 const razorpay = new Razorpay({
     key_id: 'rzp_test_SouUYINcIpP7iB',
@@ -19,15 +41,20 @@ const initiateBooking = async (req, res) => {
     const { customerId, nakaId, skillId, workerCount, totalAmount } = req.body;
 
     try {
+        await expireOldAvailableWorkers();
+
+        const now = new Date();
         // 1. Dhoondo kaun se workers free hain
         const availableWorkers = await prisma.worker.findMany({
             where: {
                 isAvailable: true,
+                availabilityUntil: {
+                    gt: now,
+                },
                 nakas: { some: { id: parseInt(nakaId) } },
-                skills: { some: { id: parseInt(skillId) } }
-                // Note: Agar star rating ki filter lagani hai, toh wo yahan add hogi
+                skills: { some: { id: parseInt(skillId) } },
             },
-            take: parseInt(workerCount)
+            take: parseInt(workerCount),
         });
 
         // 2. Check karo ki kya utne workers mile?
@@ -154,14 +181,20 @@ const bookWorkers = async (req, res) => {
     const { customerId, nakaId, skillId, workerCount } = req.body;
 
     try {
+        await expireOldAvailableWorkers();
+
+        const now = new Date();
         // 1. Dhoondo kaun se workers free hain, us naka par, aur wo skill jaante hain
         const availableWorkers = await prisma.worker.findMany({
             where: {
                 isAvailable: true,
-                nakas: { some: { id: parseInt(nakaId) } }, // Naka match
-                skills: { some: { id: parseInt(skillId) } } // Skill match
+                availabilityUntil: {
+                    gt: now,
+                },
+                nakas: { some: { id: parseInt(nakaId) } },
+                skills: { some: { id: parseInt(skillId) } },
             },
-            take: parseInt(workerCount) // Sirf utne hi uthao jitne customer ne maange hain!
+            take: parseInt(workerCount),
         });
 
         // 2. Check karo ki kya utne workers mile?
@@ -442,8 +475,11 @@ const completeBooking = async (req, res) => {
                     to: worker.pushToken,
                     sound: 'default',
                     title: 'Duty Completed! 🎉',
-                    body: 'Customer ne work complete mark kar diya hai. Great job!',
-                    data: { action: 'DUTY_COMPLETED' },
+                    body: 'Customer ne work complete mark kar diya hai. Please client ko rate karein.',
+                    data: { 
+                        action: 'RATE_CLIENT',
+                        bookingId: updatedBooking.id
+                    },
                 });
             }
         }
@@ -553,4 +589,431 @@ const submitRating = async (req, res) => {
 };
 
 
-module.exports = { submitRating,bookWorkers,initiateBooking,verifyPayment,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory,getBookingById };
+const getClientRatingStatus = async (req, res) => {
+    try {
+        const { bookingId, workerId } = req.params;
+
+        if (!bookingId || !workerId) {
+            return res.status(400).json({
+                success: false,
+                message: "bookingId and workerId are required",
+            });
+        }
+
+        const bookingIdNumber = parseInt(bookingId);
+        const workerIdNumber = parseInt(workerId);
+
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: bookingIdNumber,
+                workers: {
+                    some: { id: workerIdNumber },
+                },
+            },
+            include: {
+                customer: true,
+                workers: true,
+            },
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found for this worker.",
+            });
+        }
+
+        const existingRating = await prisma.workerClientRating.findUnique({
+            where: {
+                bookingId_workerId: {
+                    bookingId: bookingIdNumber,
+                    workerId: workerIdNumber,
+                },
+            },
+        });
+
+        return res.json({
+            success: true,
+            booking: {
+                id: booking.id,
+                status: booking.status,
+                customerId: booking.customerId,
+                customerName: booking.customer?.name || "Client",
+                customerPhone: booking.customer?.phone || "",
+                amount: booking.amount,
+                createdAt: booking.createdAt,
+            },
+            isRated: !!existingRating,
+            rating: existingRating,
+        });
+    } catch (error) {
+        console.error("Get Client Rating Status Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Client rating status fetch nahi ho paya",
+        });
+    }
+};
+
+const submitClientRatingByWorker = async (req, res) => {
+    try {
+        const {
+            bookingId,
+            workerId,
+            rating,
+            behaviour,
+            locationAccuracy,
+            coordination,
+            comment,
+        } = req.body;
+
+        if (!bookingId || !workerId || !rating) {
+            return res.status(400).json({
+                success: false,
+                message: "bookingId, workerId and rating are required",
+            });
+        }
+
+        const bookingIdNumber = parseInt(bookingId);
+        const workerIdNumber = parseInt(workerId);
+        const finalRating = parseInt(rating);
+
+        if (finalRating < 1 || finalRating > 5) {
+            return res.status(400).json({
+                success: false,
+                message: "Rating must be between 1 and 5",
+            });
+        }
+
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: bookingIdNumber,
+                workers: {
+                    some: { id: workerIdNumber },
+                },
+            },
+            include: {
+                customer: true,
+            },
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found for this worker.",
+            });
+        }
+
+        if (booking.status !== "COMPLETED") {
+            return res.status(400).json({
+                success: false,
+                message: "Client rating can be submitted only after work completion.",
+            });
+        }
+
+        const savedRating = await prisma.workerClientRating.upsert({
+            where: {
+                bookingId_workerId: {
+                    bookingId: bookingIdNumber,
+                    workerId: workerIdNumber,
+                },
+            },
+            update: {
+                rating: finalRating,
+                behaviour: behaviour ? parseInt(behaviour) : null,
+                locationAccuracy: locationAccuracy ? parseInt(locationAccuracy) : null,
+                coordination: coordination ? parseInt(coordination) : null,
+                comment: comment || null,
+            },
+            create: {
+                bookingId: bookingIdNumber,
+                workerId: workerIdNumber,
+                customerId: booking.customerId,
+                rating: finalRating,
+                behaviour: behaviour ? parseInt(behaviour) : null,
+                locationAccuracy: locationAccuracy ? parseInt(locationAccuracy) : null,
+                coordination: coordination ? parseInt(coordination) : null,
+                comment: comment || null,
+            },
+        });
+
+        return res.json({
+            success: true,
+            message: "Client rating submitted successfully.",
+            rating: savedRating,
+        });
+    } catch (error) {
+        console.error("Submit Client Rating By Worker Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Client rating submit nahi ho payi",
+        });
+    }
+};
+
+
+const getWorkerBookingHistory = async (req, res) => {
+    try {
+        const { workerId } = req.params;
+
+        const workerIdNumber = parseInt(workerId);
+
+        const bookings = await prisma.booking.findMany({
+            where: {
+                workers: {
+                    some: { id: workerIdNumber },
+                },
+                status: {
+                    in: ["COMPLETED", "CANCELLED"],
+                },
+            },
+            include: {
+                customer: true,
+                workerClientRatings: {
+                    where: {
+                        workerId: workerIdNumber,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+
+        const totalJobs = bookings.length;
+
+        const completedJobs = bookings.filter(
+            (booking) => booking.status === "COMPLETED"
+        );
+
+        const totalEarning = completedJobs.reduce((sum, booking) => {
+            const workerCount = Number(booking.workerCount || 1);
+            const amount = Number(booking.amount || 0);
+            const workerShare = workerCount > 0 ? Math.round(amount / workerCount) : amount;
+
+            return sum + workerShare;
+        }, 0);
+
+        const pendingRatings = completedJobs.filter(
+            (booking) => !booking.workerClientRatings?.length
+        ).length;
+
+        const history = bookings.map((booking) => {
+            const workerCount = Number(booking.workerCount || 1);
+            const amount = Number(booking.amount || 0);
+            const workerShare = workerCount > 0 ? Math.round(amount / workerCount) : amount;
+            const clientRating = booking.workerClientRatings?.[0] || null;
+
+            return {
+                id: booking.id,
+                status: booking.status,
+                amount: booking.amount,
+                workerShare,
+                workerCount: booking.workerCount,
+                customerId: booking.customerId,
+                customerName: booking.customer?.name || "Client",
+                customerPhone: booking.customer?.phone || "",
+                nakaId: booking.nakaId,
+                skillId: booking.skillId,
+                createdAt: booking.createdAt,
+                updatedAt: booking.updatedAt,
+                isClientRated: !!clientRating,
+                clientRating,
+            };
+        });
+
+        return res.json({
+            success: true,
+            summary: {
+                totalJobs,
+                completedJobs: completedJobs.length,
+                totalEarning,
+                pendingRatings,
+            },
+            history,
+        });
+    } catch (error) {
+        console.error("Worker Booking History Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Worker booking history fetch nahi ho payi",
+        });
+    }
+};
+
+const getWorkerBookingDetails = async (req, res) => {
+    try {
+        const { bookingId, workerId } = req.params;
+
+        const bookingIdNumber = parseInt(bookingId);
+        const workerIdNumber = parseInt(workerId);
+
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: bookingIdNumber,
+                workers: {
+                    some: { id: workerIdNumber },
+                },
+            },
+            include: {
+                customer: true,
+                workers: true,
+                workerClientRatings: {
+                    where: {
+                        workerId: workerIdNumber,
+                    },
+                },
+            },
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found for this worker.",
+            });
+        }
+
+        const workerCount = Number(booking.workerCount || 1);
+        const amount = Number(booking.amount || 0);
+        const workerShare = workerCount > 0 ? Math.round(amount / workerCount) : amount;
+        const clientRating = booking.workerClientRatings?.[0] || null;
+
+        return res.json({
+            success: true,
+            booking: {
+                ...booking,
+                workerShare,
+                isClientRated: !!clientRating,
+                clientRating,
+            },
+        });
+    } catch (error) {
+        console.error("Worker Booking Details Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Worker booking details fetch nahi ho payi",
+        });
+    }
+};
+
+
+const completeWorkerDuty = async (req, res) => {
+  try {
+    const { bookingId, workerId } = req.body;
+
+    if (!bookingId || !workerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID aur Worker ID required hai.",
+      });
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: Number(bookingId),
+      },
+      include: {
+        workers: true,
+        customer: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
+    }
+
+    const assignedWorkerIds = booking.workers.map((worker) => Number(worker.id));
+
+    if (!assignedWorkerIds.includes(Number(workerId))) {
+      return res.status(400).json({
+        success: false,
+        message: "Ye worker is booking me assigned nahi hai.",
+      });
+    }
+
+    let cancelledWorkerIds = [];
+    let completedWorkerIds = [];
+
+    try {
+      cancelledWorkerIds = JSON.parse(booking.cancelledWorkerIds || "[]").map(Number);
+    } catch (e) {
+      cancelledWorkerIds = [];
+    }
+
+    try {
+      completedWorkerIds = JSON.parse(booking.completedWorkerIds || "[]").map(Number);
+    } catch (e) {
+      completedWorkerIds = [];
+    }
+
+    if (cancelledWorkerIds.includes(Number(workerId))) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancelled worker duty complete nahi kar sakta.",
+      });
+    }
+
+    if (!completedWorkerIds.includes(Number(workerId))) {
+      completedWorkerIds.push(Number(workerId));
+    }
+
+    const activeWorkerIds = assignedWorkerIds.filter(
+      (id) => !cancelledWorkerIds.includes(Number(id))
+    );
+
+    const allWorkersCompleted =
+      activeWorkerIds.length > 0 &&
+      activeWorkerIds.every((id) => completedWorkerIds.includes(Number(id)));
+
+    const updatedBooking = await prisma.booking.update({
+      where: {
+        id: Number(bookingId),
+      },
+      data: {
+        completedWorkerIds: JSON.stringify(completedWorkerIds),
+        status: allWorkersCompleted ? "COMPLETED" : booking.status,
+      },
+      include: {
+        workers: true,
+        customer: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: allWorkersCompleted
+        ? "All workers completed duty."
+        : "Worker duty completed.",
+      allWorkersCompleted,
+      completedWorkerIds,
+      booking: updatedBooking,
+    });
+  } catch (error) {
+    console.error("Complete Worker Duty Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Worker duty complete nahi ho payi.",
+    });
+  }
+};
+
+module.exports = {
+    submitRating,
+    getClientRatingStatus,
+    submitClientRatingByWorker,
+    bookWorkers,
+    initiateBooking,
+    verifyPayment,
+    getCurrentBooking,
+    getCurrentDuty,
+    verifyQrAndStartDuty,
+    completeBooking,
+    getBookingHistory,
+    getBookingById,
+    getWorkerBookingHistory,
+    getWorkerBookingDetails,
+    completeWorkerDuty
+};
