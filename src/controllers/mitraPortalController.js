@@ -96,8 +96,11 @@ const logout = (req, res) => {
 };
 
 const getAddClient = (req, res) => {
-    res.render("mitra/add-client", {
+    return res.render("mitra/add-client", {
         layout: false,
+        isEdit: false,
+        client: null,
+        primaryAddress: null,
         success_msg: req.query.success || null,
         error_msg: req.query.error || null,
     });
@@ -401,6 +404,342 @@ const postAddClient = async (req, res) => {
 
 
 
+
+
+const showEditClient = async (req, res) => {
+    try {
+        const mitraId = Number(req.user?.id);
+        const customerId = Number(req.params.id);
+
+        if (!Number.isInteger(mitraId) || mitraId <= 0) {
+            return res.redirect(
+                "/mitra/dashboard?error=" +
+                encodeURIComponent("Mitra session was not found.")
+            );
+        }
+
+        if (!Number.isInteger(customerId) || customerId <= 0) {
+            return res.redirect(
+                "/mitra/clients?error=" +
+                encodeURIComponent("Invalid client selected.")
+            );
+        }
+
+        const client = await prisma.customer.findFirst({
+            where: {
+                id: customerId,
+                mitraId,
+            },
+            include: {
+                addresses: {
+                    orderBy: [
+                        { isDefault: "desc" },
+                        { updatedAt: "desc" },
+                    ],
+                    take: 1,
+                },
+            },
+        });
+
+        if (!client) {
+            return res.redirect(
+                "/mitra/clients?error=" +
+                encodeURIComponent("Client was not found or is not assigned to you.")
+            );
+        }
+
+        return res.render("mitra/add-client", {
+            layout: false,
+            isEdit: true,
+            client,
+            primaryAddress: client.addresses?.[0] || null,
+            success_msg: req.query.success || null,
+            error_msg: req.query.error || null,
+        });
+    } catch (error) {
+        console.error("Show Edit Client Error:", error);
+
+        return res.redirect(
+            "/mitra/clients?error=" +
+            encodeURIComponent("Client edit page load nahi ho paya.")
+        );
+    }
+};
+
+const updateClient = async (req, res) => {
+    const customerId = Number(req.params.id);
+
+    const redirectWithError = (message) => {
+        return res.redirect(
+            `/mitra/clients/edit/${customerId}?error=${encodeURIComponent(message)}`
+        );
+    };
+
+    const cleanText = (value) => {
+        const text = String(value || "").trim();
+        return text || null;
+    };
+
+    const cleanPhone = (value) => String(value || "").replace(/\D/g, "");
+
+    const parseCoordinate = (value, fieldName, min, max) => {
+        const rawValue = cleanText(value);
+
+        if (!rawValue) {
+            throw new Error(`${fieldName} is required.`);
+        }
+
+        const parsedValue = Number(rawValue);
+
+        if (
+            !Number.isFinite(parsedValue) ||
+            parsedValue < min ||
+            parsedValue > max
+        ) {
+            throw new Error(`${fieldName} is invalid.`);
+        }
+
+        return parsedValue.toFixed(6);
+    };
+
+    try {
+        const mitraId = Number(req.user?.id);
+
+        if (!Number.isInteger(mitraId) || mitraId <= 0) {
+            return redirectWithError("Mitra session was not found. Please login again.");
+        }
+
+        if (!Number.isInteger(customerId) || customerId <= 0) {
+            return res.redirect(
+                "/mitra/clients?error=" +
+                encodeURIComponent("Invalid client selected.")
+            );
+        }
+
+        const existingCustomer = await prisma.customer.findFirst({
+            where: {
+                id: customerId,
+                mitraId,
+            },
+            include: {
+                addresses: {
+                    where: {
+                        title: "Primary Work Site",
+                    },
+                    orderBy: {
+                        updatedAt: "desc",
+                    },
+                    take: 1,
+                },
+            },
+        });
+
+        if (!existingCustomer) {
+            return res.redirect(
+                "/mitra/clients?error=" +
+                encodeURIComponent("Client was not found or is not assigned to you.")
+            );
+        }
+
+        const {
+            clientType,
+            contactName,
+            phone,
+            email,
+            businessName,
+            businessType,
+            gstNumber,
+            workerRequirement,
+            siteAddress,
+            siteLatitude,
+            siteLongitude,
+            siteLocationSource,
+        } = req.body;
+
+        const finalClientType = cleanText(clientType);
+        const finalContactName = cleanText(contactName);
+        const finalPhone = cleanPhone(phone);
+        const finalEmail = cleanText(email)?.toLowerCase() || null;
+        const finalSiteAddress = cleanText(siteAddress);
+
+        if (!finalClientType || !["Individual", "Company"].includes(finalClientType)) {
+            return redirectWithError("Please select a valid client type.");
+        }
+
+        if (!finalContactName || finalContactName.length < 2) {
+            return redirectWithError("Please enter client contact person name.");
+        }
+
+        if (!/^[6-9]\d{9}$/.test(finalPhone)) {
+            return redirectWithError("Please enter a valid 10-digit Indian mobile number.");
+        }
+
+        if (finalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(finalEmail)) {
+            return redirectWithError("Please enter a valid email address.");
+        }
+
+        if (finalClientType === "Company" && !cleanText(businessName)) {
+            return redirectWithError("Company name is required for a company client.");
+        }
+
+        if (finalClientType === "Company" && !cleanText(businessType)) {
+            return redirectWithError("Business type is required for a company client.");
+        }
+
+        if (!finalSiteAddress || finalSiteAddress.length < 10) {
+            return redirectWithError(
+                "Please enter complete work site address with room, flat, plot or shop details."
+            );
+        }
+
+        const finalLatitude = parseCoordinate(
+            siteLatitude,
+            "Current location latitude",
+            -90,
+            90
+        );
+
+        const finalLongitude = parseCoordinate(
+            siteLongitude,
+            "Current location longitude",
+            -180,
+            180
+        );
+
+        if (siteLocationSource !== "CURRENT_LOCATION") {
+            return redirectWithError(
+                "Please capture the current work site location first."
+            );
+        }
+
+        const duplicatePhone = await prisma.customer.findFirst({
+            where: {
+                phone: finalPhone,
+                NOT: {
+                    id: customerId,
+                },
+            },
+            select: { id: true },
+        });
+
+        if (duplicatePhone) {
+            return redirectWithError(
+                "This mobile number is already registered for another client."
+            );
+        }
+
+        if (finalEmail) {
+            const duplicateEmail = await prisma.customer.findFirst({
+                where: {
+                    email: finalEmail,
+                    NOT: {
+                        id: customerId,
+                    },
+                },
+                select: { id: true },
+            });
+
+            if (duplicateEmail) {
+                return redirectWithError(
+                    "This email address is already registered for another client."
+                );
+            }
+        }
+
+        const customerData = {
+            clientType: finalClientType,
+            name: finalContactName,
+            phone: finalPhone,
+            email: finalEmail,
+            siteAddress: finalSiteAddress,
+            businessName:
+                finalClientType === "Company"
+                    ? cleanText(businessName)
+                    : null,
+            businessType:
+                finalClientType === "Company"
+                    ? cleanText(businessType)
+                    : null,
+            gstNumber:
+                finalClientType === "Company"
+                    ? cleanText(gstNumber)?.toUpperCase() || null
+                    : null,
+            workerRequirement: cleanText(workerRequirement),
+        };
+
+        const workSiteAddressData = {
+            title: "Primary Work Site",
+            fullName: finalContactName,
+            phone: finalPhone,
+            addressLine: finalSiteAddress,
+            addressDetail: finalSiteAddress,
+            mapAddress: null,
+            landmark: null,
+            city: null,
+            state: null,
+            pincode: null,
+            placeId: null,
+            latitude: finalLatitude,
+            longitude: finalLongitude,
+            locationSource: "CURRENT_LOCATION",
+            isDefault: true,
+        };
+
+        await prisma.$transaction(async (tx) => {
+            await tx.customer.update({
+                where: {
+                    id: customerId,
+                },
+                data: customerData,
+            });
+
+            await tx.customerAddress.updateMany({
+                where: {
+                    customerId,
+                },
+                data: {
+                    isDefault: false,
+                },
+            });
+
+            const existingPrimaryWorkSite = existingCustomer.addresses?.[0] || null;
+
+            if (existingPrimaryWorkSite) {
+                await tx.customerAddress.update({
+                    where: {
+                        id: existingPrimaryWorkSite.id,
+                    },
+                    data: workSiteAddressData,
+                });
+            } else {
+                await tx.customerAddress.create({
+                    data: {
+                        customerId,
+                        ...workSiteAddressData,
+                    },
+                });
+            }
+        });
+
+        return res.redirect(
+            "/mitra/clients?success=" +
+            encodeURIComponent("Client updated successfully.")
+        );
+    } catch (error) {
+        console.error("Update Client Error:", error);
+
+        if (error?.code === "P2002") {
+            return redirectWithError(
+                "A client with this mobile number or email already exists."
+            );
+        }
+
+        return redirectWithError(
+            error.message ||
+            "Client update nahi ho paya. Please check all details."
+        );
+    }
+};
 
 const listMitraClients = async (req, res) => {
     try {
@@ -770,6 +1109,8 @@ module.exports = {
     logout,
     getAddClient,
     postAddClient,
+    showEditClient,
+    updateClient,
     getMitraConflicts,
     getMitraConflictDetails,
     updateMitraConflictStatus,

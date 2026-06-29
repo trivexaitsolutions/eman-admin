@@ -71,6 +71,9 @@ router.get('/clients', mitraBouncer, mitraPortalController.listMitraClients);
 router.get('/clients/add', mitraBouncer, mitraPortalController.getAddClient);
 router.post('/clients/add', mitraBouncer, mitraPortalController.postAddClient);
 
+router.get('/clients/edit/:id', mitraBouncer, mitraPortalController.showEditClient);
+router.post('/clients/update/:id', mitraBouncer, mitraPortalController.updateClient);
+
 
 
 module.exports = router;

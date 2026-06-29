@@ -363,9 +363,12 @@
                   Added: <%= addedOn %>
                 </p>
 
-                <span class="text-xs font-black text-blue-600">
-                  Edit in next step →
-                </span>
+                <a
+                  href="/mitra/clients/edit/<%= client.id %>"
+                  class="h-10 px-4 rounded-xl bg-blue-50 text-blue-700 text-xs font-black flex items-center justify-center active:bg-blue-100"
+                >
+                  Edit Client →
+                </a>
               </div>
 
             </article>

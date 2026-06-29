@@ -1,20 +1,40 @@
+<%
+  const editMode = Boolean(isEdit);
+  const currentClient = client || {};
+  const currentAddress = primaryAddress || {};
+
+  const formAction = editMode
+    ? `/mitra/clients/update/${currentClient.id}`
+    : "/mitra/clients/add";
+
+  const selectedClientType = currentClient.clientType || "Individual";
+  const selectedRequirement = currentClient.workerRequirement || "";
+
+  const existingLatitude = currentAddress.latitude || "";
+  const existingLongitude = currentAddress.longitude || "";
+  const existingLocationSource = currentAddress.locationSource || "";
+  const existingSiteAddress = currentAddress.addressLine || currentClient.siteAddress || "";
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
 
-  <title>Add Client | E-MAN Mitra</title>
+  <title><%= editMode ? "Edit Client" : "Add Client" %> | E-MAN Mitra</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    html,
-    body {
+    html, body {
       margin: 0;
       width: 100%;
       height: 100%;
@@ -41,13 +61,8 @@
       padding-bottom: 112px;
     }
 
-    .scroll-area::-webkit-scrollbar {
-      display: none;
-    }
-
-    .bottom-safe {
-      padding-bottom: max(16px, env(safe-area-inset-bottom));
-    }
+    .scroll-area::-webkit-scrollbar { display: none; }
+    .bottom-safe { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 
     .hero-gradient {
       background:
@@ -72,6 +87,7 @@
       font-weight: 700;
       color: #111827;
       transition: 0.2s ease;
+      box-sizing: border-box;
     }
 
     .app-input:focus {
@@ -97,24 +113,15 @@
       box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
     }
 
-    .step-content {
-      display: none;
-    }
-
+    .step-content { display: none; }
     .step-content.active {
       display: block;
       animation: fadeIn 0.25s ease-in-out;
     }
 
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateX(8px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
+      from { opacity: 0; transform: translateX(8px); }
+      to { opacity: 1; transform: translateX(0); }
     }
 
     .type-radio:checked + div {
@@ -130,68 +137,39 @@
     }
 
     @media (max-width: 767px) {
-      .app {
-        max-width: 430px;
-      }
-
-      .tablet-container {
-        width: 100%;
-      }
-
-      .tablet-grid {
-        display: block;
-      }
-
-      .tablet-summary {
-        display: none;
-      }
+      .app { max-width: 430px; }
+      .tablet-container { width: 100%; }
+      .tablet-grid { display: block; }
+      .tablet-summary { display: none; }
     }
 
     @media (min-width: 768px) {
-      .app {
-        max-width: 100%;
-        background: #eef2f7;
-      }
-
-      .tablet-container {
-        max-width: 1120px;
-        margin: 0 auto;
-      }
-
+      .app { max-width: 100%; background: #eef2f7; }
+      .tablet-container { max-width: 1120px; margin: 0 auto; }
       .tablet-grid {
         display: grid;
         grid-template-columns: 0.72fr 0.28fr;
         gap: 28px;
         align-items: start;
       }
-
-      .scroll-area {
-        padding-bottom: 110px;
-      }
+      .scroll-area { padding-bottom: 110px; }
     }
   </style>
-  <link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 
 <body>
 <%- include('../partials/toast') %>
+
 <div class="app">
 
-  <!-- Header -->
   <header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
     <div class="tablet-container">
-
       <div class="flex items-center justify-between gap-4 mb-5">
-
         <div class="flex items-center gap-3 min-w-0">
           <a
-            href="/mitra/dashboard"
+            href="/mitra/clients"
             class="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-50 flex items-center justify-center active:bg-gray-100 shrink-0"
+            aria-label="Back to clients"
           >
             <span class="text-2xl font-black text-gray-900">←</span>
           </a>
@@ -200,89 +178,62 @@
             <p class="text-xs font-black text-emerald-600 uppercase tracking-wide">
               B2B Onboarding
             </p>
-
             <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
-              Add New Client
+              <%= editMode ? "Edit Client" : "Add New Client" %>
             </h1>
-
             <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
-              Register client and verify mobile OTP
+              <%= editMode ? "Update client and work-site details" : "Register client and verify mobile OTP" %>
             </p>
           </div>
         </div>
 
         <div class="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700">
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span class="text-sm font-black">Mitra Portal</span>
+          <span class="text-sm font-black"><%= editMode ? "Edit Mode" : "Mitra Portal" %></span>
         </div>
-
       </div>
 
-      <!-- Step Progress -->
       <div class="relative">
         <div class="absolute left-6 right-6 top-4 h-1 bg-gray-100 rounded-full"></div>
         <div id="progressBar" class="absolute left-6 top-4 h-1 bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%;"></div>
 
         <div class="relative z-10 grid grid-cols-3 gap-1">
-
           <div class="flex flex-col items-center gap-1.5">
-            <div id="ind-1" class="step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md">
-              1
-            </div>
+            <div id="ind-1" class="step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md">1</div>
             <span class="text-[9px] md:text-[10px] font-black text-gray-700">BASIC</span>
           </div>
-
           <div class="flex flex-col items-center gap-1.5">
-            <div id="ind-2" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
-              2
-            </div>
+            <div id="ind-2" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">2</div>
             <span class="text-[9px] md:text-[10px] font-black text-gray-700">BUSINESS</span>
           </div>
-
           <div class="flex flex-col items-center gap-1.5">
-            <div id="ind-3" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
-              3
-            </div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">OTP</span>
+            <div id="ind-3" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">3</div>
+            <span class="text-[9px] md:text-[10px] font-black text-gray-700"><%= editMode ? "REVIEW" : "OTP" %></span>
           </div>
-
         </div>
       </div>
-
     </div>
   </header>
 
-  <!-- Main -->
   <main class="scroll-area">
-
     <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
-
-      <form id="addClientForm" action="/mitra/clients/add" method="POST">
-
+      <form id="addClientForm" action="<%= formAction %>" method="POST">
         <div class="tablet-grid">
-
-          <!-- Form Column -->
           <div>
 
-            <!-- Step 1 -->
             <section id="step-1" class="step-content active">
-
               <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
                 <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
                 <div class="relative z-10">
                   <p class="text-sm font-bold text-emerald-50">Step 1 of 3</p>
                   <h2 class="text-2xl md:text-3xl font-black mt-1">Basic Client Profile</h2>
-                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-                    Client ka type, contact person aur mobile number add karein.
-                  </p>
+                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">Client type, contact person aur mobile number add karein.</p>
                 </div>
               </div>
 
               <div class="section-card mb-5">
                 <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
-                    👥
-                  </div>
+                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">👥</div>
                   <div>
                     <h3 class="text-lg font-black text-gray-900">Client Type</h3>
                     <p class="text-xs font-bold text-gray-500">Individual ya company select karein</p>
@@ -290,27 +241,20 @@
                 </div>
 
                 <label class="input-label">Client Type *</label>
-
                 <div class="grid grid-cols-2 gap-3">
                   <label class="relative cursor-pointer">
-                    <input type="radio" name="clientType" value="Individual" class="type-radio hidden" checked />
+                    <input type="radio" name="clientType" value="Individual" class="type-radio hidden" <%= selectedClientType === "Individual" ? "checked" : "" %> />
                     <div class="border-2 border-gray-100 rounded-2xl p-4 flex items-center gap-3 transition">
                       <div class="radio-dot w-5 h-5 rounded-full border-2 border-gray-300 transition shrink-0"></div>
-                      <div>
-                        <span class="font-black text-gray-800 text-sm block">Individual</span>
-                        <span class="text-[11px] font-bold text-gray-500">Single client</span>
-                      </div>
+                      <div><span class="font-black text-gray-800 text-sm block">Individual</span><span class="text-[11px] font-bold text-gray-500">Single client</span></div>
                     </div>
                   </label>
 
                   <label class="relative cursor-pointer">
-                    <input type="radio" name="clientType" value="Company" class="type-radio hidden" />
+                    <input type="radio" name="clientType" value="Company" class="type-radio hidden" <%= selectedClientType === "Company" ? "checked" : "" %> />
                     <div class="border-2 border-gray-100 rounded-2xl p-4 flex items-center gap-3 transition">
                       <div class="radio-dot w-5 h-5 rounded-full border-2 border-gray-300 transition shrink-0"></div>
-                      <div>
-                        <span class="font-black text-gray-800 text-sm block">Company</span>
-                        <span class="text-[11px] font-bold text-gray-500">B2B client</span>
-                      </div>
+                      <div><span class="font-black text-gray-800 text-sm block">Company</span><span class="text-[11px] font-bold text-gray-500">B2B client</span></div>
                     </div>
                   </label>
                 </div>
@@ -318,902 +262,494 @@
 
               <div class="section-card">
                 <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">
-                    📞
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-black text-gray-900">Contact Details</h3>
-                    <p class="text-xs font-bold text-gray-500">Primary person details</p>
-                  </div>
+                  <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">📞</div>
+                  <div><h3 class="text-lg font-black text-gray-900">Contact Details</h3><p class="text-xs font-bold text-gray-500">Primary person details</p></div>
                 </div>
 
                 <div class="space-y-4">
                   <div>
                     <label class="input-label">Full Name / Contact Person *</label>
-                    <input
-                      type="text"
-                      name="contactName"
-                      required
-                      class="app-input"
-                      placeholder="e.g. Rahul Sharma"
-                    />
+                    <input type="text" name="contactName" required minlength="2" value="<%= currentClient.name || "" %>" class="app-input" placeholder="e.g. Rahul Sharma" />
                   </div>
-
                   <div>
                     <label class="input-label">Mobile Number *</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      required
-                      maxlength="10"
-                      pattern="[0-9]{10}"
-                      class="app-input"
-                      placeholder="10-digit mobile number"
-                    />
+                    <input id="clientPhone" type="tel" name="phone" required maxlength="10" inputmode="numeric" pattern="[0-9]{10}" value="<%= currentClient.phone || "" %>" class="app-input" placeholder="10-digit mobile number" />
                   </div>
-
                   <div>
                     <label class="input-label">Email Address</label>
-                    <input
-                      type="email"
-                      name="email"
-                      class="app-input"
-                      placeholder="email@example.com"
-                    />
+                    <input type="email" name="email" value="<%= currentClient.email || "" %>" class="app-input" placeholder="email@example.com" />
                   </div>
                 </div>
               </div>
-
             </section>
 
-            <!-- Step 2 -->
             <section id="step-2" class="step-content">
-
               <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
                 <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
                 <div class="relative z-10">
                   <p class="text-sm font-bold text-emerald-50">Step 2 of 3</p>
                   <h2 class="text-2xl md:text-3xl font-black mt-1">Site & Business Details</h2>
-                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-                    Work location, company details aur worker requirement add karein.
-                  </p>
+                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">Work location, company details aur worker requirement add karein.</p>
                 </div>
               </div>
 
               <div class="section-card mb-5">
                 <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
-                    📍
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-black text-gray-900">Work Site</h3>
-                    <p class="text-xs font-bold text-gray-500">Jahan workers ki requirement hai</p>
-                  </div>
+                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">📍</div>
+                  <div><h3 class="text-lg font-black text-gray-900">Work Site</h3><p class="text-xs font-bold text-gray-500">Jahan workers ki requirement hai</p></div>
                 </div>
 
                 <div class="space-y-4">
                   <div class="rounded-[26px] bg-blue-50 border border-blue-100 p-4 md:p-5">
-  <div class="rounded-[26px] bg-blue-50 border border-blue-100 p-4 md:p-5">
-  <div class="flex items-start justify-between gap-3">
-    <div class="flex items-start gap-3">
-      <div class="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl shrink-0">
-        📍
-      </div>
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl shrink-0">📍</div>
+                        <div class="min-w-0">
+                          <h3 class="text-base font-black text-gray-900">Exact Work Site Location *</h3>
+                          <p class="text-xs font-bold text-gray-600 mt-1 leading-5">
+                            <%= editMode ? "Saved location map par dikh rahi hai. Site par ho to Refresh se nayi location capture karein." : "Step open hote hi current location automatically fetch hogi." %>
+                          </p>
+                        </div>
+                      </div>
+                      <button type="button" id="refreshLocationBtn" class="shrink-0 px-3 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-xs font-black active:bg-blue-100 transition">Refresh</button>
+                    </div>
 
-      <div class="min-w-0">
-        <h3 class="text-base font-black text-gray-900">
-          Exact Work Site Location *
-        </h3>
+                    <div id="locationMapCard" class="mt-4 overflow-hidden rounded-[22px] border border-blue-100 bg-white">
+                      <div class="relative">
+                        <div id="workSiteMap" style="height: 270px;"></div>
+                        <div id="mapLoadingOverlay" class="absolute inset-0 z-[500] flex flex-col items-center justify-center bg-white/85 text-center px-5">
+                          <div class="w-11 h-11 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
+                          <p id="mapLoadingText" class="mt-4 text-sm font-black text-gray-800">Preparing work-site map...</p>
+                          <p class="mt-1 text-xs font-bold text-gray-500">Please allow browser location permission when asked.</p>
+                        </div>
+                      </div>
+                      <div class="px-4 py-3 bg-white border-t border-blue-50"><p id="locationStatusText" class="text-xs font-bold text-gray-600">Work-site location is being prepared.</p></div>
+                    </div>
 
-        <p class="text-xs font-bold text-gray-600 mt-1 leading-5">
-          Step open hote hi current location automatically fetch hogi.
-        </p>
-      </div>
-    </div>
+                    <div id="locationError" class="hidden mt-4 rounded-2xl bg-red-50 border border-red-100 p-3 text-xs font-bold text-red-700 leading-5"></div>
+                    <div id="locationSuccess" class="hidden mt-4 rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
+                      <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black">✓</div><div><p class="text-sm font-black text-emerald-900">Current Work Site Location Captured</p><p class="text-xs font-bold text-emerald-700 mt-1">Ye exact point client ke work site ke saath save hoga.</p></div></div>
+                      <div class="grid grid-cols-2 gap-3 mt-4">
+                        <div class="rounded-2xl bg-white border border-emerald-100 p-3"><p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">Latitude</p><p id="latitudePreview" class="text-xs font-black text-gray-800 mt-1 break-all">--</p></div>
+                        <div class="rounded-2xl bg-white border border-emerald-100 p-3"><p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">Longitude</p><p id="longitudePreview" class="text-xs font-black text-gray-800 mt-1 break-all">--</p></div>
+                      </div>
+                    </div>
 
-    <button
-      type="button"
-      id="refreshLocationBtn"
-      class="shrink-0 px-3 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-xs font-black active:bg-blue-100 transition"
-    >
-      Refresh
-    </button>
-  </div>
+                    <input type="hidden" id="siteLatitude" name="siteLatitude" value="<%= existingLatitude %>" />
+                    <input type="hidden" id="siteLongitude" name="siteLongitude" value="<%= existingLongitude %>" />
+                    <input type="hidden" id="siteLocationSource" name="siteLocationSource" value="<%= existingLocationSource %>" />
+                  </div>
 
-  <!-- Map always visible -->
-  <div
-    id="locationMapCard"
-    class="mt-4 overflow-hidden rounded-[22px] border border-blue-100 bg-white"
-  >
-    <div class="relative">
-      <div
-        id="workSiteMap"
-        style="height: 270px;"
-      ></div>
-
-      <!-- Map loading overlay -->
-      <div
-        id="mapLoadingOverlay"
-        class="absolute inset-0 z-[500] flex flex-col items-center justify-center bg-white/85 text-center px-5"
-      >
-        <div class="w-11 h-11 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
-
-        <p
-          id="mapLoadingText"
-          class="mt-4 text-sm font-black text-gray-800"
-        >
-          Fetching current location...
-        </p>
-
-        <p class="mt-1 text-xs font-bold text-gray-500">
-          Please allow browser location permission.
-        </p>
-      </div>
-    </div>
-
-    <div class="px-4 py-3 bg-white border-t border-blue-50">
-      <p
-        id="locationStatusText"
-        class="text-xs font-bold text-gray-600"
-      >
-        Work-site location is being prepared.
-      </p>
-    </div>
-  </div>
-
-  <div
-    id="locationError"
-    class="hidden mt-4 rounded-2xl bg-red-50 border border-red-100 p-3 text-xs font-bold text-red-700 leading-5"
-  ></div>
-
-  <div
-    id="locationSuccess"
-    class="hidden mt-4 rounded-2xl bg-emerald-50 border border-emerald-100 p-4"
-  >
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black">
-        ✓
-      </div>
-
-      <div>
-        <p class="text-sm font-black text-emerald-900">
-          Current Work Site Location Captured
-        </p>
-
-        <p class="text-xs font-bold text-emerald-700 mt-1">
-          Ye exact point client ke work site ke saath save hoga.
-        </p>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-3 mt-4">
-      <div class="rounded-2xl bg-white border border-emerald-100 p-3">
-        <p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">
-          Latitude
-        </p>
-
-        <p
-          id="latitudePreview"
-          class="text-xs font-black text-gray-800 mt-1 break-all"
-        >
-          --
-        </p>
-      </div>
-
-      <div class="rounded-2xl bg-white border border-emerald-100 p-3">
-        <p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">
-          Longitude
-        </p>
-
-        <p
-          id="longitudePreview"
-          class="text-xs font-black text-gray-800 mt-1 break-all"
-        >
-          --
-        </p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Form ke saath backend me save honge -->
-  <input type="hidden" id="siteLatitude" name="siteLatitude" />
-  <input type="hidden" id="siteLongitude" name="siteLongitude" />
-  <input
-    type="hidden"
-    id="siteLocationSource"
-    name="siteLocationSource"
-  />
-</div>
-
-<div class="mt-5">
-  <label class="input-label">
-    Complete Work Site Address *
-  </label>
-
-  <textarea
-    id="siteAddress"
-    name="siteAddress"
-    required
-    minlength="10"
-    rows="5"
-    placeholder="Example: Plot No. 18, Room No. 3, Shree Ganesh Chawl, Near Hanuman Mandir, Manpada Road, Dombivli East"
-    class="app-input resize-none"
-  ></textarea>
-
-  <p class="mt-2 text-xs font-bold text-gray-500 leading-5">
-    Plot / room / flat / shop number, building or chawl name, road, area and landmark clearly likhein.
-  </p>
-</div>
+                  <div>
+                    <label class="input-label">Complete Work Site Address *</label>
+                    <textarea id="siteAddress" name="siteAddress" required minlength="10" rows="5" placeholder="Example: Plot No. 18, Room No. 3, Shree Ganesh Chawl, Near Hanuman Mandir, Manpada Road, Dombivli East" class="app-input resize-none"><%= existingSiteAddress %></textarea>
+                    <p class="mt-2 text-xs font-bold text-gray-500 leading-5">Plot / room / flat / shop number, building or chawl name, road, area and landmark clearly likhein.</p>
+                  </div>
 
                   <div>
                     <label class="input-label">Worker Requirement *</label>
                     <select name="workerRequirement" required class="app-input bg-white">
-                      <option value="" disabled selected>Select approx daily requirement</option>
-                      <option value="1-5">1 to 5 Workers</option>
-                      <option value="5-15">5 to 15 Workers</option>
-                      <option value="15-50">15 to 50 Workers</option>
-                      <option value="50+">50+ Workers</option>
+                      <option value="" disabled <%= !selectedRequirement ? "selected" : "" %>>Select approx daily requirement</option>
+                      <option value="1-5" <%= selectedRequirement === "1-5" ? "selected" : "" %>>1 to 5 Workers</option>
+                      <option value="5-15" <%= selectedRequirement === "5-15" ? "selected" : "" %>>5 to 15 Workers</option>
+                      <option value="15-50" <%= selectedRequirement === "15-50" ? "selected" : "" %>>15 to 50 Workers</option>
+                      <option value="50+" <%= selectedRequirement === "50+" ? "selected" : "" %>>50+ Workers</option>
                     </select>
                   </div>
                 </div>
               </div>
 
-              <div
-                id="dynamicCompanyFields"
-                style="display: none;"
-                class="section-card border-emerald-100 bg-emerald-50/40"
-              >
-                <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl shadow-sm">
-                    🏢
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-black text-gray-900">Company Information</h3>
-                    <p class="text-xs font-bold text-gray-500">Only for company clients</p>
-                  </div>
-                </div>
-
+              <div id="dynamicCompanyFields" class="section-card border-emerald-100 bg-emerald-50/40" style="display: <%= selectedClientType === "Company" ? "block" : "none" %>;">
+                <div class="flex items-center gap-3 mb-5"><div class="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl shadow-sm">🏢</div><div><h3 class="text-lg font-black text-gray-900">Company Information</h3><p class="text-xs font-bold text-gray-500">Only for company clients</p></div></div>
                 <div class="space-y-4">
-                  <div>
-                    <label class="input-label">Company Name *</label>
-                    <input
-                      type="text"
-                      id="companyNameInput"
-                      name="businessName"
-                      class="app-input"
-                      placeholder="e.g. Sai Logistics Pvt Ltd"
-                    />
-                  </div>
-
-                  <div>
-                    <label class="input-label">Industry Type *</label>
-                    <select id="industryInput" name="businessType" class="app-input bg-white">
-                      <option value="" disabled selected>Select Industry...</option>
-                      <option value="Warehouse">Warehouse & Logistics</option>
-                      <option value="Construction">Construction</option>
-                      <option value="Retail">Retail</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="input-label">GST Number</label>
-                    <input
-                      type="text"
-                      name="gstNumber"
-                      class="app-input uppercase"
-                      placeholder="22AAAAA0000A1Z5"
-                    />
-                  </div>
+                  <div><label class="input-label">Company Name *</label><input type="text" id="companyNameInput" name="businessName" value="<%= currentClient.businessName || "" %>" class="app-input" placeholder="e.g. Sai Logistics Pvt Ltd" /></div>
+                  <div><label class="input-label">Industry Type *</label><select id="industryInput" name="businessType" class="app-input bg-white"><option value="" disabled <%= !currentClient.businessType ? "selected" : "" %>>Select Industry...</option><option value="Warehouse" <%= currentClient.businessType === "Warehouse" ? "selected" : "" %>>Warehouse & Logistics</option><option value="Construction" <%= currentClient.businessType === "Construction" ? "selected" : "" %>>Construction</option><option value="Retail" <%= currentClient.businessType === "Retail" ? "selected" : "" %>>Retail</option><option value="Other" <%= currentClient.businessType === "Other" ? "selected" : "" %>>Other</option></select></div>
+                  <div><label class="input-label">GST Number</label><input type="text" name="gstNumber" value="<%= currentClient.gstNumber || "" %>" maxlength="15" class="app-input uppercase" placeholder="22AAAAA0000A1Z5" /></div>
                 </div>
               </div>
-
             </section>
 
-            <!-- Step 3 -->
             <section id="step-3" class="step-content">
-
               <div class="dark-card rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-gray-300 mb-5 relative overflow-hidden">
                 <div class="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/20 rounded-full"></div>
                 <div class="relative z-10">
                   <p class="text-sm font-bold text-emerald-300">Final Step</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1">Verify Mobile Number</h2>
-                  <p class="text-sm md:text-base font-semibold text-gray-300 mt-2">
-                    Client ke mobile par bheja gaya OTP verify karein.
-                  </p>
+                  <h2 class="text-2xl md:text-3xl font-black mt-1"><%= editMode ? "Review & Update" : "Verify Mobile Number" %></h2>
+                  <p class="text-sm md:text-base font-semibold text-gray-300 mt-2"><%= editMode ? "Details check karke client update karein." : "Client ke mobile par bheja gaya OTP verify karein." %></p>
                 </div>
               </div>
 
-              <div class="section-card">
-                <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
-                    🔐
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-black text-gray-900">OTP Verification</h3>
-                    <p class="text-xs font-bold text-gray-500">Testing ke liye OTP 1234 use karo</p>
-                  </div>
+              <% if (editMode) { %>
+                <div class="section-card">
+                  <div class="flex items-center gap-3 mb-5"><div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">✓</div><div><h3 class="text-lg font-black text-gray-900">Ready to Update</h3><p class="text-xs font-bold text-gray-500">OTP dobara verify karne ki zarurat nahi hai.</p></div></div>
+                  <div class="rounded-[24px] bg-emerald-50 border border-emerald-100 p-4"><p class="text-sm font-black text-emerald-900">Client details update karne ke liye neeche “Update Client” dabayein.</p><p class="text-xs font-bold text-emerald-700 mt-2">Current location sirf tab Refresh karein jab aap actual work site par maujood ho.</p></div>
                 </div>
-
-                <div class="rounded-[24px] bg-gray-50 border border-gray-100 p-5 text-center mb-5">
-                  <p class="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">
-                    Enter 4 Digit OTP
-                  </p>
-
-                  <input
-                    type="text"
-                    id="otpInput"
-                    maxlength="4"
-                    class="w-full text-center tracking-[0.65em] text-3xl md:text-4xl bg-white border border-gray-200 text-gray-900 font-black rounded-[24px] px-4 py-6 focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 focus:outline-none"
-                    placeholder="----"
-                  />
-
-                  <p id="otpMessage" class="text-sm font-bold hidden"></p>
+              <% } else { %>
+                <div class="section-card">
+                  <div class="flex items-center gap-3 mb-5"><div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">🔐</div><div><h3 class="text-lg font-black text-gray-900">OTP Verification</h3><p class="text-xs font-bold text-gray-500">Testing ke liye OTP 1234 use karo</p></div></div>
+                  <div class="rounded-[24px] bg-gray-50 border border-gray-100 p-5 text-center mb-5"><p class="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Enter 4 Digit OTP</p><input type="text" id="otpInput" maxlength="4" inputmode="numeric" class="w-full text-center tracking-[0.65em] text-3xl md:text-4xl bg-white border border-gray-200 text-gray-900 font-black rounded-[24px] px-4 py-6 focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 focus:outline-none" placeholder="----" /><p id="otpMessage" class="text-sm font-bold hidden"></p></div>
+                  <button type="button" id="verifyOtpBtn" class="w-full h-[56px] rounded-[22px] bg-gray-900 text-white font-black shadow-lg active:bg-black transition">Verify OTP</button>
                 </div>
-
-                <button
-                  type="button"
-                  id="verifyOtpBtn"
-                  class="w-full h-[56px] rounded-[22px] bg-gray-900 text-white font-black shadow-lg active:bg-black transition"
-                >
-                  Verify OTP
-                </button>
-
-                <div class="mt-5 rounded-[24px] bg-emerald-50 border border-emerald-100 p-4">
-                  <div class="flex gap-3">
-                    <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black">
-                      i
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-black text-gray-900">Verification Note</h4>
-                      <p class="text-xs font-bold text-gray-600 leading-5 mt-1">
-                        OTP verify hone ke baad hi Save Client button active hoga.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
+              <% } %>
             </section>
 
           </div>
 
-          <!-- Tablet Summary -->
           <aside class="tablet-summary">
             <div class="sticky top-6 space-y-5">
-
-              <div class="section-card">
-                <h3 class="text-lg font-black text-gray-900 mb-2">
-                  Client Checklist
-                </h3>
-
-                <p class="text-sm font-semibold text-gray-500 leading-6">
-                  B2B client onboarding complete karne ke liye 3 steps follow karein.
-                </p>
-
-                <div class="space-y-3 mt-5">
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-2xl bg-emerald-50 flex items-center justify-center">👥</div>
-                    <p class="text-sm font-black text-gray-700">Basic Profile</p>
-                  </div>
-
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-2xl bg-blue-50 flex items-center justify-center">📍</div>
-                    <p class="text-sm font-black text-gray-700">Site Details</p>
-                  </div>
-
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-2xl bg-gray-100 flex items-center justify-center">🔐</div>
-                    <p class="text-sm font-black text-gray-700">OTP Verify</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="hero-gradient rounded-[30px] p-5 text-white shadow-xl shadow-emerald-100">
-                <p class="text-sm font-bold text-emerald-50">Current Step</p>
-                <h3 id="summaryStepTitle" class="text-2xl font-black mt-1">Basic Profile</h3>
-                <p id="summaryStepText" class="text-sm font-semibold text-emerald-50 leading-6 mt-2">
-                  Client type aur contact person details add karein.
-                </p>
-              </div>
-
+              <div class="section-card"><h3 class="text-lg font-black text-gray-900 mb-2">Client Checklist</h3><p class="text-sm font-semibold text-gray-500 leading-6">B2B client onboarding complete karne ke liye 3 steps follow karein.</p><div class="space-y-3 mt-5"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-2xl bg-emerald-50 flex items-center justify-center">👥</div><p class="text-sm font-black text-gray-700">Basic Profile</p></div><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-2xl bg-blue-50 flex items-center justify-center">📍</div><p class="text-sm font-black text-gray-700">Site Details</p></div><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-2xl bg-gray-100 flex items-center justify-center"><%= editMode ? "✓" : "🔐" %></div><p class="text-sm font-black text-gray-700"><%= editMode ? "Review Update" : "OTP Verify" %></p></div></div></div>
+              <div class="hero-gradient rounded-[30px] p-5 text-white shadow-xl shadow-emerald-100"><p class="text-sm font-bold text-emerald-50">Current Step</p><h3 id="summaryStepTitle" class="text-2xl font-black mt-1">Basic Profile</h3><p id="summaryStepText" class="text-sm font-semibold text-emerald-50 leading-6 mt-2">Client type aur contact person details add karein.</p></div>
             </div>
           </aside>
-
         </div>
-
       </form>
-
     </div>
-
   </main>
 
-  <!-- Footer -->
   <footer class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 px-5 md:px-8 pt-3 bottom-safe shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
-    <div class="tablet-container">
-      <div class="flex gap-3">
-
-        <button
-          type="button"
-          id="prevBtn"
-          class="hidden w-1/3 md:w-[180px] h-[58px] rounded-[22px] bg-gray-100 text-gray-700 text-base md:text-lg font-black active:bg-gray-200 transition"
-        >
-          Back
-        </button>
-
-        <button
-          type="button"
-          id="nextBtn"
-          class="flex-1 h-[58px] rounded-[22px] bg-gray-900 text-white text-base md:text-lg font-black shadow-lg active:bg-black transition"
-        >
-          Next Step
-        </button>
-
-        <button
-          type="submit"
-          form="addClientForm"
-          id="submitBtn"
-          disabled
-          class="hidden flex-1 h-[58px] rounded-[22px] bg-emerald-500 text-white text-base md:text-lg font-black shadow-lg shadow-emerald-100 opacity-50 cursor-not-allowed transition"
-        >
-          Save Client
-        </button>
-
-      </div>
-    </div>
+    <div class="tablet-container"><div class="flex gap-3">
+      <button type="button" id="prevBtn" class="hidden w-1/3 md:w-[180px] h-[58px] rounded-[22px] bg-gray-100 text-gray-700 text-base md:text-lg font-black active:bg-gray-200 transition">Back</button>
+      <button type="button" id="nextBtn" class="flex-1 h-[58px] rounded-[22px] bg-gray-900 text-white text-base md:text-lg font-black shadow-lg active:bg-black transition">Next Step</button>
+      <button type="submit" form="addClientForm" id="submitBtn" <%= editMode ? "" : "disabled" %> class="hidden flex-1 h-[58px] rounded-[22px] bg-emerald-500 text-white text-base md:text-lg font-black shadow-lg shadow-emerald-100 <%= editMode ? "" : "opacity-50 cursor-not-allowed" %> transition"><%= editMode ? "Update Client" : "Save Client" %></button>
+    </div></div>
   </footer>
-
 </div>
 
 <script>
+  const isEditMode = <%= editMode ? "true" : "false" %>;
   let currentStep = 1;
   const totalSteps = 3;
-  let isOtpVerified = false;
+  let isOtpVerified = isEditMode;
 
   const steps = [
-    document.getElementById('step-1'),
-    document.getElementById('step-2'),
-    document.getElementById('step-3')
+    document.getElementById("step-1"),
+    document.getElementById("step-2"),
+    document.getElementById("step-3"),
   ];
 
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  const submitBtn = document.getElementById('submitBtn');
-  const progressBar = document.getElementById('progressBar');
-
-  const summaryStepTitle = document.getElementById('summaryStepTitle');
-  const summaryStepText = document.getElementById('summaryStepText');
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const submitBtn = document.getElementById("submitBtn");
+  const progressBar = document.getElementById("progressBar");
+  const summaryStepTitle = document.getElementById("summaryStepTitle");
+  const summaryStepText = document.getElementById("summaryStepText");
+  const form = document.getElementById("addClientForm");
 
   const stepInfo = {
-    1: {
-      title: 'Basic Profile',
-      text: 'Client type aur contact person details add karein.'
-    },
-    2: {
-      title: 'Site & Business Details',
-      text: 'Work location, company details aur requirement add karein.'
-    },
-    3: {
-      title: 'OTP Verification',
-      text: 'Client ke mobile number par OTP verify karein.'
-    }
+    1: { title: "Basic Profile", text: "Client type aur contact person details add karein." },
+    2: { title: "Site & Business Details", text: "Work location, company details aur requirement add karein." },
+    3: isEditMode
+      ? { title: "Review & Update", text: "Details check karke update karein." }
+      : { title: "OTP Verification", text: "Client ke mobile number par OTP verify karein." },
   };
 
-  // Conditional Rendering Logic (Individual vs Company)
   const clientTypeRadios = document.querySelectorAll('input[name="clientType"]');
-  const dynamicCompanyFields = document.getElementById('dynamicCompanyFields');
-  const companyNameInput = document.getElementById('companyNameInput');
-  const industryInput = document.getElementById('industryInput');
+  const dynamicCompanyFields = document.getElementById("dynamicCompanyFields");
+  const companyNameInput = document.getElementById("companyNameInput");
+  const industryInput = document.getElementById("industryInput");
+  const clientPhone = document.getElementById("clientPhone");
 
-  clientTypeRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      if (e.target.value === 'Company') {
-        dynamicCompanyFields.style.display = 'block';
-        companyNameInput.required = true;
-        industryInput.required = true;
-      } else {
-        dynamicCompanyFields.style.display = 'none';
-        companyNameInput.required = false;
-        industryInput.required = false;
-      }
-    });
+  function updateCompanyFields() {
+    const selected = document.querySelector('input[name="clientType"]:checked')?.value;
+    const isCompany = selected === "Company";
+    dynamicCompanyFields.style.display = isCompany ? "block" : "none";
+    companyNameInput.required = isCompany;
+    industryInput.required = isCompany;
+  }
+
+  clientTypeRadios.forEach((radio) => radio.addEventListener("change", updateCompanyFields));
+  clientPhone.addEventListener("input", () => {
+    clientPhone.value = clientPhone.value.replace(/\D/g, "").slice(0, 10);
   });
 
-  // OTP Logic
-  document.getElementById('verifyOtpBtn').addEventListener('click', () => {
-    const otpVal = document.getElementById('otpInput').value;
-    const msg = document.getElementById('otpMessage');
-
-    msg.classList.remove('hidden');
-
-    if (otpVal === '1234') {
-      msg.textContent = '✅ Verified Successfully!';
-      msg.className = 'text-sm font-black text-emerald-600 mt-4';
-      isOtpVerified = true;
-
-      submitBtn.disabled = false;
-      submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-      submitBtn.classList.add('active:scale-[0.98]');
-
-      document.getElementById('verifyOtpBtn').style.display = 'none';
-    } else {
-      msg.textContent = '❌ Invalid OTP. Try 1234.';
-      msg.className = 'text-sm font-black text-red-600 mt-4';
-    }
-  });
-
-  // Navigation Logic
   function updateUI() {
-    steps.forEach((step, index) => {
-      step.classList.toggle('active', index + 1 === currentStep);
-    });
+    steps.forEach((step, index) => step.classList.toggle("active", index + 1 === currentStep));
 
     for (let i = 1; i <= totalSteps; i++) {
-      let ind = document.getElementById(`ind-${i}`);
-
+      const indicator = document.getElementById(`ind-${i}`);
       if (i < currentStep) {
-        ind.className = 'step-indicator w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-sm shadow-md shadow-emerald-100';
-        ind.innerHTML = '✓';
+        indicator.className = "step-indicator w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-sm shadow-md shadow-emerald-100";
+        indicator.innerHTML = "✓";
       } else if (i === currentStep) {
-        ind.className = 'step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md';
-        ind.innerHTML = i;
+        indicator.className = "step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md";
+        indicator.innerHTML = i;
       } else {
-        ind.className = 'step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm';
-        ind.innerHTML = i;
+        indicator.className = "step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm";
+        indicator.innerHTML = i;
       }
     }
 
-    progressBar.style.width = ((currentStep - 1) / (totalSteps - 1)) * 100 + '%';
+    progressBar.style.width = `${((currentStep - 1) / (totalSteps - 1)) * 100}%`;
+    prevBtn.classList.toggle("hidden", currentStep === 1);
+    nextBtn.classList.toggle("hidden", currentStep === totalSteps);
+    submitBtn.classList.toggle("hidden", currentStep !== totalSteps);
 
-    prevBtn.classList.toggle('hidden', currentStep === 1);
+    summaryStepTitle.textContent = stepInfo[currentStep].title;
+    summaryStepText.textContent = stepInfo[currentStep].text;
 
-    if (currentStep === totalSteps) {
-      nextBtn.classList.add('hidden');
-      submitBtn.classList.remove('hidden');
-    } else {
-      nextBtn.classList.remove('hidden');
-      submitBtn.classList.add('hidden');
+    document.querySelector(".scroll-area").scrollTo({ top: 0, behavior: "smooth" });
+
+    if (currentStep === 2) {
+      setTimeout(prepareWorkSiteMap, 180);
+    }
+  }
+
+  function validateCurrentStep() {
+    const currentSection = document.getElementById(`step-${currentStep}`);
+    const inputs = currentSection.querySelectorAll("input[required], select[required], textarea[required]");
+
+    for (const input of inputs) {
+      if (!input.checkValidity()) {
+        input.reportValidity();
+        return false;
+      }
     }
 
-    if (summaryStepTitle && summaryStepText) {
-      summaryStepTitle.textContent = stepInfo[currentStep].title;
-      summaryStepText.textContent = stepInfo[currentStep].text;
+    if (
+      currentStep === 2 &&
+      (!siteLatitude.value || !siteLongitude.value || siteLocationSource.value !== "CURRENT_LOCATION")
+    ) {
+      showLocationError("Current work-site location abhi capture nahi hui. Location permission allow karke Refresh dabayein.");
+      captureCurrentWorkSiteLocation();
+      return false;
     }
 
-    document.querySelector('.scroll-area').scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
+    return true;
   }
 
   nextBtn.addEventListener("click", () => {
-  const inputs = steps[currentStep - 1].querySelectorAll(
-    "input[required], select[required], textarea[required]"
-  );
-
-  let isValid = true;
-
-  inputs.forEach((input) => {
-    if (!input.checkValidity()) {
-      input.reportValidity();
-      isValid = false;
-    }
-  });
-
-  // Step 2 se aage tabhi jayega jab current work-site location capture ho.
-  if (
-    isValid &&
-    currentStep === 2 &&
-    (!siteLatitude.value ||
-      !siteLongitude.value ||
-      siteLocationSource.value !== "CURRENT_LOCATION")
-  ) {
-    showLocationError(
-      "Current work-site location abhi capture nahi hui. Location permission allow karke Refresh dabayein."
-    );
-
-    captureCurrentWorkSiteLocation();
-    isValid = false;
-  }
-
-  if (isValid && currentStep < totalSteps) {
-    currentStep++;
-    updateUI();
-  }
-});
-
-  prevBtn.addEventListener('click', () => {
-    if (currentStep > 1) {
-      currentStep--;
+    if (validateCurrentStep() && currentStep < totalSteps) {
+      currentStep += 1;
       updateUI();
     }
   });
 
-  document.getElementById('addClientForm').addEventListener('submit', (e) => {
-    if (!isOtpVerified) {
-      e.preventDefault();
-      alert('Please verify OTP before submitting.');
+  prevBtn.addEventListener("click", () => {
+    if (currentStep > 1) {
+      currentStep -= 1;
+      updateUI();
     }
   });
 
-  updateUI();
+  const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+  if (verifyOtpBtn) {
+    verifyOtpBtn.addEventListener("click", () => {
+      const otpInput = document.getElementById("otpInput");
+      const otpMessage = document.getElementById("otpMessage");
+      otpMessage.classList.remove("hidden");
+
+      if (otpInput.value === "1234") {
+        otpMessage.textContent = "✓ Verified Successfully!";
+        otpMessage.className = "text-sm font-black text-emerald-600 mt-4";
+        isOtpVerified = true;
+        submitBtn.disabled = false;
+        submitBtn.classList.remove("opacity-50", "cursor-not-allowed");
+        verifyOtpBtn.style.display = "none";
+      } else {
+        otpMessage.textContent = "Invalid OTP. Testing ke liye 1234 use karein.";
+        otpMessage.className = "text-sm font-black text-red-600 mt-4";
+      }
+    });
+  }
 
   const refreshLocationBtn = document.getElementById("refreshLocationBtn");
+  const locationError = document.getElementById("locationError");
+  const locationSuccess = document.getElementById("locationSuccess");
+  const mapLoadingOverlay = document.getElementById("mapLoadingOverlay");
+  const mapLoadingText = document.getElementById("mapLoadingText");
+  const locationStatusText = document.getElementById("locationStatusText");
+  const siteLatitude = document.getElementById("siteLatitude");
+  const siteLongitude = document.getElementById("siteLongitude");
+  const siteLocationSource = document.getElementById("siteLocationSource");
+  const latitudePreview = document.getElementById("latitudePreview");
+  const longitudePreview = document.getElementById("longitudePreview");
 
-const locationError = document.getElementById("locationError");
-const locationSuccess = document.getElementById("locationSuccess");
+  const savedLatitude = <%- JSON.stringify(existingLatitude) %>;
+  const savedLongitude = <%- JSON.stringify(existingLongitude) %>;
+  const savedLocationSource = <%- JSON.stringify(existingLocationSource) %>;
 
-const mapLoadingOverlay = document.getElementById("mapLoadingOverlay");
-const mapLoadingText = document.getElementById("mapLoadingText");
-const locationStatusText = document.getElementById("locationStatusText");
+  const defaultMapLatitude = 19.2183;
+  const defaultMapLongitude = 73.0867;
 
-const siteLatitude = document.getElementById("siteLatitude");
-const siteLongitude = document.getElementById("siteLongitude");
-const siteLocationSource = document.getElementById("siteLocationSource");
+  let workSiteMap = null;
+  let workSiteMarker = null;
+  let locationRequestInProgress = false;
 
-const latitudePreview = document.getElementById("latitudePreview");
-const longitudePreview = document.getElementById("longitudePreview");
-
-let workSiteMap = null;
-let workSiteMarker = null;
-let locationRequestInProgress = false;
-
-const defaultMapLatitude = 19.2183;
-const defaultMapLongitude = 73.0867;
-
-function showLocationError(message) {
-  locationError.textContent = message;
-  locationError.classList.remove("hidden");
-}
-
-function hideLocationError() {
-  locationError.textContent = "";
-  locationError.classList.add("hidden");
-}
-
-function showMapLoading(message) {
-  mapLoadingText.textContent = message;
-  mapLoadingOverlay.classList.remove("hidden");
-}
-
-function hideMapLoading() {
-  mapLoadingOverlay.classList.add("hidden");
-}
-
-function initialiseWorkSiteMap() {
-  if (workSiteMap) {
-    setTimeout(() => {
-      workSiteMap.invalidateSize();
-    }, 150);
-
-    return;
+  function showLocationError(message) {
+    locationError.textContent = message;
+    locationError.classList.remove("hidden");
   }
 
-  workSiteMap = L.map("workSiteMap", {
-    zoomControl: true,
-    dragging: true,
-    scrollWheelZoom: false,
-    doubleClickZoom: false,
-    boxZoom: false,
-    keyboard: false,
-    touchZoom: true,
-  }).setView(
-    [defaultMapLatitude, defaultMapLongitude],
-    14
-  );
+  function hideLocationError() {
+    locationError.textContent = "";
+    locationError.classList.add("hidden");
+  }
 
-  L.tileLayer(
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
+  function showMapLoading(message) {
+    mapLoadingText.textContent = message;
+    mapLoadingOverlay.classList.remove("hidden");
+  }
+
+  function hideMapLoading() {
+    mapLoadingOverlay.classList.add("hidden");
+  }
+
+  function initialiseWorkSiteMap() {
+    if (workSiteMap) {
+      setTimeout(() => workSiteMap.invalidateSize(), 120);
+      return;
+    }
+
+    workSiteMap = L.map("workSiteMap", {
+      zoomControl: true,
+      dragging: true,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      touchZoom: true,
+    }).setView([defaultMapLatitude, defaultMapLongitude], 14);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors",
       maxZoom: 19,
+    }).addTo(workSiteMap);
+  }
+
+  function showCapturedWorkSite(latitude, longitude) {
+    initialiseWorkSiteMap();
+
+    if (!workSiteMarker) {
+      workSiteMarker = L.marker([latitude, longitude]).addTo(workSiteMap);
+    } else {
+      workSiteMarker.setLatLng([latitude, longitude]);
     }
-  ).addTo(workSiteMap);
-}
 
-function showCapturedWorkSite(latitude, longitude) {
-  initialiseWorkSiteMap();
-
-  if (!workSiteMarker) {
-    workSiteMarker = L.marker([latitude, longitude]).addTo(workSiteMap);
-  } else {
-    workSiteMarker.setLatLng([latitude, longitude]);
+    workSiteMap.setView([latitude, longitude], 17);
+    setTimeout(() => workSiteMap.invalidateSize(), 120);
   }
 
-  workSiteMap.setView([latitude, longitude], 17);
+  function applyCapturedLocation(latitude, longitude, accuracy) {
+    const finalLatitude = Number(latitude).toFixed(6);
+    const finalLongitude = Number(longitude).toFixed(6);
 
-  setTimeout(() => {
-    workSiteMap.invalidateSize();
-  }, 150);
-}
+    siteLatitude.value = finalLatitude;
+    siteLongitude.value = finalLongitude;
+    siteLocationSource.value = "CURRENT_LOCATION";
+    latitudePreview.textContent = finalLatitude;
+    longitudePreview.textContent = finalLongitude;
+    locationSuccess.classList.remove("hidden");
 
-function captureCurrentWorkSiteLocation() {
-  if (locationRequestInProgress) {
-    return;
-  }
-
-  hideLocationError();
-
-  if (!navigator.geolocation) {
+    showCapturedWorkSite(Number(latitude), Number(longitude));
     hideMapLoading();
 
-    showLocationError(
-      "This browser does not support current location. Please use Chrome or another supported browser."
-    );
+    const accuracyText = Number.isFinite(Number(accuracy))
+      ? ` Accuracy approximately ${Math.round(Number(accuracy))} metres.`
+      : "";
 
-    locationStatusText.textContent =
-      "Current location is not supported in this browser.";
-
-    return;
+    locationStatusText.textContent = `Current work-site location captured successfully.${accuracyText}`;
   }
 
-  locationRequestInProgress = true;
+  function captureCurrentWorkSiteLocation() {
+    if (locationRequestInProgress) return;
+    hideLocationError();
 
-  refreshLocationBtn.disabled = true;
-  refreshLocationBtn.textContent = "Fetching...";
-
-  showMapLoading("Fetching current work-site location...");
-  locationStatusText.textContent =
-    "Please wait while the current location is being captured.";
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const latitude = Number(position.coords.latitude);
-      const longitude = Number(position.coords.longitude);
-      const accuracy = Number(position.coords.accuracy);
-
-      locationRequestInProgress = false;
-
-      refreshLocationBtn.disabled = false;
-      refreshLocationBtn.textContent = "Refresh";
-
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        hideMapLoading();
-
-        showLocationError(
-          "Current location could not be read. Please tap Refresh and try again."
-        );
-
-        locationStatusText.textContent =
-          "Location could not be captured.";
-
-        return;
-      }
-
-      const finalLatitude = latitude.toFixed(6);
-      const finalLongitude = longitude.toFixed(6);
-
-      siteLatitude.value = finalLatitude;
-      siteLongitude.value = finalLongitude;
-      siteLocationSource.value = "CURRENT_LOCATION";
-
-      latitudePreview.textContent = finalLatitude;
-      longitudePreview.textContent = finalLongitude;
-
-      locationSuccess.classList.remove("hidden");
-
-      showCapturedWorkSite(latitude, longitude);
+    if (!navigator.geolocation) {
       hideMapLoading();
-
-      const accuracyText = Number.isFinite(accuracy)
-        ? ` Accuracy approximately ${Math.round(accuracy)} metres.`
-        : "";
-
-      locationStatusText.textContent =
-        `Current work-site location captured successfully.${accuracyText}`;
-    },
-
-    (error) => {
-      locationRequestInProgress = false;
-
-      refreshLocationBtn.disabled = false;
-      refreshLocationBtn.textContent = "Refresh";
-
-      hideMapLoading();
-
-      let message =
-        "Current location could not be captured. Please try again.";
-
-      if (error.code === error.PERMISSION_DENIED) {
-        message =
-          "Location permission was denied. Browser ke address bar me location allow karke Refresh dabayein.";
-      } else if (error.code === error.POSITION_UNAVAILABLE) {
-        message =
-          "Current location is unavailable. GPS, Wi-Fi ya mobile network check karke Refresh karein.";
-      } else if (error.code === error.TIMEOUT) {
-        message =
-          "Location request timed out. Open area me jaakar Refresh dabayein.";
-      }
-
-      showLocationError(message);
-
-      locationStatusText.textContent =
-        "Current work-site location is still required before continuing.";
-    },
-
-    {
-      enableHighAccuracy: true,
-      timeout: 20000,
-      maximumAge: 0,
+      showLocationError("This browser does not support current location. Please use Chrome or another supported browser.");
+      locationStatusText.textContent = "Current location is not supported in this browser.";
+      return;
     }
-  );
-}
 
-refreshLocationBtn.addEventListener("click", () => {
-  captureCurrentWorkSiteLocation();
-});
+    locationRequestInProgress = true;
+    refreshLocationBtn.disabled = true;
+    refreshLocationBtn.textContent = "Fetching...";
+    showMapLoading("Fetching current work-site location...");
+    locationStatusText.textContent = "Please wait while the current location is being captured.";
 
-// Step 2 khulte hi map ready + location automatically fetch
-const originalUpdateUI = updateUI;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        locationRequestInProgress = false;
+        refreshLocationBtn.disabled = false;
+        refreshLocationBtn.textContent = "Refresh";
 
-updateUI = function () {
-  originalUpdateUI();
+        const latitude = Number(position.coords.latitude);
+        const longitude = Number(position.coords.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          hideMapLoading();
+          showLocationError("Current location could not be read. Please tap Refresh and try again.");
+          return;
+        }
 
-  if (currentStep === 2) {
-    setTimeout(() => {
-      initialiseWorkSiteMap();
-
-      if (!siteLatitude.value || !siteLongitude.value) {
-        captureCurrentWorkSiteLocation();
-      } else {
-        showCapturedWorkSite(
-          Number(siteLatitude.value),
-          Number(siteLongitude.value)
-        );
-
+        applyCapturedLocation(latitude, longitude, position.coords.accuracy);
+      },
+      (error) => {
+        locationRequestInProgress = false;
+        refreshLocationBtn.disabled = false;
+        refreshLocationBtn.textContent = "Refresh";
         hideMapLoading();
-      }
-    }, 180);
+
+        let message = "Current location could not be captured. Please try again.";
+        if (error.code === error.PERMISSION_DENIED) message = "Location permission was denied. Browser ke address bar me location allow karke Refresh dabayein.";
+        else if (error.code === error.POSITION_UNAVAILABLE) message = "Current location is unavailable. GPS, Wi-Fi ya mobile network check karke Refresh karein.";
+        else if (error.code === error.TIMEOUT) message = "Location request timed out. Open area me jaakar Refresh dabayein.";
+
+        showLocationError(message);
+        locationStatusText.textContent = "Current work-site location is still required before continuing.";
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
   }
-};
 
-// Final save validation
-document
-  .getElementById("addClientForm")
-  .addEventListener("submit", (event) => {
-    const writtenAddress = document
-      .getElementById("siteAddress")
-      .value
-      .trim();
+  function prepareWorkSiteMap() {
+    initialiseWorkSiteMap();
 
-    if (
-      !siteLatitude.value ||
-      !siteLongitude.value ||
-      siteLocationSource.value !== "CURRENT_LOCATION"
-    ) {
+    const hasExistingLocation =
+      savedLatitude &&
+      savedLongitude &&
+      savedLocationSource === "CURRENT_LOCATION" &&
+      Number.isFinite(Number(savedLatitude)) &&
+      Number.isFinite(Number(savedLongitude));
+
+    if (hasExistingLocation) {
+      applyCapturedLocation(savedLatitude, savedLongitude, null);
+      locationStatusText.textContent = "Saved work-site location loaded. Site par ho to Refresh se nayi location capture karein.";
+      return;
+    }
+
+    captureCurrentWorkSiteLocation();
+  }
+
+  refreshLocationBtn.addEventListener("click", captureCurrentWorkSiteLocation);
+
+  form.addEventListener("submit", (event) => {
+    if (!isOtpVerified) {
       event.preventDefault();
+      alert("Please verify OTP before submitting.");
+      return;
+    }
 
-      showLocationError(
-        "Please capture the current work-site location before saving the client."
-      );
-
+    const writtenAddress = document.getElementById("siteAddress").value.trim();
+    if (!siteLatitude.value || !siteLongitude.value || siteLocationSource.value !== "CURRENT_LOCATION") {
+      event.preventDefault();
+      showLocationError("Please capture the current work-site location before saving the client.");
       return;
     }
 
     if (writtenAddress.length < 10) {
       event.preventDefault();
-
-      alert(
-        "Please enter complete work-site address with plot, room, flat or shop details."
-      );
-
+      alert("Please enter complete work-site address with plot, room, flat or shop details.");
       document.getElementById("siteAddress").focus();
+      return;
     }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = isEditMode ? "Updating Client..." : "Saving Client...";
+    submitBtn.classList.add("opacity-70", "cursor-wait");
   });
 
-  const clientForm = document.getElementById("addClientForm");
-
-clientForm.addEventListener("submit", () => {
-  if (!isOtpVerified) {
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = "Saving Client...";
-  submitBtn.classList.add("opacity-70", "cursor-wait");
-});
-
+  updateCompanyFields();
+  updateUI();
 </script>
 
 </body>
