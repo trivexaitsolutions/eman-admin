@@ -13,7 +13,7 @@ model Employee {
   name      String
   email     String   @unique
   password  String
-  role      String   
+  role      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // Added for auditing
 }
@@ -22,7 +22,7 @@ model Employee {
 model City {
   id        Int      @id @default(autoincrement())
   name      String   @unique
-  nakas     Naka[] 
+  nakas     Naka[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -30,43 +30,43 @@ model City {
 model Naka {
   id        Int      @id @default(autoincrement())
   name      String
-  pincode   String?  // <--- ADD THIS LINE
-  latitude  Float?   
-  longitude Float?   
+  pincode   String? // <--- ADD THIS LINE
+  latitude  Float?
+  longitude Float?
   cityId    Int
   city      City     @relation(fields: [cityId], references: [id])
-  workers   Worker[] 
+  workers   Worker[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   mitras    Mitra[]
 }
 
 model Mitra {
-  id          Int       @id @default(autoincrement())
-  name        String
-  phone       String    @unique
-  email       String?   @unique
-  password    String
-  photoUrl    String?
-  isActive    Boolean   @default(true)
-  
-  // Relationships
-  nakas       Naka[]    // Yeh Mitra kaun-kaun se Naka manage karta hai
-  workers     Worker[]  // Is Mitra ne kitne workers ko onboard kiya (Commission tracking)
-  customers   Customer[]
+  id       Int     @id @default(autoincrement())
+  name     String
+  phone    String  @unique
+  email    String? @unique
+  password String
+  photoUrl String?
+  isActive Boolean @default(true)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  // Relationships
+  nakas     Naka[] // Yeh Mitra kaun-kaun se Naka manage karta hai
+  workers   Worker[] // Is Mitra ne kitne workers ko onboard kiya (Commission tracking)
+  customers Customer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Skill {
   id          Int         @id @default(autoincrement())
   name        String      @unique
   description String?     @db.Text
-  imageUrl    String?   // <--- YEH NAYI LINE ADD KAREIN
+  imageUrl    String? // <--- YEH NAYI LINE ADD KAREIN
   isActive    Boolean     @default(true)
   rates       SkillRate[] // This links to our dynamic pricing tiers
-  workers     Worker[]    // Keeps the link to the workers
+  workers     Worker[] // Keeps the link to the workers
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @default(now()) @updatedAt
 }
@@ -75,8 +75,8 @@ model SkillRate {
   id        Int      @id @default(autoincrement())
   skillId   Int
   skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  star      Float    // Using Float allows for 1, 2, 3, but also 3.5 or 4.5!
-  rate      Float    
+  star      Float // Using Float allows for 1, 2, 3, but also 3.5 or 4.5!
+  rate      Float
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -84,107 +84,124 @@ model SkillRate {
 }
 
 model Worker {
-  id                Int       @id @default(autoincrement())
-  name              String
+  id   Int    @id @default(autoincrement())
+  name String
 
   // --- NEW LOGIN FIELDS ---
-  phone             String    @unique
-  email             String?   @unique // Optional, as some laborers might not have email
-  password          String
+  phone    String  @unique
+  email    String? @unique // Optional, as some laborers might not have email
+  password String
   // ------------------------
-  
-  dob               DateTime  @db.Date
-  age               Int
-  qualification     String?
-  photoUrl          String?   // Path to the uploaded photo
-  idProofType       String    // AADHAR, PAN, VOTING, DRIVING
-  idNumber          String    @unique
-  consentVoiceUrl   String?   // Path to the uploaded voice recording
-  address           String    @db.Text
-  pincode           String
-  
-  // Payment Details (Optional, but one should ideally be filled)
-  bankDetails       String?   @db.Text 
-  upiId             String?
-  upiNumber         String?
-  
-  isActive          Boolean   @default(true)
-  
+
+  dob           DateTime @db.Date
+  age           Int
+  qualification String?
+  photoUrl      String?
+
+  // Worker ne currently kaunsa proof submit kiya hai:
+  // AADHAR / PAN / VOTING / DRIVING
+  idProofType String
+
+  // Legacy mirror field.
+  // Existing worker records aur old system compatibility ke liye abhi rakha hai.
+  idNumber String @unique
+
+  // Future-ready KYC fields
+  aadhaarNumber String? @unique
+  panNumber     String? @unique
+  otherIdNumber String? @unique
+
+  consentVoiceUrl String?
+  address         String  @db.Text
+  pincode         String
+
+  // Personal health/basic details
+  gender   String?
+  heightCm Float?
+  weightKg Float?
+  bmi      Float?
+
+  bankDetails String? @db.Text
+  upiId       String?
+  upiNumber   String?
+
+  isActive Boolean @default(true)
+
   // Many-to-Many Relationships
-  nakas             Naka[]    // Allows assigning up to 3 Nakas
-  skills            Skill[]   // Allows assigning multiple skills
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @default(now()) @updatedAt
+  nakas  Naka[] // Allows assigning up to 3 Nakas
+  skills Skill[] // Allows assigning multiple skills
 
-  isAvailable Boolean  @default(false) // Naya field!
-  lastActive  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  isAvailable Boolean   @default(false) // Naya field!
+  lastActive  DateTime  @default(now())
   bookings    Booking[]
-  pushToken         String?   @db.Text // @db.Text isliye kyunki Expo token thoda lamba hota hai
-  mitraId   Int?      // Optional: Kyunki kuch workers khud app se aayenge bina Mitra ke
-  mitra     Mitra?    @relation(fields: [mitraId], references: [id])
+  pushToken   String?   @db.Text // @db.Text isliye kyunki Expo token thoda lamba hota hai
+  mitraId     Int? // Optional: Kyunki kuch workers khud app se aayenge bina Mitra ke
+  mitra       Mitra?    @relation(fields: [mitraId], references: [id])
 
-  availabilityType String?  // FULL_DAY / SHORT_PERIOD
+  availabilityType  String? // FULL_DAY / SHORT_PERIOD
   availabilityStart DateTime?
   availabilityHours Int?
   availabilityUntil DateTime?
 }
 
 model Customer {
-  id                Int       @id @default(autoincrement())
-  phone             String    @unique
-  email             String?   @unique
-  name              String    // Contact Person Name
-  
+  id    Int     @id @default(autoincrement())
+  phone String  @unique
+  email String? @unique
+  name  String // Contact Person Name
+
   // 🚀 Naye fields as per instructions
-  clientType        String?   // "Individual" ya "Company"
-  businessName      String?   // Agar Company hai toh
-  businessType      String?   // Industry Type
-  siteAddress       String?   @db.Text
-  gstNumber         String?   
-  workerRequirement String?   // "1-5", "5-15", etc.
-  
-  otp               String?
-  otpExpiry         DateTime? 
-  isVerified        Boolean   @default(false)
-  pushToken         String?   @db.Text
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  bookings          Booking[]
-  mitraId     Int?
-  mitra       Mitra?   @relation(fields: [mitraId], references: [id])
+  clientType        String? // "Individual" ya "Company"
+  businessName      String? // Agar Company hai toh
+  businessType      String? // Industry Type
+  siteAddress       String? @db.Text
+  gstNumber         String?
+  workerRequirement String? // "1-5", "5-15", etc.
+
+  otp        String?
+  otpExpiry  DateTime?
+  isVerified Boolean   @default(false)
+  pushToken  String?   @db.Text
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  bookings  Booking[]
+  mitraId   Int?
+  mitra     Mitra?            @relation(fields: [mitraId], references: [id])
   addresses CustomerAddress[]
 }
 
 model Booking {
-  id          Int      @id @default(autoincrement())
+  id          Int @id @default(autoincrement())
   customerId  Int
   nakaId      Int
   skillId     Int
   workerCount Int
-  
-  // STATUS update kiya: Pehle PENDING rahega, pay hone ke baad ASSIGNED hoga
-  status      String   @default("PENDING") // "PENDING", "ASSIGNED", "COMPLETED", "CANCELLED"
-  
-  // --- NAYE PAYMENT FIELDS ---
-  amount            Float?   
-  razorpayOrderId   String?  @unique
-  razorpayPaymentId String?  @unique
-  // ---------------------------
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  customer    Customer @relation(fields: [customerId], references: [id])
-  workers     Worker[] 
-  arrivedWorkerIds  String  @default("[]")  // NAYA FIELD
-  cancelledWorkerIds String @default("[]")
-  isRated          Boolean  @default(false)
-  ratings   Rating[]  // Relation with Rating table
-  conflicts Conflict[]
+  // STATUS update kiya: Pehle PENDING rahega, pay hone ke baad ASSIGNED hoga
+  status String @default("PENDING") // "PENDING", "ASSIGNED", "COMPLETED", "CANCELLED"
+
+  // --- NAYE PAYMENT FIELDS ---
+  amount            Float?
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String? @unique
+  // ---------------------------
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  workers             Worker[]
+  arrivedWorkerIds    String               @default("[]") // NAYA FIELD
+  cancelledWorkerIds  String               @default("[]")
+  isRated             Boolean              @default(false)
+  ratings             Rating[] // Relation with Rating table
+  conflicts           Conflict[]
   workerClientRatings WorkerClientRating[]
-  completedWorkerIds String? @db.Text
+  completedWorkerIds  String?              @db.Text
 }
 
 model Rating {
@@ -195,56 +212,56 @@ model Rating {
   vyavhaar  Int
   createdAt DateTime @default(now())
 
-  booking   Booking  @relation(fields: [bookingId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
   // Note: Agar aapka worker model 'Worker' naam se hai toh niche wali line chalegi
   // worker    Worker   @relation(fields: [workerId], references: [id])
 }
 
 model WorkerClientRating {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  bookingId Int
-  workerId  Int
+  bookingId  Int
+  workerId   Int
   customerId Int
 
-  rating    Int
-  behaviour Int?
+  rating           Int
+  behaviour        Int?
   locationAccuracy Int?
-  coordination Int?
-  comment   String?  @db.Text
+  coordination     Int?
+  comment          String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([bookingId, workerId])
 }
 
 model Conflict {
-  id              Int              @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  bookingId       Int
-  booking         Booking          @relation(fields: [bookingId], references: [id])
+  bookingId Int
+  booking   Booking @relation(fields: [bookingId], references: [id])
 
-  raisedByType    ConflictRaisedBy
-  raisedById      Int?
+  raisedByType ConflictRaisedBy
+  raisedById   Int?
 
-  customerId      Int?
-  workerId        Int?
-  mitraId         Int?
+  customerId Int?
+  workerId   Int?
+  mitraId    Int?
 
-  reason          String
-  description     String?
+  reason      String
+  description String?
 
-  penaltyAmount   Int?
-  status          ConflictStatus   @default(PENDING)
+  penaltyAmount Int?
+  status        ConflictStatus @default(PENDING)
 
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   timeline        ConflictTimeline[]
-  continueWork Boolean @default(true)
+  continueWork    Boolean            @default(true)
   requestedAction String?
 }
 
@@ -261,51 +278,66 @@ enum ConflictStatus {
 }
 
 model ConflictTimeline {
-  id              Int              @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  conflictId      Int
-  conflict        Conflict         @relation(fields: [conflictId], references: [id])
+  conflictId Int
+  conflict   Conflict @relation(fields: [conflictId], references: [id])
 
-  updatedByType   ConflictUpdatedBy
-  updatedById     Int?
+  updatedByType ConflictUpdatedBy
+  updatedById   Int?
 
-  oldStatus       ConflictStatus?
-  newStatus       ConflictStatus
+  oldStatus ConflictStatus?
+  newStatus ConflictStatus
 
-  note            String?
+  note String?
 
-  createdAt       DateTime         @default(now())
+  createdAt DateTime @default(now())
 }
 
 model CustomerAddress {
-  id          Int      @id @default(autoincrement())
-  customerId  Int
+  id         Int @id @default(autoincrement())
+  customerId Int
 
-  title       String?
-  fullName    String?
-  phone       String?
+  title    String?
+  fullName String?
+  phone    String?
 
+  // Final full address, jo user app aur booking me show hoga
   addressLine String
-  landmark    String?
 
-  cityId      Int?
-  city        String?
+  // Manual detail: Flat / Room / Plot / Shop / Floor etc.
+  addressDetail String? @db.Text
 
-  nakaId      Int?
-  nakaName    String?
+  // Map / reverse-geocoding se milne wala address
+  mapAddress String? @db.Text
 
-  state       String?
-  pincode     String?
+  // Optional landmark
+  landmark String?
 
-  latitude    String?
-  longitude   String?
+  cityId Int?
+  city   String?
 
-  isDefault   Boolean  @default(false)
+  nakaId   Int?
+  nakaName String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  state   String?
+  pincode String?
 
-  customer    Customer @relation(fields: [customerId], references: [id])
+  latitude  String?
+  longitude String?
+
+  // Map provider ka place reference, future search/edit ke liye
+  placeId String?
+
+  // CURRENT_LOCATION / SEARCH / MAP_PIN / MANUAL
+  locationSource String?
+
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
 }
 
 enum ConflictUpdatedBy {

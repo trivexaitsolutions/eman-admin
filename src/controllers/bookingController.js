@@ -277,7 +277,17 @@ const getCurrentBooking = async (req, res) => {
     const activeBooking = await prisma.booking.findFirst({
       where: {
         customerId: parseInt(customerId),
-        status: { in: ["ASSIGNED", "IN_PROGRESS"] },
+        OR: [
+          {
+            status: {
+              in: ["ASSIGNED", "IN_PROGRESS"],
+            },
+          },
+          {
+            status: "COMPLETED",
+            isRated: false,
+          },
+        ],
       },
       include: {
         workers: true,
@@ -292,46 +302,48 @@ const getCurrentBooking = async (req, res) => {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
-    if (activeBooking) {
-      const workerAmount =
-        activeBooking.amount && activeBooking.workerCount
-          ? Math.round(
-              Number(activeBooking.amount) / Number(activeBooking.workerCount)
-            )
-          : 0;
-
-      const cancelledConflictInfo = activeBooking.conflicts.map((conflict) => {
-        const worker = activeBooking.workers.find(
-          (w) => Number(w.id) === Number(conflict.workerId)
-        );
-
-        return {
-          workerId: conflict.workerId,
-          workerName: worker?.name || "Worker",
-          reason: conflict.reason,
-          description: conflict.description,
-          amount: workerAmount,
-          conflictId: conflict.id,
-          createdAt: conflict.createdAt,
-        };
-      });
-
-      return res.json({
-        success: true,
-        booking: {
-          ...activeBooking,
-          cancelledConflictInfo,
-        },
-      });
-    } else {
+    if (!activeBooking) {
       return res.json({
         success: false,
         message: "Koi active booking nahi hai",
       });
     }
+
+    const workerAmount =
+      activeBooking.amount && activeBooking.workerCount
+        ? Math.round(
+            Number(activeBooking.amount) / Number(activeBooking.workerCount)
+          )
+        : 0;
+
+    const cancelledConflictInfo = activeBooking.conflicts.map((conflict) => {
+      const worker = activeBooking.workers.find(
+        (w) => Number(w.id) === Number(conflict.workerId)
+      );
+
+      return {
+        workerId: conflict.workerId,
+        workerName: worker?.name || "Worker",
+        reason: conflict.reason,
+        description: conflict.description,
+        amount: workerAmount,
+        conflictId: conflict.id,
+        createdAt: conflict.createdAt,
+      };
+    });
+
+    return res.json({
+      success: true,
+      booking: {
+        ...activeBooking,
+        cancelledConflictInfo,
+      },
+    });
   } catch (error) {
     console.error("Current Booking Error:", error);
     return res.status(500).json({
@@ -340,7 +352,6 @@ const getCurrentBooking = async (req, res) => {
     });
   }
 };
-
 // 1. WORKER: Current duty (kaam) fetch karne ke liye
 const getCurrentDuty = async (req, res) => {
   try {

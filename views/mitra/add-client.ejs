@@ -170,10 +170,16 @@
       }
     }
   </style>
+  <link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 
 <body>
-
+<%- include('../partials/toast') %>
 <div class="app">
 
   <!-- Header -->
@@ -386,16 +392,158 @@
                 </div>
 
                 <div class="space-y-4">
-                  <div>
-                    <label class="input-label">Full Site Address *</label>
-                    <textarea
-                      name="siteAddress"
-                      required
-                      rows="3"
-                      class="app-input resize-none"
-                      placeholder="Where is work required?"
-                    ></textarea>
-                  </div>
+                  <div class="rounded-[26px] bg-blue-50 border border-blue-100 p-4 md:p-5">
+  <div class="rounded-[26px] bg-blue-50 border border-blue-100 p-4 md:p-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="flex items-start gap-3">
+      <div class="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl shrink-0">
+        📍
+      </div>
+
+      <div class="min-w-0">
+        <h3 class="text-base font-black text-gray-900">
+          Exact Work Site Location *
+        </h3>
+
+        <p class="text-xs font-bold text-gray-600 mt-1 leading-5">
+          Step open hote hi current location automatically fetch hogi.
+        </p>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      id="refreshLocationBtn"
+      class="shrink-0 px-3 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-xs font-black active:bg-blue-100 transition"
+    >
+      Refresh
+    </button>
+  </div>
+
+  <!-- Map always visible -->
+  <div
+    id="locationMapCard"
+    class="mt-4 overflow-hidden rounded-[22px] border border-blue-100 bg-white"
+  >
+    <div class="relative">
+      <div
+        id="workSiteMap"
+        style="height: 270px;"
+      ></div>
+
+      <!-- Map loading overlay -->
+      <div
+        id="mapLoadingOverlay"
+        class="absolute inset-0 z-[500] flex flex-col items-center justify-center bg-white/85 text-center px-5"
+      >
+        <div class="w-11 h-11 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
+
+        <p
+          id="mapLoadingText"
+          class="mt-4 text-sm font-black text-gray-800"
+        >
+          Fetching current location...
+        </p>
+
+        <p class="mt-1 text-xs font-bold text-gray-500">
+          Please allow browser location permission.
+        </p>
+      </div>
+    </div>
+
+    <div class="px-4 py-3 bg-white border-t border-blue-50">
+      <p
+        id="locationStatusText"
+        class="text-xs font-bold text-gray-600"
+      >
+        Work-site location is being prepared.
+      </p>
+    </div>
+  </div>
+
+  <div
+    id="locationError"
+    class="hidden mt-4 rounded-2xl bg-red-50 border border-red-100 p-3 text-xs font-bold text-red-700 leading-5"
+  ></div>
+
+  <div
+    id="locationSuccess"
+    class="hidden mt-4 rounded-2xl bg-emerald-50 border border-emerald-100 p-4"
+  >
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black">
+        ✓
+      </div>
+
+      <div>
+        <p class="text-sm font-black text-emerald-900">
+          Current Work Site Location Captured
+        </p>
+
+        <p class="text-xs font-bold text-emerald-700 mt-1">
+          Ye exact point client ke work site ke saath save hoga.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mt-4">
+      <div class="rounded-2xl bg-white border border-emerald-100 p-3">
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">
+          Latitude
+        </p>
+
+        <p
+          id="latitudePreview"
+          class="text-xs font-black text-gray-800 mt-1 break-all"
+        >
+          --
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-white border border-emerald-100 p-3">
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">
+          Longitude
+        </p>
+
+        <p
+          id="longitudePreview"
+          class="text-xs font-black text-gray-800 mt-1 break-all"
+        >
+          --
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form ke saath backend me save honge -->
+  <input type="hidden" id="siteLatitude" name="siteLatitude" />
+  <input type="hidden" id="siteLongitude" name="siteLongitude" />
+  <input
+    type="hidden"
+    id="siteLocationSource"
+    name="siteLocationSource"
+  />
+</div>
+
+<div class="mt-5">
+  <label class="input-label">
+    Complete Work Site Address *
+  </label>
+
+  <textarea
+    id="siteAddress"
+    name="siteAddress"
+    required
+    minlength="10"
+    rows="5"
+    placeholder="Example: Plot No. 18, Room No. 3, Shree Ganesh Chawl, Near Hanuman Mandir, Manpada Road, Dombivli East"
+    class="app-input resize-none"
+  ></textarea>
+
+  <p class="mt-2 text-xs font-bold text-gray-500 leading-5">
+    Plot / room / flat / shop number, building or chawl name, road, area and landmark clearly likhein.
+  </p>
+</div>
 
                   <div>
                     <label class="input-label">Worker Requirement *</label>
@@ -739,22 +887,41 @@
     });
   }
 
-  nextBtn.addEventListener('click', () => {
-    const inputs = steps[currentStep - 1].querySelectorAll('input[required], select[required], textarea[required]');
-    let isValid = true;
+  nextBtn.addEventListener("click", () => {
+  const inputs = steps[currentStep - 1].querySelectorAll(
+    "input[required], select[required], textarea[required]"
+  );
 
-    inputs.forEach(input => {
-      if (!input.checkValidity()) {
-        input.reportValidity();
-        isValid = false;
-      }
-    });
+  let isValid = true;
 
-    if (isValid && currentStep < totalSteps) {
-      currentStep++;
-      updateUI();
+  inputs.forEach((input) => {
+    if (!input.checkValidity()) {
+      input.reportValidity();
+      isValid = false;
     }
   });
+
+  // Step 2 se aage tabhi jayega jab current work-site location capture ho.
+  if (
+    isValid &&
+    currentStep === 2 &&
+    (!siteLatitude.value ||
+      !siteLongitude.value ||
+      siteLocationSource.value !== "CURRENT_LOCATION")
+  ) {
+    showLocationError(
+      "Current work-site location abhi capture nahi hui. Location permission allow karke Refresh dabayein."
+    );
+
+    captureCurrentWorkSiteLocation();
+    isValid = false;
+  }
+
+  if (isValid && currentStep < totalSteps) {
+    currentStep++;
+    updateUI();
+  }
+});
 
   prevBtn.addEventListener('click', () => {
     if (currentStep > 1) {
@@ -771,6 +938,282 @@
   });
 
   updateUI();
+
+  const refreshLocationBtn = document.getElementById("refreshLocationBtn");
+
+const locationError = document.getElementById("locationError");
+const locationSuccess = document.getElementById("locationSuccess");
+
+const mapLoadingOverlay = document.getElementById("mapLoadingOverlay");
+const mapLoadingText = document.getElementById("mapLoadingText");
+const locationStatusText = document.getElementById("locationStatusText");
+
+const siteLatitude = document.getElementById("siteLatitude");
+const siteLongitude = document.getElementById("siteLongitude");
+const siteLocationSource = document.getElementById("siteLocationSource");
+
+const latitudePreview = document.getElementById("latitudePreview");
+const longitudePreview = document.getElementById("longitudePreview");
+
+let workSiteMap = null;
+let workSiteMarker = null;
+let locationRequestInProgress = false;
+
+const defaultMapLatitude = 19.2183;
+const defaultMapLongitude = 73.0867;
+
+function showLocationError(message) {
+  locationError.textContent = message;
+  locationError.classList.remove("hidden");
+}
+
+function hideLocationError() {
+  locationError.textContent = "";
+  locationError.classList.add("hidden");
+}
+
+function showMapLoading(message) {
+  mapLoadingText.textContent = message;
+  mapLoadingOverlay.classList.remove("hidden");
+}
+
+function hideMapLoading() {
+  mapLoadingOverlay.classList.add("hidden");
+}
+
+function initialiseWorkSiteMap() {
+  if (workSiteMap) {
+    setTimeout(() => {
+      workSiteMap.invalidateSize();
+    }, 150);
+
+    return;
+  }
+
+  workSiteMap = L.map("workSiteMap", {
+    zoomControl: true,
+    dragging: true,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    touchZoom: true,
+  }).setView(
+    [defaultMapLatitude, defaultMapLongitude],
+    14
+  );
+
+  L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      attribution: "© OpenStreetMap contributors",
+      maxZoom: 19,
+    }
+  ).addTo(workSiteMap);
+}
+
+function showCapturedWorkSite(latitude, longitude) {
+  initialiseWorkSiteMap();
+
+  if (!workSiteMarker) {
+    workSiteMarker = L.marker([latitude, longitude]).addTo(workSiteMap);
+  } else {
+    workSiteMarker.setLatLng([latitude, longitude]);
+  }
+
+  workSiteMap.setView([latitude, longitude], 17);
+
+  setTimeout(() => {
+    workSiteMap.invalidateSize();
+  }, 150);
+}
+
+function captureCurrentWorkSiteLocation() {
+  if (locationRequestInProgress) {
+    return;
+  }
+
+  hideLocationError();
+
+  if (!navigator.geolocation) {
+    hideMapLoading();
+
+    showLocationError(
+      "This browser does not support current location. Please use Chrome or another supported browser."
+    );
+
+    locationStatusText.textContent =
+      "Current location is not supported in this browser.";
+
+    return;
+  }
+
+  locationRequestInProgress = true;
+
+  refreshLocationBtn.disabled = true;
+  refreshLocationBtn.textContent = "Fetching...";
+
+  showMapLoading("Fetching current work-site location...");
+  locationStatusText.textContent =
+    "Please wait while the current location is being captured.";
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const latitude = Number(position.coords.latitude);
+      const longitude = Number(position.coords.longitude);
+      const accuracy = Number(position.coords.accuracy);
+
+      locationRequestInProgress = false;
+
+      refreshLocationBtn.disabled = false;
+      refreshLocationBtn.textContent = "Refresh";
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        hideMapLoading();
+
+        showLocationError(
+          "Current location could not be read. Please tap Refresh and try again."
+        );
+
+        locationStatusText.textContent =
+          "Location could not be captured.";
+
+        return;
+      }
+
+      const finalLatitude = latitude.toFixed(6);
+      const finalLongitude = longitude.toFixed(6);
+
+      siteLatitude.value = finalLatitude;
+      siteLongitude.value = finalLongitude;
+      siteLocationSource.value = "CURRENT_LOCATION";
+
+      latitudePreview.textContent = finalLatitude;
+      longitudePreview.textContent = finalLongitude;
+
+      locationSuccess.classList.remove("hidden");
+
+      showCapturedWorkSite(latitude, longitude);
+      hideMapLoading();
+
+      const accuracyText = Number.isFinite(accuracy)
+        ? ` Accuracy approximately ${Math.round(accuracy)} metres.`
+        : "";
+
+      locationStatusText.textContent =
+        `Current work-site location captured successfully.${accuracyText}`;
+    },
+
+    (error) => {
+      locationRequestInProgress = false;
+
+      refreshLocationBtn.disabled = false;
+      refreshLocationBtn.textContent = "Refresh";
+
+      hideMapLoading();
+
+      let message =
+        "Current location could not be captured. Please try again.";
+
+      if (error.code === error.PERMISSION_DENIED) {
+        message =
+          "Location permission was denied. Browser ke address bar me location allow karke Refresh dabayein.";
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        message =
+          "Current location is unavailable. GPS, Wi-Fi ya mobile network check karke Refresh karein.";
+      } else if (error.code === error.TIMEOUT) {
+        message =
+          "Location request timed out. Open area me jaakar Refresh dabayein.";
+      }
+
+      showLocationError(message);
+
+      locationStatusText.textContent =
+        "Current work-site location is still required before continuing.";
+    },
+
+    {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 0,
+    }
+  );
+}
+
+refreshLocationBtn.addEventListener("click", () => {
+  captureCurrentWorkSiteLocation();
+});
+
+// Step 2 khulte hi map ready + location automatically fetch
+const originalUpdateUI = updateUI;
+
+updateUI = function () {
+  originalUpdateUI();
+
+  if (currentStep === 2) {
+    setTimeout(() => {
+      initialiseWorkSiteMap();
+
+      if (!siteLatitude.value || !siteLongitude.value) {
+        captureCurrentWorkSiteLocation();
+      } else {
+        showCapturedWorkSite(
+          Number(siteLatitude.value),
+          Number(siteLongitude.value)
+        );
+
+        hideMapLoading();
+      }
+    }, 180);
+  }
+};
+
+// Final save validation
+document
+  .getElementById("addClientForm")
+  .addEventListener("submit", (event) => {
+    const writtenAddress = document
+      .getElementById("siteAddress")
+      .value
+      .trim();
+
+    if (
+      !siteLatitude.value ||
+      !siteLongitude.value ||
+      siteLocationSource.value !== "CURRENT_LOCATION"
+    ) {
+      event.preventDefault();
+
+      showLocationError(
+        "Please capture the current work-site location before saving the client."
+      );
+
+      return;
+    }
+
+    if (writtenAddress.length < 10) {
+      event.preventDefault();
+
+      alert(
+        "Please enter complete work-site address with plot, room, flat or shop details."
+      );
+
+      document.getElementById("siteAddress").focus();
+    }
+  });
+
+  const clientForm = document.getElementById("addClientForm");
+
+clientForm.addEventListener("submit", () => {
+  if (!isOtpVerified) {
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Saving Client...";
+  submitBtn.classList.add("opacity-70", "cursor-wait");
+});
+
 </script>
 
 </body>

@@ -1,0 +1,215 @@
+<%
+  const page =
+    typeof activePage !== "undefined" && activePage
+      ? activePage
+      : "dashboard";
+
+  const displayName =
+    typeof mitraName !== "undefined" && mitraName
+      ? String(mitraName).trim()
+      : "Mitra";
+
+  const mitraInitial =
+    displayName.charAt(0).toUpperCase() || "M";
+
+  const desktopActiveClass =
+    "px-5 py-2.5 rounded-full bg-emerald-50 text-emerald-600 text-sm font-black";
+
+  const desktopInactiveClass =
+    "px-5 py-2.5 rounded-full text-gray-500 text-sm font-bold hover:bg-gray-50";
+
+  const mobileActiveClass =
+    "flex flex-col items-center gap-1 text-emerald-600";
+
+  const mobileInactiveClass =
+    "flex flex-col items-center gap-1 text-gray-400";
+%>
+
+<style>
+  @media (max-width: 767px) {
+    .tablet-nav {
+      display: none;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .mobile-bottom-nav {
+      display: none;
+    }
+  }
+</style>
+
+<header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
+  <div class="tablet-container">
+    <div class="flex items-center justify-between gap-4">
+
+      <div class="flex items-center gap-3 min-w-0">
+        <a
+          href="/mitra/dashboard"
+          class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0"
+          aria-label="Go to dashboard"
+        >
+          <span class="text-white text-xl md:text-2xl font-black">
+            <%= mitraInitial %>
+          </span>
+        </a>
+
+        <div class="min-w-0">
+          <p class="text-xs font-bold text-emerald-600 uppercase tracking-wide">
+            Verified Mitra
+          </p>
+
+          <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
+            Namaste, <%= displayName %> 👋
+          </h1>
+
+          <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
+            E-MAN Mitra Portal
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 md:gap-3">
+
+        <a
+          href="/mitra/clients/add"
+          class="hidden md:flex px-5 h-12 rounded-full bg-blue-600 text-white text-sm font-black items-center justify-center shadow-lg shadow-blue-200 active:bg-blue-700"
+        >
+          + Add Client
+        </a>
+
+        <a
+          href="/mitra/workers/add"
+          class="hidden md:flex px-5 h-12 rounded-full bg-emerald-500 text-white text-sm font-black items-center justify-center shadow-lg shadow-emerald-100 active:bg-emerald-600"
+        >
+          + Add Worker
+        </a>
+
+        <button
+          type="button"
+          class="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-50 flex items-center justify-center relative active:bg-gray-100 ml-1 md:ml-2"
+          aria-label="Notifications"
+        >
+          <span class="text-xl">🔔</span>
+          <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+        </button>
+
+      </div>
+
+    </div>
+  </div>
+</header>
+
+<nav class="tablet-nav bg-white border-b border-gray-100 px-8 py-3">
+  <div class="tablet-container flex items-center gap-3 overflow-x-auto">
+
+    <a
+      href="/mitra/dashboard"
+      class="<%= page === 'dashboard' ? desktopActiveClass : desktopInactiveClass %>"
+    >
+      Home
+    </a>
+
+    <a
+      href="/mitra/workers"
+      class="<%= page === 'workers' ? desktopActiveClass : desktopInactiveClass %>"
+    >
+      Workers
+    </a>
+
+    <a
+      href="/mitra/workers/add"
+      class="<%= desktopInactiveClass %>"
+    >
+      Add Worker
+    </a>
+
+    <a
+      href="/mitra/clients"
+      class="<%= page === 'clients' ? desktopActiveClass : desktopInactiveClass %>"
+    >
+      Clients
+    </a>
+
+    <a
+      href="/mitra/clients/add"
+      class="<%= desktopInactiveClass %>"
+    >
+      Add Client
+    </a>
+
+    <a
+      href="/mitra/conflicts"
+      class="<%= page === 'conflicts' ? desktopActiveClass : desktopInactiveClass %>"
+    >
+      Conflicts
+    </a>
+
+  </div>
+</nav>
+
+<footer class="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 px-4 pt-3 bottom-safe shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
+  <div class="grid grid-cols-5 items-end max-w-[430px] mx-auto">
+
+    <a
+      href="/mitra/dashboard"
+      class="<%= page === 'dashboard' ? mobileActiveClass : mobileInactiveClass %>"
+    >
+      <div class="w-10 h-8 rounded-full <%= page === 'dashboard' ? 'bg-emerald-50' : '' %> flex items-center justify-center">
+        <span class="text-lg">⌂</span>
+      </div>
+      <span class="text-[11px] <%= page === 'dashboard' ? 'font-black' : 'font-bold' %>">
+        Home
+      </span>
+    </a>
+
+    <a
+      href="/mitra/workers"
+      class="<%= page === 'workers' ? mobileActiveClass : mobileInactiveClass %>"
+    >
+      <div class="w-10 h-8 rounded-full <%= page === 'workers' ? 'bg-emerald-50' : '' %> flex items-center justify-center">
+        <span class="text-lg">👷</span>
+      </div>
+      <span class="text-[11px] <%= page === 'workers' ? 'font-black' : 'font-bold' %>">
+        Workers
+      </span>
+    </a>
+
+    <a
+      href="/mitra/workers/add"
+      class="flex flex-col items-center gap-1 text-emerald-600"
+    >
+      <div class="w-14 h-14 -mt-8 rounded-full bg-emerald-500 border-4 border-white shadow-lg shadow-emerald-200 flex items-center justify-center">
+        <span class="text-white text-3xl font-black leading-none">+</span>
+      </div>
+      <span class="text-[11px] font-black">
+        Add
+      </span>
+    </a>
+
+    <a
+      href="/mitra/clients"
+      class="<%= page === 'clients' ? mobileActiveClass : mobileInactiveClass %>"
+    >
+      <div class="w-10 h-8 rounded-full <%= page === 'clients' ? 'bg-emerald-50' : '' %> flex items-center justify-center">
+        <span class="text-lg">🏢</span>
+      </div>
+      <span class="text-[11px] <%= page === 'clients' ? 'font-black' : 'font-bold' %>">
+        Clients
+      </span>
+    </a>
+
+    <a
+      href="/mitra/conflicts"
+      class="<%= page === 'conflicts' ? mobileActiveClass : mobileInactiveClass %>"
+    >
+      <div class="w-10 h-8 rounded-full <%= page === 'conflicts' ? 'bg-emerald-50' : '' %> flex items-center justify-center">
+        <span class="text-lg">⚠</span>
+      </div>
+      <span class="text-[11px] <%= page === 'conflicts' ? 'font-black' : 'font-bold' %>">
+        Conflicts
+      </span>
+    </a>
+
+  </div>
+</footer>

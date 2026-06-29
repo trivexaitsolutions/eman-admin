@@ -1,3 +1,24 @@
+<%
+  const editMode = Boolean(typeof isEdit !== "undefined" && isEdit && worker);
+  const formWorker = editMode ? worker : {};
+  const formWorkerDob = editMode && typeof workerDob !== "undefined" ? workerDob : "";
+
+  const selectedSkillIds = new Set(
+    editMode && Array.isArray(formWorker.skills)
+      ? formWorker.skills.map((skill) => Number(skill.id))
+      : []
+  );
+
+  const selectedNakaIds = new Set(
+    editMode && Array.isArray(formWorker.nakas)
+      ? formWorker.nakas.map((naka) => Number(naka.id))
+      : []
+  );
+
+  const hasExistingConsentVideo = Boolean(
+    editMode && formWorker.consentVoiceUrl
+  );
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +29,7 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
 
-  <title>Add Worker | E-MAN Mitra</title>
+  <title><%= editMode ? "Edit Worker" : "Add Worker" %> | E-MAN Mitra</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -164,6 +185,31 @@
         padding-bottom: 110px;
       }
     }
+
+    .app-input.input-invalid {
+  border-color: #ef4444;
+  background: #fff7f7;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+
+.field-error {
+  margin-top: 6px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.bmi-card {
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  border-radius: 20px;
+  padding: 14px 16px;
+}
+
+.bmi-card.is-ready {
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+}
   </style>
 </head>
 
@@ -187,15 +233,15 @@
 
           <div class="min-w-0">
             <p class="text-xs font-black text-emerald-600 uppercase tracking-wide">
-              Worker Onboarding
+              <%= editMode ? "Worker Management" : "Worker Onboarding" %>
             </p>
 
             <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
-              Add New Worker
+              <%= editMode ? "Edit Worker" : "Add New Worker" %>
             </h1>
 
             <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
-              Complete KYC in simple steps
+              <%= editMode ? "Update worker details safely" : "Complete KYC in simple steps" %>
             </p>
           </div>
         </div>
@@ -260,19 +306,23 @@
 
     <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
 
-      <% if (error === 'duplicate') { %>
-        <div class="mb-5 rounded-[24px] bg-red-50 border border-red-100 p-4 flex items-center gap-3">
-          <div class="w-11 h-11 rounded-2xl bg-red-100 flex items-center justify-center text-xl">
-            ⚠️
-          </div>
-          <div>
-            <h3 class="text-sm font-black text-red-700">Worker Already Registered</h3>
-            <p class="text-xs font-bold text-red-500 mt-0.5">Mobile number or Aadhaar already exists.</p>
-          </div>
-        </div>
-      <% } %>
+      <% if (error) { %>
+  <div class="mb-5 rounded-[24px] bg-red-50 border border-red-100 p-4 flex items-center gap-3">
+    <div class="w-11 h-11 rounded-2xl bg-red-100 flex items-center justify-center text-xl">
+      ⚠️
+    </div>
 
-      <form id="workerForm" action="/mitra/workers/save" method="POST" enctype="multipart/form-data">
+    <div>
+      <h3 class="text-sm font-black text-red-700"><%= editMode ? "Unable to Update Worker" : "Unable to Continue" %></h3>
+
+      <p class="text-xs font-bold text-red-500 mt-0.5 leading-5">
+        <%= error %>
+      </p>
+    </div>
+  </div>
+<% } %>
+
+      <form id="workerForm" action="<%= editMode ? `/mitra/workers/update/${formWorker.id}` : '/mitra/workers/save' %>" method="POST" enctype="multipart/form-data">
 
         <div class="tablet-grid">
 
@@ -298,48 +348,201 @@
                   <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">👤</div>
                   <div>
                     <h3 class="text-lg font-black text-gray-900">Personal Information</h3>
-                    <p class="text-xs font-bold text-gray-500">Name, phone, password and address</p>
+                    <p class="text-xs font-bold text-gray-500"><%= editMode ? "Password blank chhodein agar change nahi karna hai" : "Name, phone, password and address" %></p>
                   </div>
                 </div>
 
                 <div class="space-y-4">
-                  <div>
-                    <label class="input-label">Full Name *</label>
-                    <input type="text" name="name" required placeholder="Enter worker full name" class="app-input" />
-                  </div>
 
-                  <div>
-                    <label class="input-label">Mobile Number *</label>
-                    <input type="tel" name="phone" required placeholder="10-digit mobile number" pattern="[0-9]{10}" class="app-input" />
-                  </div>
+  <div>
+    <label class="input-label">Full Name *</label>
 
-                  <div>
-                    <label class="input-label">Set Password *</label>
-                    <input type="password" name="password" required placeholder="Set worker login password" class="app-input" />
-                  </div>
+    <input
+      type="text"
+      id="workerName"
+      name="name"
+      required
+      minlength="2"
+      maxlength="100"
+      value="<%= editMode ? (formWorker.name || '') : '' %>"
+      placeholder="Enter worker full name"
+      class="app-input"
+    />
+  </div>
 
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="input-label">Date of Birth *</label>
-                      <input type="date" name="dob" required class="app-input" />
-                    </div>
+  <div>
+    <label class="input-label">Mobile Number *</label>
 
-                    <div>
-                      <label class="input-label">Age *</label>
-                      <input type="number" name="age" required placeholder="Age" class="app-input" />
-                    </div>
-                  </div>
+    <input
+      type="tel"
+      id="workerPhone"
+      name="phone"
+      required
+      inputmode="numeric"
+      maxlength="10"
+      value="<%= editMode ? (formWorker.phone || '') : '' %>"
+      placeholder="10-digit mobile number"
+      class="app-input"
+    />
+  </div>
 
-                  <div>
-                    <label class="input-label">Pincode *</label>
-                    <input type="text" name="pincode" required placeholder="6-digit pincode" pattern="[0-9]{6}" class="app-input" />
-                  </div>
+  <div>
+    <label class="input-label">
+      <%= editMode ? "New Password (Optional)" : "Set Password *" %>
+    </label>
 
-                  <div>
-                    <label class="input-label">Full Address *</label>
-                    <textarea name="address" required rows="3" placeholder="Worker current/native address" class="app-input resize-none"></textarea>
-                  </div>
-                </div>
+    <input
+      type="password"
+      id="workerPassword"
+      name="password"
+      <%= editMode ? "" : "required" %>
+      minlength="6"
+      placeholder="<%= editMode ? "Leave blank to keep current password" : "Minimum 6 characters" %>"
+      class="app-input"
+    />
+
+    <% if (editMode) { %>
+      <p class="mt-2 text-xs font-bold text-gray-500">
+        Password sirf tab enter karein jab worker ka login password change karna ho.
+      </p>
+    <% } %>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="input-label">Date of Birth *</label>
+
+      <input
+        type="date"
+        id="workerDob"
+        name="dob"
+        required
+        value="<%= formWorkerDob %>"
+        class="app-input"
+      />
+    </div>
+
+    <div>
+      <label class="input-label">Age</label>
+
+      <input
+        type="number"
+        id="workerAge"
+        name="age"
+        readonly
+        tabindex="-1"
+        placeholder="Auto calculated"
+        class="app-input bg-gray-50 text-gray-500 cursor-not-allowed"
+      />
+    </div>
+  </div>
+
+  <div>
+    <label class="input-label">Gender *</label>
+
+    <select
+      id="workerGender"
+      name="gender"
+      required
+      class="app-input bg-white"
+    >
+      <option value="">Select gender</option>
+      <option value="MALE" <%= editMode && formWorker.gender === "MALE" ? "selected" : "" %>>Male</option>
+      <option value="FEMALE" <%= editMode && formWorker.gender === "FEMALE" ? "selected" : "" %>>Female</option>
+      <option value="OTHER" <%= editMode && formWorker.gender === "OTHER" ? "selected" : "" %>>Other</option>
+    </select>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="input-label">Height (cm) *</label>
+
+      <input
+        type="number"
+        id="heightCm"
+        name="heightCm"
+        required
+        min="80"
+        max="250"
+        step="0.1"
+        inputmode="decimal"
+        value="<%= editMode && formWorker.heightCm != null ? formWorker.heightCm : '' %>"
+        placeholder="Example: 170"
+        class="app-input"
+      />
+    </div>
+
+    <div>
+      <label class="input-label">Weight (kg) *</label>
+
+      <input
+        type="number"
+        id="weightKg"
+        name="weightKg"
+        required
+        min="20"
+        max="300"
+        step="0.1"
+        inputmode="decimal"
+        value="<%= editMode && formWorker.weightKg != null ? formWorker.weightKg : '' %>"
+        placeholder="Example: 70"
+        class="app-input"
+      />
+    </div>
+  </div>
+
+  <div id="bmiCard" class="bmi-card">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <p class="text-[11px] font-black text-emerald-700 uppercase tracking-wide">
+          BMI Preview
+        </p>
+
+        <p id="bmiStatus" class="text-xs font-bold text-emerald-700 mt-1">
+          Enter height and weight to calculate BMI.
+        </p>
+      </div>
+
+      <div class="text-right">
+        <p id="bmiValue" class="text-3xl font-black text-emerald-700">--</p>
+        <p class="text-[10px] font-black text-emerald-600 uppercase tracking-wide">
+          BMI
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <label class="input-label">Pincode *</label>
+
+    <input
+      type="text"
+      id="workerPincode"
+      name="pincode"
+      required
+      inputmode="numeric"
+      maxlength="6"
+      value="<%= editMode ? (formWorker.pincode || '') : '' %>"
+      placeholder="6-digit pincode"
+      class="app-input"
+    />
+  </div>
+
+  <div>
+    <label class="input-label">Full Address *</label>
+
+    <textarea
+      id="workerAddress"
+      name="address"
+      required
+      minlength="10"
+      rows="3"
+      placeholder="Worker current/native address"
+      class="app-input resize-none"
+    ><%= editMode ? (formWorker.address || '') : '' %></textarea>
+  </div>
+
+</div>
               </div>
 
             </section>
@@ -370,18 +573,38 @@
                 <div class="space-y-4">
                   <div>
                     <label class="input-label">ID Proof Type *</label>
-                    <select name="idProofType" required class="app-input bg-white">
-                      <option value="AADHAR">Aadhaar Card</option>
-                      <option value="PAN">PAN Card</option>
-                      <option value="VOTING">Voter ID</option>
-                      <option value="DRIVING">Driving License</option>
-                    </select>
+                    <select
+  id="idProofType"
+  name="idProofType"
+  required
+  class="app-input bg-white"
+>
+  <option value="">Select ID proof type</option>
+  <option value="AADHAR" <%= editMode && (formWorker.idProofType === "AADHAR" || formWorker.idProofType === "AADHAAR") ? "selected" : "" %>>Aadhaar Card</option>
+  <option value="PAN" <%= editMode && formWorker.idProofType === "PAN" ? "selected" : "" %>>PAN Card</option>
+  <option value="VOTING" <%= editMode && formWorker.idProofType === "VOTING" ? "selected" : "" %>>Voter ID</option>
+  <option value="DRIVING" <%= editMode && formWorker.idProofType === "DRIVING" ? "selected" : "" %>>Driving License</option>
+</select>
                   </div>
 
                   <div>
-                    <label class="input-label">ID Number *</label>
-                    <input type="text" name="idNumber" required placeholder="Enter ID number" class="app-input uppercase tracking-wider" />
-                  </div>
+  <label id="idNumberLabel" class="input-label">ID Number *</label>
+
+  <input
+    type="text"
+    id="idNumber"
+    name="idNumber"
+    required
+    value="<%= editMode ? (formWorker.idNumber || '') : '' %>"
+    placeholder="Select proof type first"
+    autocomplete="off"
+    class="app-input uppercase tracking-wider"
+  />
+
+  <p id="idNumberHelp" class="mt-2 text-xs font-bold text-gray-500 leading-5">
+    Select Aadhaar, PAN, Voter ID or Driving License.
+  </p>
+</div>
 
                   <div class="rounded-[24px] bg-emerald-50 border border-emerald-100 p-4">
                     <div class="flex gap-3">
@@ -427,7 +650,7 @@
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <% skills.forEach(skill => { %>
                     <label class="custom-checkbox cursor-pointer">
-                      <input type="checkbox" name="skillIds[]" value="<%= skill.id %>" class="hidden skill-check" />
+                      <input type="checkbox" name="skillIds[]" value="<%= skill.id %>" <%= selectedSkillIds.has(Number(skill.id)) ? "checked" : "" %> class="hidden skill-check" />
                       <div class="px-3 py-3 border-2 border-gray-100 rounded-2xl text-center text-sm font-black text-gray-500 transition">
                         <%= skill.name %>
                       </div>
@@ -437,32 +660,136 @@
               </div>
 
               <div class="section-card">
-                <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">📍</div>
-                  <div>
-                    <h3 class="text-lg font-black text-gray-900">Assign Nakas</h3>
-                    <p class="text-xs font-bold text-gray-500">Worker kis location par available rahega</p>
-                  </div>
-                </div>
+  <div class="flex items-center gap-3 mb-5">
+    <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">📍</div>
 
-                <div class="space-y-3">
-                  <% nakas.forEach(naka => { %>
-                    <label class="custom-checkbox cursor-pointer block">
-                      <input type="checkbox" name="nakaIds[]" value="<%= naka.id %>" class="hidden naka-check" />
-                      <div class="px-4 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-600 transition flex items-center justify-between">
-                        <span><%= naka.name %></span>
-                        <span class="text-xl">📍</span>
-                      </div>
-                    </label>
-                  <% }) %>
+    <div>
+      <h3 class="text-lg font-black text-gray-900">Assign Nakas</h3>
 
-                  <% if (nakas.length === 0) { %>
-                    <div class="rounded-2xl bg-red-50 border border-red-100 p-4">
-                      <p class="text-sm text-red-600 font-black">No active Nakas available.</p>
-                    </div>
-                  <% } %>
-                </div>
-              </div>
+      <p class="text-xs font-bold text-gray-500">
+        Pincode se Naka / Chouk search karke select karein
+      </p>
+    </div>
+  </div>
+
+  <!-- Search by Naka Area Pincode -->
+  <div class="rounded-[24px] bg-blue-50 border border-blue-100 p-4 mb-5">
+    <label class="input-label text-blue-800">Search Naka by Pincode</label>
+
+    <input
+      type="text"
+      id="nakaSearchPincode"
+      inputmode="numeric"
+      maxlength="6"
+      placeholder="Enter area pincode, e.g. 421201"
+      class="app-input"
+    />
+
+    <p class="mt-2 text-xs font-bold text-blue-700 leading-5">
+      Worker ke ghar ka pincode nahi. Jis area ke Naka / Chouk me worker kaam karega, us area ka pincode enter karein.
+    </p>
+  </div>
+
+  <!-- Selected Nakas, kept visible even after changing pincode -->
+  <div class="rounded-[24px] bg-emerald-50 border border-emerald-100 p-4 mb-5">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h4 class="text-sm font-black text-emerald-900">Selected Nakas</h4>
+
+        <p class="text-xs font-bold text-emerald-700 mt-1">
+          Different pincodes se multiple Nakas select kar sakte ho.
+        </p>
+      </div>
+
+      <span
+        id="selectedNakaCount"
+        class="min-w-9 h-9 px-3 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-black"
+      >
+        0
+      </span>
+    </div>
+
+    <p
+      id="selectedNakaEmpty"
+      class="text-xs font-bold text-emerald-700 mt-4"
+    >
+      Abhi koi Naka select nahi hai.
+    </p>
+
+    <div
+      id="selectedNakaList"
+      class="flex flex-wrap gap-2 mt-4"
+    ></div>
+  </div>
+
+  <!-- Search Result Message -->
+  <div
+    id="nakaSearchHint"
+    class="rounded-[22px] bg-gray-50 border border-gray-100 p-4 mb-4"
+  >
+    <p class="text-sm font-black text-gray-700">
+      Area ka valid 6-digit pincode enter karein.
+    </p>
+
+    <p class="text-xs font-bold text-gray-500 mt-1">
+      Matching Nakas yahan automatically dikhne lagenge.
+    </p>
+  </div>
+
+  <!-- No Match Message -->
+  <div
+    id="nakaNoMatch"
+    class="hidden rounded-[22px] bg-red-50 border border-red-100 p-4 mb-4"
+  >
+    <p class="text-sm font-black text-red-700">
+      Is pincode ke liye koi Naka available nahi hai.
+    </p>
+
+    <p class="text-xs font-bold text-red-500 mt-1">
+      Pincode check karein ya Admin Panel se is area ka Naka add karein.
+    </p>
+  </div>
+
+  <!-- Search Results -->
+  <div id="nakaList" class="space-y-3">
+    <% nakas.forEach(naka => { %>
+      <label
+        data-naka-card
+        data-naka-pincode="<%= naka.pincode || '' %>"
+        data-naka-name="<%= naka.name %>"
+        class="custom-checkbox cursor-pointer block hidden"
+      >
+        <input
+          type="checkbox"
+          name="nakaIds[]"
+          value="<%= naka.id %>"
+          <%= selectedNakaIds.has(Number(naka.id)) ? "checked" : "" %>
+          class="hidden naka-check"
+        />
+
+        <div class="px-4 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-600 transition flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <span class="block truncate"><%= naka.name %></span>
+
+            <span class="block text-[11px] text-gray-400 mt-1">
+              Pincode: <%= naka.pincode || 'Not configured' %>
+            </span>
+          </div>
+
+          <span class="text-xl shrink-0">📍</span>
+        </div>
+      </label>
+    <% }) %>
+  </div>
+
+  <% if (nakas.length === 0) { %>
+    <div class="rounded-2xl bg-red-50 border border-red-100 p-4">
+      <p class="text-sm text-red-600 font-black">
+        No active Nakas are assigned to this Mitra.
+      </p>
+    </div>
+  <% } %>
+</div>
 
             </section>
 
@@ -492,17 +819,17 @@
                 <div class="space-y-4">
                   <div>
                     <label class="input-label">UPI ID</label>
-                    <input type="text" name="upiId" id="upiId" placeholder="example@paytm" class="app-input" />
+                    <input type="text" name="upiId" id="upiId" value="<%= editMode ? (formWorker.upiId || '') : '' %>" placeholder="example@paytm" class="app-input" />
                   </div>
 
                   <div>
                     <label class="input-label">UPI Number</label>
-                    <input type="tel" name="upiNumber" id="upiNumber" placeholder="Number linked to UPI" class="app-input" />
+                    <input type="tel" name="upiNumber" id="upiNumber" value="<%= editMode ? (formWorker.upiNumber || '') : '' %>" placeholder="Number linked to UPI" class="app-input" />
                   </div>
 
                   <div>
                     <label class="input-label">Bank Details</label>
-                    <textarea name="bankDetails" id="bankDetails" rows="3" placeholder="Account number, IFSC code, bank name" class="app-input resize-none"></textarea>
+                    <textarea name="bankDetails" id="bankDetails" rows="3" placeholder="Account number, IFSC code, bank name" class="app-input resize-none"><%= editMode ? (formWorker.bankDetails || '') : '' %></textarea>
                   </div>
 
                   <div class="rounded-[24px] bg-yellow-50 border border-yellow-100 p-4">
@@ -610,7 +937,26 @@
                   </button>
                 </div>
 
-                <input type="file" id="videoConsentFile" name="videoConsent" accept="video/*" class="hidden" required />
+                <% if (editMode && hasExistingConsentVideo) { %>
+                  <div class="mt-5 rounded-[24px] bg-emerald-500/10 border border-emerald-400/20 p-4">
+                    <p class="text-sm font-black text-emerald-300">Existing Consent Video Available</p>
+                    <p class="text-xs font-bold text-gray-300 mt-1 leading-5">
+                      Naya video record karna optional hai. Existing consent replace karna ho tabhi Retake/Record use karein.
+                    </p>
+                    <a href="<%= formWorker.consentVoiceUrl %>" target="_blank" class="inline-flex mt-3 text-xs font-black text-white underline underline-offset-4">
+                      View Existing Consent Video
+                    </a>
+                  </div>
+                <% } %>
+
+                <input
+                  type="file"
+                  id="videoConsentFile"
+                  name="videoConsent"
+                  accept="video/*"
+                  class="hidden"
+                  <%= !editMode || !hasExistingConsentVideo ? "required" : "" %>
+                />
               </div>
 
             </section>
@@ -701,7 +1047,7 @@
           id="submitBtn"
           class="hidden flex-1 h-[58px] rounded-[22px] bg-emerald-500 text-white text-base md:text-lg font-black shadow-lg shadow-emerald-100 active:bg-emerald-600 transition"
         >
-          Complete KYC
+          <%= editMode ? "Update Worker" : "Complete KYC" %>
         </button>
 
       </div>
@@ -713,6 +1059,9 @@
 <script>
   let currentStep = 1;
   const totalSteps = 5;
+
+  const isEditMode = <%= editMode ? "true" : "false" %>;
+  const hasExistingConsentVideo = <%= hasExistingConsentVideo ? "true" : "false" %>;
 
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
@@ -783,61 +1132,267 @@
       summaryStepText.textContent = stepInfo[currentStep].text;
     }
 
+    if (currentStep === 3) {
+      updateNakaSearchResults();
+      refreshSelectedNakaSummary();
+    }
+
     document.querySelector('.scroll-area').scrollTo({
       top: 0,
       behavior: 'smooth'
     });
   }
 
-  function validateCurrentStep() {
-    const currentSection = document.getElementById('step-' + currentStep);
+  function getErrorNode(input) {
+  const fieldName = input.name || input.id;
+  let errorNode = input.parentElement.querySelector(
+    `[data-error-for="${fieldName}"]`
+  );
 
-    const inputs = currentSection.querySelectorAll('input[required], select[required], textarea[required]');
-
-    for (let input of inputs) {
-      if (!input.checkValidity()) {
-        input.reportValidity();
-        return false;
-      }
-    }
-
-    if (currentStep === 3) {
-      const skillChecked = document.querySelectorAll('.skill-check:checked').length > 0;
-      const nakaChecked = document.querySelectorAll('.naka-check:checked').length > 0;
-
-      if (!skillChecked) {
-        alert('Please select at least 1 skill.');
-        return false;
-      }
-
-      if (!nakaChecked) {
-        alert('Please assign at least 1 naka.');
-        return false;
-      }
-    }
-
-    if (currentStep === 4) {
-      const upiId = document.getElementById('upiId').value.trim();
-      const upiNumber = document.getElementById('upiNumber').value.trim();
-      const bankDetails = document.getElementById('bankDetails').value.trim();
-
-      if (!upiId && !upiNumber && !bankDetails) {
-        alert('Please add UPI ID, UPI Number, or Bank Details.');
-        return false;
-      }
-    }
-
-    if (currentStep === 5) {
-      const videoConsentFile = document.getElementById('videoConsentFile');
-
-      if (!videoConsentFile.files || videoConsentFile.files.length === 0) {
-        alert('Please record worker video consent before completing KYC.');
-        return false;
-      }
-    }
-
-    return true;
+  if (!errorNode) {
+    errorNode = document.createElement('p');
+    errorNode.className = 'field-error';
+    errorNode.setAttribute('data-error-for', fieldName);
+    input.parentElement.appendChild(errorNode);
   }
+
+  return errorNode;
+}
+
+function setFieldError(input, message) {
+  input.classList.add('input-invalid');
+  input.setAttribute('aria-invalid', 'true');
+
+  const errorNode = getErrorNode(input);
+  errorNode.textContent = message;
+}
+
+function clearFieldError(input) {
+  input.classList.remove('input-invalid');
+  input.removeAttribute('aria-invalid');
+
+  const fieldName = input.name || input.id;
+  const errorNode = input.parentElement.querySelector(
+    `[data-error-for="${fieldName}"]`
+  );
+
+  if (errorNode) {
+    errorNode.remove();
+  }
+}
+
+function validateBasicStep() {
+  let isValid = true;
+
+  const name = document.getElementById('workerName');
+  const phone = document.getElementById('workerPhone');
+  const password = document.getElementById('workerPassword');
+  const dob = document.getElementById('workerDob');
+  const gender = document.getElementById('workerGender');
+  const height = document.getElementById('heightCm');
+  const weight = document.getElementById('weightKg');
+  const pincode = document.getElementById('workerPincode');
+  const address = document.getElementById('workerAddress');
+
+  [
+    name,
+    phone,
+    password,
+    dob,
+    gender,
+    height,
+    weight,
+    pincode,
+    address
+  ].forEach(clearFieldError);
+
+  if (name.value.trim().length < 2) {
+    setFieldError(name, 'Please enter worker full name.');
+    isValid = false;
+  }
+
+  const cleanPhone = phone.value.replace(/\D/g, '');
+
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    setFieldError(phone, 'Enter a valid 10-digit Indian mobile number.');
+    isValid = false;
+  }
+
+  if (!isEditMode && password.value.trim().length < 6) {
+    setFieldError(password, 'Password must contain at least 6 characters.');
+    isValid = false;
+  }
+
+  if (
+    isEditMode &&
+    password.value.trim().length > 0 &&
+    password.value.trim().length < 6
+  ) {
+    setFieldError(password, 'New password must contain at least 6 characters.');
+    isValid = false;
+  }
+
+  if (!dob.value) {
+    setFieldError(dob, 'Please select date of birth.');
+    isValid = false;
+  } else {
+    const age = calculateAgeFromDob(dob.value);
+
+    if (age < 18 || age > 100) {
+      setFieldError(dob, 'Worker age must be between 18 and 100 years.');
+      isValid = false;
+    }
+  }
+
+  if (!gender.value) {
+    setFieldError(gender, 'Please select gender.');
+    isValid = false;
+  }
+
+  const heightValue = Number(height.value);
+
+  if (!Number.isFinite(heightValue) || heightValue < 80 || heightValue > 250) {
+    setFieldError(height, 'Height must be between 80 cm and 250 cm.');
+    isValid = false;
+  }
+
+  const weightValue = Number(weight.value);
+
+  if (!Number.isFinite(weightValue) || weightValue < 20 || weightValue > 300) {
+    setFieldError(weight, 'Weight must be between 20 kg and 300 kg.');
+    isValid = false;
+  }
+
+  if (!/^\d{6}$/.test(pincode.value.replace(/\D/g, ''))) {
+    setFieldError(pincode, 'Pincode must contain exactly 6 digits.');
+    isValid = false;
+  }
+
+  if (address.value.trim().length < 10) {
+    setFieldError(address, 'Please enter complete worker address.');
+    isValid = false;
+  }
+
+  return isValid;
+}
+
+function validateIdentityStep() {
+  let isValid = true;
+
+  const proofType = document.getElementById('idProofType');
+  const idNumber = document.getElementById('idNumber');
+
+  clearFieldError(proofType);
+  clearFieldError(idNumber);
+
+  if (!proofType.value) {
+    setFieldError(proofType, 'Please select an ID proof type.');
+    return false;
+  }
+
+  const selectedProof = proofType.value;
+  const rawValue = idNumber.value.trim();
+
+  if (!rawValue) {
+    setFieldError(idNumber, 'Please enter ID proof number.');
+    return false;
+  }
+
+  if (selectedProof === 'AADHAR') {
+    const aadhaar = rawValue.replace(/\D/g, '');
+
+    if (!/^\d{12}$/.test(aadhaar)) {
+      setFieldError(idNumber, 'Aadhaar number must contain exactly 12 digits.');
+      isValid = false;
+    }
+  }
+
+  if (selectedProof === 'PAN') {
+    const pan = rawValue.toUpperCase().replace(/\s+/g, '');
+
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+      setFieldError(idNumber, 'PAN format must be like ABCDE1234F.');
+      isValid = false;
+    }
+  }
+
+  if (
+    selectedProof === 'VOTING' ||
+    selectedProof === 'DRIVING'
+  ) {
+    const otherId = rawValue.replace(/\s+/g, '');
+
+    if (otherId.length < 5 || otherId.length > 30) {
+      setFieldError(idNumber, 'Please enter a valid ID proof number.');
+      isValid = false;
+    }
+  }
+
+  return isValid;
+}
+
+function validateCurrentStep() {
+  if (currentStep === 1) {
+    return validateBasicStep();
+  }
+
+  if (currentStep === 2) {
+    return validateIdentityStep();
+  }
+
+  const currentSection = document.getElementById('step-' + currentStep);
+
+  const inputs = currentSection.querySelectorAll(
+    'input[required], select[required], textarea[required]'
+  );
+
+  for (let input of inputs) {
+    if (!input.checkValidity()) {
+      input.reportValidity();
+      return false;
+    }
+  }
+
+  if (currentStep === 3) {
+    const skillChecked = document.querySelectorAll('.skill-check:checked').length > 0;
+    const nakaChecked = document.querySelectorAll('.naka-check:checked').length > 0;
+
+    if (!skillChecked) {
+      alert('Please select at least 1 skill.');
+      return false;
+    }
+
+    if (!nakaChecked) {
+      alert('Please assign at least 1 naka.');
+      return false;
+    }
+  }
+
+  if (currentStep === 4) {
+    const upiId = document.getElementById('upiId').value.trim();
+    const upiNumber = document.getElementById('upiNumber').value.trim();
+    const bankDetails = document.getElementById('bankDetails').value.trim();
+
+    if (!upiId && !upiNumber && !bankDetails) {
+      alert('Please add UPI ID, UPI Number, or Bank Details.');
+      return false;
+    }
+  }
+
+  if (currentStep === 5) {
+    const videoConsentFile = document.getElementById('videoConsentFile');
+
+    if (
+      !hasExistingConsentVideo &&
+      (!videoConsentFile.files || videoConsentFile.files.length === 0)
+    ) {
+      alert('Please record worker video consent before completing KYC.');
+      return false;
+    }
+  }
+
+  return true;
+}
 
   nextBtn.addEventListener('click', () => {
     if (validateCurrentStep()) {
@@ -858,6 +1413,347 @@
   });
 
   updateUI();
+
+
+  const workerDob = document.getElementById('workerDob');
+const workerAge = document.getElementById('workerAge');
+const heightCmInput = document.getElementById('heightCm');
+const weightKgInput = document.getElementById('weightKg');
+const bmiValue = document.getElementById('bmiValue');
+const bmiStatus = document.getElementById('bmiStatus');
+const bmiCard = document.getElementById('bmiCard');
+
+const workerPhone = document.getElementById('workerPhone');
+const workerPincode = document.getElementById('workerPincode');
+
+const nakaSearchPincode = document.getElementById("nakaSearchPincode");
+const nakaSearchHint = document.getElementById("nakaSearchHint");
+const nakaNoMatch = document.getElementById("nakaNoMatch");
+const nakaCards = document.querySelectorAll("[data-naka-card]");
+
+const selectedNakaList = document.getElementById("selectedNakaList");
+const selectedNakaEmpty = document.getElementById("selectedNakaEmpty");
+const selectedNakaCount = document.getElementById("selectedNakaCount");
+
+function cleanNakaPincode(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function refreshSelectedNakaSummary() {
+  const selectedCheckboxes = document.querySelectorAll(".naka-check:checked");
+
+  selectedNakaList.innerHTML = "";
+  selectedNakaCount.textContent = selectedCheckboxes.length;
+
+  selectedNakaEmpty.classList.toggle(
+    "hidden",
+    selectedCheckboxes.length > 0
+  );
+
+  selectedCheckboxes.forEach((checkbox) => {
+    const card = checkbox.closest("[data-naka-card]");
+    const nakaName = card?.dataset.nakaName || "Selected Naka";
+    const nakaPincode = card?.dataset.nakaPincode || "";
+
+    const chip = document.createElement("div");
+
+    chip.className =
+      "inline-flex items-center gap-2 rounded-full bg-white border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-800 shadow-sm";
+
+    const chipText = document.createElement("span");
+    chipText.textContent = `${nakaName}${nakaPincode ? ` · ${nakaPincode}` : ""}`;
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className =
+      "w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black leading-none hover:bg-emerald-200";
+    removeButton.textContent = "×";
+    removeButton.title = `Remove ${nakaName}`;
+
+    removeButton.addEventListener("click", () => {
+      checkbox.checked = false;
+
+      refreshSelectedNakaSummary();
+      updateNakaSearchResults();
+    });
+
+    chip.appendChild(chipText);
+    chip.appendChild(removeButton);
+
+    selectedNakaList.appendChild(chip);
+  });
+}
+
+function updateNakaSearchResults() {
+  const enteredPincode = cleanNakaPincode(nakaSearchPincode.value);
+
+  if (!/^\d{6}$/.test(enteredPincode)) {
+    nakaCards.forEach((card) => {
+      card.classList.add("hidden");
+    });
+
+    nakaNoMatch.classList.add("hidden");
+    nakaSearchHint.classList.remove("hidden");
+
+    nakaSearchHint.innerHTML = `
+      <p class="text-sm font-black text-gray-700">
+        Area ka valid 6-digit pincode enter karein.
+      </p>
+      <p class="text-xs font-bold text-gray-500 mt-1">
+        Matching Nakas yahan automatically dikhne lagenge.
+      </p>
+    `;
+
+    return;
+  }
+
+  let matchedCount = 0;
+
+  nakaCards.forEach((card) => {
+    const nakaPincode = cleanNakaPincode(card.dataset.nakaPincode);
+    const isMatch = nakaPincode === enteredPincode;
+
+    card.classList.toggle("hidden", !isMatch);
+
+    if (isMatch) {
+      matchedCount++;
+    }
+  });
+
+  if (matchedCount > 0) {
+    nakaNoMatch.classList.add("hidden");
+    nakaSearchHint.classList.remove("hidden");
+
+    nakaSearchHint.innerHTML = `
+      <p class="text-sm font-black text-emerald-800">
+        ${matchedCount} Naka${matchedCount > 1 ? "s" : ""} found for pincode ${enteredPincode}.
+      </p>
+      <p class="text-xs font-bold text-emerald-600 mt-1">
+        Required Nakas select karein. Search pincode change karne par selected Nakas remove nahi honge.
+      </p>
+    `;
+  } else {
+    nakaSearchHint.classList.add("hidden");
+    nakaNoMatch.classList.remove("hidden");
+  }
+}
+
+nakaSearchPincode.addEventListener("input", () => {
+  nakaSearchPincode.value = nakaSearchPincode.value
+    .replace(/\D/g, "")
+    .slice(0, 6);
+
+  updateNakaSearchResults();
+});
+
+document.querySelectorAll(".naka-check").forEach((checkbox) => {
+  checkbox.addEventListener("change", () => {
+    refreshSelectedNakaSummary();
+  });
+});
+
+const idProofType = document.getElementById('idProofType');
+const idNumberInput = document.getElementById('idNumber');
+const idNumberLabel = document.getElementById('idNumberLabel');
+const idNumberHelp = document.getElementById('idNumberHelp');
+
+function calculateAgeFromDob(dobValue) {
+  if (!dobValue) return 0;
+
+  const birthDate = new Date(`${dobValue}T00:00:00`);
+
+  if (Number.isNaN(birthDate.getTime())) return 0;
+
+  const today = new Date();
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (
+      monthDifference === 0 &&
+      today.getDate() < birthDate.getDate()
+    )
+  ) {
+    age--;
+  }
+
+  return age;
+}
+
+function updateAgePreview() {
+  const age = calculateAgeFromDob(workerDob.value);
+
+  workerAge.value = age > 0 ? age : '';
+}
+
+function getBmiStatus(value) {
+  if (value < 18.5) return 'Underweight range';
+  if (value < 25) return 'Healthy range';
+  if (value < 30) return 'Overweight range';
+
+  return 'Higher BMI range';
+}
+
+function updateBmiPreview() {
+  const height = Number(heightCmInput.value);
+  const weight = Number(weightKgInput.value);
+
+  if (
+    !Number.isFinite(height) ||
+    !Number.isFinite(weight) ||
+    height <= 0 ||
+    weight <= 0
+  ) {
+    bmiValue.textContent = '--';
+    bmiStatus.textContent = 'Enter height and weight to calculate BMI.';
+    bmiCard.classList.remove('is-ready');
+    return;
+  }
+
+  const heightInMeters = height / 100;
+  const bmi = weight / (heightInMeters * heightInMeters);
+
+  bmiValue.textContent = bmi.toFixed(1);
+  bmiStatus.textContent = getBmiStatus(bmi);
+  bmiCard.classList.add('is-ready');
+}
+
+function updateIdentityInputUI(resetValue = false) {
+  const selectedType = idProofType.value;
+
+  if (resetValue) {
+    idNumberInput.value = '';
+  }
+
+  clearFieldError(idNumberInput);
+
+  if (selectedType === 'AADHAR') {
+    idNumberLabel.textContent = 'Aadhaar Number *';
+    idNumberInput.placeholder = 'Enter 12-digit Aadhaar number';
+    idNumberInput.maxLength = 12;
+    idNumberInput.inputMode = 'numeric';
+    idNumberInput.classList.remove('uppercase');
+
+    idNumberHelp.textContent =
+      'Enter exactly 12 digits. Aadhaar number must not already be registered.';
+    return;
+  }
+
+  if (selectedType === 'PAN') {
+    idNumberLabel.textContent = 'PAN Number *';
+    idNumberInput.placeholder = 'Example: ABCDE1234F';
+    idNumberInput.maxLength = 10;
+    idNumberInput.inputMode = 'text';
+    idNumberInput.classList.add('uppercase');
+
+    idNumberHelp.textContent =
+      'PAN format: ABCDE1234F. PAN number must not already be registered.';
+    return;
+  }
+
+  if (selectedType === 'VOTING') {
+    idNumberLabel.textContent = 'Voter ID Number *';
+    idNumberInput.placeholder = 'Enter Voter ID number';
+    idNumberInput.maxLength = 30;
+    idNumberInput.inputMode = 'text';
+    idNumberInput.classList.add('uppercase');
+
+    idNumberHelp.textContent =
+      'Enter valid Voter ID number. Duplicate ID is not allowed.';
+    return;
+  }
+
+  if (selectedType === 'DRIVING') {
+    idNumberLabel.textContent = 'Driving License Number *';
+    idNumberInput.placeholder = 'Enter driving license number';
+    idNumberInput.maxLength = 30;
+    idNumberInput.inputMode = 'text';
+    idNumberInput.classList.add('uppercase');
+
+    idNumberHelp.textContent =
+      'Enter valid driving license number. Duplicate ID is not allowed.';
+    return;
+  }
+
+  idNumberLabel.textContent = 'ID Number *';
+  idNumberInput.placeholder = 'Select proof type first';
+  idNumberInput.maxLength = 30;
+  idNumberInput.inputMode = 'text';
+
+  idNumberHelp.textContent =
+    'Select Aadhaar, PAN, Voter ID or Driving License.';
+}
+
+workerDob.addEventListener('change', () => {
+  updateAgePreview();
+  clearFieldError(workerDob);
+});
+
+heightCmInput.addEventListener('input', () => {
+  updateBmiPreview();
+  clearFieldError(heightCmInput);
+});
+
+weightKgInput.addEventListener('input', () => {
+  updateBmiPreview();
+  clearFieldError(weightKgInput);
+});
+
+workerPhone.addEventListener('input', () => {
+  workerPhone.value = workerPhone.value.replace(/\D/g, '').slice(0, 10);
+  clearFieldError(workerPhone);
+});
+
+workerPincode.addEventListener("input", () => {
+  workerPincode.value = workerPincode.value
+    .replace(/\D/g, "")
+    .slice(0, 6);
+
+  clearFieldError(workerPincode);
+});
+
+idProofType.addEventListener('change', () => {
+  updateIdentityInputUI(true);
+  clearFieldError(idProofType);
+});
+
+idNumberInput.addEventListener('input', () => {
+  const selectedType = idProofType.value;
+
+  if (selectedType === 'AADHAR') {
+    idNumberInput.value = idNumberInput.value.replace(/\D/g, '').slice(0, 12);
+  } else {
+    idNumberInput.value = idNumberInput.value
+      .toUpperCase()
+      .replace(/\s+/g, '');
+  }
+
+  clearFieldError(idNumberInput);
+});
+
+document.getElementById('workerGender').addEventListener('change', function () {
+  clearFieldError(this);
+});
+
+document.getElementById('workerName').addEventListener('input', function () {
+  clearFieldError(this);
+});
+
+document.getElementById('workerPassword').addEventListener('input', function () {
+  clearFieldError(this);
+});
+
+document.getElementById('workerAddress').addEventListener('input', function () {
+  clearFieldError(this);
+});
+
+updateIdentityInputUI();
+updateAgePreview();
+updateBmiPreview();
+updateNakaSearchResults();
+refreshSelectedNakaSummary();
 
   // ================= VIDEO RECORDING LOGIC =================
 
@@ -959,6 +1855,21 @@
     retakeBtn.classList.add('hidden');
     cameraPlaceholder.classList.remove('hidden');
     startCameraBtn.classList.remove('hidden');
+  });
+
+  const workerForm = document.getElementById("workerForm");
+
+  workerForm.addEventListener("submit", (event) => {
+    // Existing validation ne form block kiya ho to button ka text change nahi hoga.
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    const submitButton = document.getElementById("submitBtn");
+
+    submitButton.disabled = true;
+    submitButton.textContent = isEditMode ? "Updating Worker..." : "Saving Worker...";
+    submitButton.classList.add("opacity-70", "cursor-wait");
   });
 </script>
 

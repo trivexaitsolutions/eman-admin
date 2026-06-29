@@ -400,113 +400,6 @@ const postAddClient = async (req, res) => {
 
 
 
-
-
-const listMitraClients = async (req, res) => {
-    try {
-        const mitraId = Number(req.user?.id);
-
-        if (!Number.isInteger(mitraId) || mitraId <= 0) {
-            return res.redirect(
-                "/mitra/dashboard?error=" +
-                encodeURIComponent("Mitra session was not found.")
-            );
-        }
-
-        const search = String(req.query.search || "").trim();
-        const type = String(req.query.type || "ALL").toUpperCase();
-
-        const where = {
-            mitraId,
-        };
-
-        if (type === "COMPANY") {
-            where.clientType = "Company";
-        }
-
-        if (type === "INDIVIDUAL") {
-            where.clientType = "Individual";
-        }
-
-        if (search) {
-            where.OR = [
-                {
-                    name: {
-                        contains: search,
-                    },
-                },
-                {
-                    businessName: {
-                        contains: search,
-                    },
-                },
-                {
-                    phone: {
-                        contains: search,
-                    },
-                },
-                {
-                    email: {
-                        contains: search,
-                    },
-                },
-            ];
-        }
-
-        const clients = await prisma.customer.findMany({
-            where,
-            include: {
-                addresses: {
-                    where: {
-                        isDefault: true,
-                    },
-                    select: {
-                        id: true,
-                        addressLine: true,
-                        pincode: true,
-                        latitude: true,
-                        longitude: true,
-                        updatedAt: true,
-                    },
-                    orderBy: {
-                        updatedAt: "desc",
-                    },
-                    take: 1,
-                },
-            },
-            orderBy: {
-                createdAt: "desc",
-            },
-        });
-
-        return res.render("mitra/clients", {
-            layout: false,
-            clients,
-            filters: {
-                search,
-                type:
-                    type === "COMPANY" || type === "INDIVIDUAL"
-                        ? type
-                        : "ALL",
-            },
-            success_msg: req.query.success || null,
-            error_msg: req.query.error || null,
-            activePage: "clients",
-            mitraName:
-                req.user?.name ||
-                req.user?.fullName ||
-                "Mitra",
-        });
-    } catch (error) {
-        console.error("Mitra Client List Error:", error);
-
-        return res.redirect(
-            "/mitra/dashboard?error=" +
-            encodeURIComponent("Clients list load nahi ho payi.")
-        );
-    }
-};
-
 const calculateMitraConflictAmounts = (conflict) => {
     const booking = conflict.booking;
     const totalBookingAmount = Math.round(Number(booking?.amount || 0));
@@ -764,7 +657,6 @@ const updateMitraConflictStatus = async (req, res) => {
 
 
 module.exports = {
-    listMitraClients,
     login,
     showDashboard,
     logout,

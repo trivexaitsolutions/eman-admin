@@ -44,30 +44,9 @@ router.get(
     workerController.listMitraWorkers
 );
 router.get('/workers/add', mitraBouncer, workerController.showMitraAddForm);
-
-router.get(
-    '/workers/edit/:id',
-    mitraBouncer,
-    workerController.showMitraEditForm
-);
-
-router.post(
-    '/workers/save',
-    mitraBouncer,
-    upload.single('videoConsent'),
-    workerController.saveMitraWorker
-);
-
-router.post(
-    '/workers/update/:id',
-    mitraBouncer,
-    upload.single('videoConsent'),
-    workerController.updateMitraWorker
-);
+router.post('/workers/save', mitraBouncer, upload.single('videoConsent'), workerController.saveMitraWorker);
 
 // Client Onboarding Routes
-router.get('/clients', mitraBouncer, mitraPortalController.listMitraClients);
-
 router.get('/clients/add', mitraBouncer, mitraPortalController.getAddClient);
 router.post('/clients/add', mitraBouncer, mitraPortalController.postAddClient);
 

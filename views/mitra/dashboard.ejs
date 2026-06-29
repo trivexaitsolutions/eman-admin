@@ -2,11 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
   <title>E-MAN Mitra Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-    html, body {
+    html,
+    body {
       margin: 0;
       width: 100%;
       height: 100%;
@@ -15,6 +20,7 @@
       background: #e5e7eb;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+
     .app {
       width: 100%;
       height: 100dvh;
@@ -25,120 +31,85 @@
       flex-direction: column;
       margin: 0 auto;
     }
+
     .scroll-area {
       flex: 1;
       overflow-y: auto;
       padding-bottom: 112px;
     }
+
     .scroll-area::-webkit-scrollbar {
       display: none;
     }
+
     .bottom-safe {
       padding-bottom: max(16px, env(safe-area-inset-bottom));
     }
+
     .hero-gradient {
       background:
         radial-gradient(circle at top right, rgba(255,255,255,0.25), transparent 35%),
         linear-gradient(135deg, #10b981, #059669);
     }
+
     .dark-card {
       background:
         radial-gradient(circle at top right, rgba(16,185,129,0.25), transparent 38%),
         linear-gradient(135deg, #111827, #030712);
     }
+
     .blue-card {
       background:
         radial-gradient(circle at top right, rgba(59,130,246,0.25), transparent 38%),
         linear-gradient(135deg, #1e3a8a, #0f172a);
     }
+
     @media (max-width: 767px) {
-      .app { max-width: 430px; }
-      .tablet-nav { display: none; }
-      .tablet-container { width: 100%; }
-      .tablet-grid { display: block; }
+      .app {
+        max-width: 430px;
+      }
+
+      .tablet-container {
+        width: 100%;
+      }
+
+      .tablet-grid {
+        display: block;
+      }
     }
+
     @media (min-width: 768px) {
-      .app { max-width: 100%; background: #eef2f7; }
-      .tablet-container { max-width: 1120px; margin: 0 auto; }
+      .app {
+        max-width: 100%;
+        background: #eef2f7;
+      }
+
+      .tablet-container {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+
       .tablet-grid {
         display: grid;
         grid-template-columns: 1.15fr 0.85fr;
         gap: 28px;
         align-items: start;
       }
-      .scroll-area { padding-bottom: 40px; }
-      .mobile-bottom-nav { display: none; }
+
+      .scroll-area {
+        padding-bottom: 40px;
+      }
     }
   </style>
 </head>
 
 <body>
 
+<%- include('../partials/toast') %>
+
 <div class="app">
 
-  <header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
-    <div class="tablet-container">
-      <div class="flex items-center justify-between gap-4">
-
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200">
-            <span class="text-white text-xl md:text-2xl font-black">S</span>
-          </div>
-
-          <div class="min-w-0">
-            <p class="text-xs font-bold text-emerald-600 uppercase tracking-wide">
-              Verified Mitra
-            </p>
-            <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
-              Namaste, Sarvesh 👋
-            </h1>
-            <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
-              Dombivli Field Zone
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 md:gap-3">
-          <a href="/mitra/clients/add" class="hidden md:flex px-5 h-12 rounded-full bg-blue-600 text-white text-sm font-black items-center justify-center shadow-lg shadow-blue-200 active:bg-blue-700">
-            + Add Client
-          </a>
-          <a href="/mitra/workers/add" class="hidden md:flex px-5 h-12 rounded-full bg-emerald-500 text-white text-sm font-black items-center justify-center shadow-lg shadow-emerald-100 active:bg-emerald-600">
-            + Add Worker
-          </a>
-
-          <button class="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-50 flex items-center justify-center relative active:bg-gray-100 ml-2">
-            <span class="text-xl">🔔</span>
-            <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-          </button>
-        </div>
-
-      </div>
-    </div>
-  </header>
-
-  <nav class="tablet-nav bg-white border-b border-gray-100 px-8 py-3">
-    <div class="tablet-container flex items-center gap-3">
-      <a href="/mitra/dashboard" class="px-5 py-2.5 rounded-full bg-emerald-50 text-emerald-600 text-sm font-black">
-        Home
-      </a>
-      <a href="#" class="px-5 py-2.5 rounded-full text-gray-500 text-sm font-bold hover:bg-gray-50">
-        Workers
-      </a>
-      <a href="/mitra/workers/add" class="px-5 py-2.5 rounded-full text-gray-500 text-sm font-bold hover:bg-gray-50">
-        Add Worker
-      </a>
-      <a href="#" class="px-5 py-2.5 rounded-full text-gray-500 text-sm font-bold hover:bg-gray-50">
-        Clients
-      </a>
-      <a href="/mitra/clients/add" class="px-5 py-2.5 rounded-full text-gray-500 text-sm font-bold hover:bg-gray-50">
-        Add Client
-      </a>
-
-      <a href="/mitra/conflicts" class="px-5 py-2.5 rounded-full text-gray-500 text-sm font-bold hover:bg-gray-50">
-  Conflicts
-</a>
-    </div>
-  </nav>
+  <%- include('./partials/navbar', { activePage: 'dashboard' }) %>
 
   <main class="scroll-area">
     <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
@@ -147,140 +118,236 @@
         <div>
 
           <section class="hero-gradient rounded-[32px] md:rounded-[36px] p-5 md:p-7 text-white shadow-xl shadow-emerald-200 mb-5 md:mb-7 overflow-hidden relative">
-  <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full"></div>
-  <div class="absolute right-16 bottom-6 w-24 h-24 bg-white/10 rounded-full"></div>
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full"></div>
+            <div class="absolute right-16 bottom-6 w-24 h-24 bg-white/10 rounded-full"></div>
 
-  <div class="relative z-10">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <p class="text-sm md:text-base font-bold text-emerald-50">
-          My Onboarding Network
-        </p>
-        <h2 class="text-4xl md:text-5xl font-black tracking-tight mt-2">
-          <%= stats.totalNetwork %> <span class="text-2xl font-bold opacity-80">Total</span>
-        </h2>
-        <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-          Workers & Clients registered by you
-        </p>
-      </div>
-      <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur">
-        <span class="text-2xl md:text-3xl font-black">🤝</span>
-      </div>
-    </div>
+            <div class="relative z-10">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm md:text-base font-bold text-emerald-50">
+                    My Onboarding Network
+                  </p>
 
-    <div class="grid grid-cols-2 gap-3 md:gap-4 mt-6">
-      
-      <div class="rounded-2xl bg-white/15 p-4 backdrop-blur">
-        <p class="text-xs md:text-sm font-bold text-emerald-50">Workers Added</p>
-        <div class="flex items-end gap-2 mt-1">
-          <p class="text-2xl md:text-3xl font-black"><%= stats.workersMonth %></p>
-          <p class="text-xs font-semibold text-emerald-100 mb-1">this month</p>
-        </div>
-        <p class="text-xs font-bold text-emerald-200 mt-1.5 flex items-center gap-1">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> +<%= stats.workersToday %> today
-        </p>
-      </div>
+                  <h2 class="text-4xl md:text-5xl font-black tracking-tight mt-2">
+                    <%= stats.totalNetwork %>
+                    <span class="text-2xl font-bold opacity-80">Total</span>
+                  </h2>
 
-      <div class="rounded-2xl bg-white/15 p-4 backdrop-blur">
-        <p class="text-xs md:text-sm font-bold text-emerald-50">Clients Added</p>
-        <div class="flex items-end gap-2 mt-1">
-          <p class="text-2xl md:text-3xl font-black"><%= stats.clientsMonth %></p>
-          <p class="text-xs font-semibold text-emerald-100 mb-1">this month</p>
-        </div>
-        <p class="text-xs font-bold text-emerald-200 mt-1.5 flex items-center gap-1">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> +<%= stats.clientsToday %> today
-        </p>
-      </div>
+                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
+                    Workers & Clients registered by you
+                  </p>
+                </div>
 
-    </div>
-  </div>
-</section>
+                <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur">
+                  <span class="text-2xl md:text-3xl font-black">🤝</span>
+                </div>
+              </div>
 
-<section class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5 md:mb-7">
-  <div class="rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm">
-    <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
-      <span class="text-2xl">👷</span>
-    </div>
-    <h3 class="text-3xl md:text-4xl font-black text-gray-900"><%= stats.totalWorkers %></h3>
-    <p class="text-sm font-bold text-gray-500 mt-1 leading-snug">Total Workers</p>
-  </div>
+              <div class="grid grid-cols-2 gap-3 md:gap-4 mt-6">
+                <div class="rounded-2xl bg-white/15 p-4 backdrop-blur">
+                  <p class="text-xs md:text-sm font-bold text-emerald-50">
+                    Workers Added
+                  </p>
 
-  <div class="rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm">
-    <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-      <span class="text-2xl">🏢</span>
-    </div>
-    <h3 class="text-3xl md:text-4xl font-black text-gray-900"><%= stats.totalClients %></h3>
-    <p class="text-sm font-bold text-gray-500 mt-1 leading-snug">Total Clients</p>
-  </div>
+                  <div class="flex items-end gap-2 mt-1">
+                    <p class="text-2xl md:text-3xl font-black">
+                      <%= stats.workersMonth %>
+                    </p>
 
-  <div class="hidden md:block rounded-[28px] bg-white p-5 border border-gray-100 shadow-sm">
-    <div class="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center mb-4">
-      <span class="text-2xl">⭐</span>
-    </div>
-    <h3 class="text-4xl font-black text-gray-900">4.8</h3>
-    <p class="text-sm font-bold text-gray-500 mt-1 leading-snug">Mitra Rating</p>
-  </div>
-</section>
+                    <p class="text-xs font-semibold text-emerald-100 mb-1">
+                      this month
+                    </p>
+                  </div>
+
+                  <p class="text-xs font-bold text-emerald-200 mt-1.5 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    +<%= stats.workersToday %> today
+                  </p>
+                </div>
+
+                <div class="rounded-2xl bg-white/15 p-4 backdrop-blur">
+                  <p class="text-xs md:text-sm font-bold text-emerald-50">
+                    Clients Added
+                  </p>
+
+                  <div class="flex items-end gap-2 mt-1">
+                    <p class="text-2xl md:text-3xl font-black">
+                      <%= stats.clientsMonth %>
+                    </p>
+
+                    <p class="text-xs font-semibold text-emerald-100 mb-1">
+                      this month
+                    </p>
+                  </div>
+
+                  <p class="text-xs font-bold text-emerald-200 mt-1.5 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    +<%= stats.clientsToday %> today
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5 md:mb-7">
+            <a
+              href="/mitra/workers"
+              class="block rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm active:bg-emerald-50 transition"
+            >
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
+                <span class="text-2xl">👷</span>
+              </div>
+
+              <h3 class="text-3xl md:text-4xl font-black text-gray-900">
+                <%= stats.totalWorkers %>
+              </h3>
+
+              <p class="text-sm font-bold text-gray-500 mt-1 leading-snug">
+                Total Workers
+              </p>
+            </a>
+
+            <a
+              href="/mitra/clients"
+              class="block rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm active:bg-blue-50 transition"
+            >
+              <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+                <span class="text-2xl">🏢</span>
+              </div>
+
+              <h3 class="text-3xl md:text-4xl font-black text-gray-900">
+                <%= stats.totalClients %>
+              </h3>
+
+              <p class="text-sm font-bold text-gray-500 mt-1 leading-snug">
+                Total Clients
+              </p>
+            </a>
+
+            <div class="hidden md:block rounded-[28px] bg-white p-5 border border-gray-100 shadow-sm">
+              <div class="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center mb-4">
+                <span class="text-2xl">⭐</span>
+              </div>
+
+              <h3 class="text-4xl font-black text-gray-900">4.8</h3>
+
+              <p class="text-sm font-bold text-gray-500 mt-1 leading-snug">
+                Mitra Rating
+              </p>
+            </div>
+          </section>
 
           <section class="mb-6 md:mb-7 space-y-4">
-            
-            <a href="/mitra/workers/add" class="block dark-card rounded-[32px] p-5 md:p-6 shadow-xl shadow-gray-300 active:scale-[0.98] transition">
+            <a
+              href="/mitra/workers/add"
+              class="block dark-card rounded-[32px] p-5 md:p-6 shadow-xl shadow-gray-300 active:scale-[0.98] transition"
+            >
               <div class="flex items-center gap-4">
                 <div class="w-16 h-16 md:w-20 md:h-20 rounded-[24px] bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-900/20">
                   <span class="text-white text-4xl md:text-5xl font-black leading-none">+</span>
                 </div>
+
                 <div class="flex-1">
-                  <p class="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-wide">Field Action</p>
-                  <h3 class="text-xl md:text-2xl font-black text-white mt-1">Add New Worker</h3>
-                  <p class="text-sm md:text-base text-gray-300 font-medium leading-6 mt-1">Worker onboarding & document verification.</p>
+                  <p class="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-wide">
+                    Field Action
+                  </p>
+
+                  <h3 class="text-xl md:text-2xl font-black text-white mt-1">
+                    Add New Worker
+                  </h3>
+
+                  <p class="text-sm md:text-base text-gray-300 font-medium leading-6 mt-1">
+                    Worker onboarding & document verification.
+                  </p>
                 </div>
+
                 <span class="text-white/70 text-3xl md:text-4xl">›</span>
               </div>
             </a>
 
-            <a href="/mitra/clients/add" class="block blue-card rounded-[32px] p-5 md:p-6 shadow-xl shadow-gray-300 active:scale-[0.98] transition">
+            <a
+              href="/mitra/clients/add"
+              class="block blue-card rounded-[32px] p-5 md:p-6 shadow-xl shadow-gray-300 active:scale-[0.98] transition"
+            >
               <div class="flex items-center gap-4">
                 <div class="w-16 h-16 md:w-20 md:h-20 rounded-[24px] bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/20">
                   <span class="text-white text-4xl md:text-5xl font-black leading-none">+</span>
                 </div>
+
                 <div class="flex-1">
-                  <p class="text-xs md:text-sm font-black text-blue-400 uppercase tracking-wide">B2B Action</p>
-                  <h3 class="text-xl md:text-2xl font-black text-white mt-1">Add New Client</h3>
-                  <p class="text-sm md:text-base text-gray-300 font-medium leading-6 mt-1">Register contractors & business sites.</p>
+                  <p class="text-xs md:text-sm font-black text-blue-400 uppercase tracking-wide">
+                    B2B Action
+                  </p>
+
+                  <h3 class="text-xl md:text-2xl font-black text-white mt-1">
+                    Add New Client
+                  </h3>
+
+                  <p class="text-sm md:text-base text-gray-300 font-medium leading-6 mt-1">
+                    Register contractors & business sites.
+                  </p>
                 </div>
+
                 <span class="text-white/70 text-3xl md:text-4xl">›</span>
               </div>
             </a>
-
           </section>
+
         </div>
 
         <div>
+
           <section class="mb-6 md:mb-7">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-lg md:text-xl font-black text-gray-900">Today’s Work</h3>
-              <span class="text-sm font-black text-emerald-600">Live</span>
+              <h3 class="text-lg md:text-xl font-black text-gray-900">
+                Today’s Work
+              </h3>
+
+              <span class="text-sm font-black text-emerald-600">
+                Live
+              </span>
             </div>
+
             <div class="rounded-[30px] bg-white border border-gray-100 shadow-sm overflow-hidden">
               <div class="flex items-center justify-between p-4 md:p-5">
                 <div class="flex items-center gap-3">
-                  <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center"><span>✅</span></div>
+                  <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                    <span>✅</span>
+                  </div>
+
                   <div>
-                    <p class="text-sm md:text-base font-black text-gray-900">Verified Profiles</p>
-                    <p class="text-xs md:text-sm font-semibold text-gray-500">Documents approved</p>
+                    <p class="text-sm md:text-base font-black text-gray-900">
+                      Verified Profiles
+                    </p>
+
+                    <p class="text-xs md:text-sm font-semibold text-gray-500">
+                      Documents approved
+                    </p>
                   </div>
                 </div>
+
                 <p class="text-xl md:text-2xl font-black text-gray-900">18</p>
               </div>
+
               <div class="h-px bg-gray-100 mx-4"></div>
+
               <div class="flex items-center justify-between p-4 md:p-5">
                 <div class="flex items-center gap-3">
-                  <div class="w-11 h-11 rounded-2xl bg-yellow-50 flex items-center justify-center"><span>⏳</span></div>
+                  <div class="w-11 h-11 rounded-2xl bg-yellow-50 flex items-center justify-center">
+                    <span>⏳</span>
+                  </div>
+
                   <div>
-                    <p class="text-sm md:text-base font-black text-gray-900">Pending Docs</p>
-                    <p class="text-xs md:text-sm font-semibold text-gray-500">Waiting for approval</p>
+                    <p class="text-sm md:text-base font-black text-gray-900">
+                      Pending Docs
+                    </p>
+
+                    <p class="text-xs md:text-sm font-semibold text-gray-500">
+                      Waiting for approval
+                    </p>
                   </div>
                 </div>
+
                 <p class="text-xl md:text-2xl font-black text-gray-900">05</p>
               </div>
             </div>
@@ -288,33 +355,66 @@
 
           <section class="mb-6">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-lg md:text-xl font-black text-gray-900">Recent Activity</h3>
-              <a href="#" class="text-sm font-black text-emerald-600">View All</a>
+              <h3 class="text-lg md:text-xl font-black text-gray-900">
+                Recent Activity
+              </h3>
+
+              <a href="#" class="text-sm font-black text-emerald-600">
+                View All
+              </a>
             </div>
+
             <div class="space-y-3">
-              <a href="#" class="block rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm active:bg-gray-50">
+              <a
+                href="/mitra/clients"
+                class="block rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm active:bg-gray-50"
+              >
                 <div class="flex items-center gap-4">
                   <div class="w-[54px] h-[54px] rounded-2xl bg-blue-50 flex items-center justify-center">
                     <span class="text-lg font-black text-blue-600">🏢</span>
                   </div>
+
                   <div class="flex-1 min-w-0">
-                    <h4 class="font-black text-gray-900 truncate">Sai Logistics</h4>
-                    <p class="text-xs md:text-sm font-semibold text-gray-500 mt-0.5">Client · Dombivli East</p>
-                    <span class="inline-flex mt-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-black">Verified</span>
+                    <h4 class="font-black text-gray-900 truncate">
+                      Recent Client
+                    </h4>
+
+                    <p class="text-xs md:text-sm font-semibold text-gray-500 mt-0.5">
+                      Client onboarding activity
+                    </p>
+
+                    <span class="inline-flex mt-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-black">
+                      Verified
+                    </span>
                   </div>
+
                   <span class="text-2xl text-gray-400">›</span>
                 </div>
               </a>
-              <a href="#" class="block rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm active:bg-gray-50">
+
+              <a
+                href="/mitra/workers"
+                class="block rounded-[28px] bg-white p-4 md:p-5 border border-gray-100 shadow-sm active:bg-gray-50"
+              >
                 <div class="flex items-center gap-4">
                   <div class="w-[54px] h-[54px] rounded-2xl bg-gray-100 flex items-center justify-center">
-                    <span class="text-lg font-black text-gray-500">A</span>
+                    <span class="text-lg font-black text-gray-500">👷</span>
                   </div>
+
                   <div class="flex-1 min-w-0">
-                    <h4 class="font-black text-gray-900 truncate">Ajay Verma</h4>
-                    <p class="text-xs md:text-sm font-semibold text-gray-500 mt-0.5">Loader · Kalyan Station</p>
-                    <span class="inline-flex mt-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-black">Verified</span>
+                    <h4 class="font-black text-gray-900 truncate">
+                      Recent Worker
+                    </h4>
+
+                    <p class="text-xs md:text-sm font-semibold text-gray-500 mt-0.5">
+                      Worker onboarding activity
+                    </p>
+
+                    <span class="inline-flex mt-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-black">
+                      Verified
+                    </span>
                   </div>
+
                   <span class="text-2xl text-gray-400">›</span>
                 </div>
               </a>
@@ -322,50 +422,10 @@
           </section>
 
         </div>
+
       </div>
     </div>
   </main>
-
-  <footer class="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 px-4 pt-3 bottom-safe shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
-  <div class="grid grid-cols-5 items-end max-w-[430px] mx-auto">
-
-    <a href="/mitra/dashboard" class="flex flex-col items-center gap-1 text-emerald-600">
-      <div class="w-10 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
-        <span class="text-lg">⌂</span>
-      </div>
-      <span class="text-[11px] font-black">Home</span>
-    </a>
-
-    <a href="/mitra/conflicts" class="flex flex-col items-center gap-1 text-gray-400">
-      <div class="w-10 h-8 rounded-full flex items-center justify-center">
-        <span class="text-lg">⚠</span>
-      </div>
-      <span class="text-[11px] font-bold">Issues</span>
-    </a>
-
-    <a href="#menu" class="flex flex-col items-center gap-1 text-emerald-600">
-      <div class="w-14 h-14 -mt-8 rounded-full bg-emerald-500 border-4 border-white shadow-lg shadow-emerald-200 flex items-center justify-center">
-        <span class="text-white text-3xl font-black leading-none">+</span>
-      </div>
-      <span class="text-[11px] font-black">Add</span>
-    </a>
-
-    <a href="/mitra/clients/add" class="flex flex-col items-center gap-1 text-gray-400">
-      <div class="w-10 h-8 rounded-full flex items-center justify-center">
-        <span class="text-lg">🏢</span>
-      </div>
-      <span class="text-[11px] font-bold">Client</span>
-    </a>
-
-    <a href="/mitra/logout" class="flex flex-col items-center gap-1 text-gray-400">
-      <div class="w-10 h-8 rounded-full flex items-center justify-center">
-        <span class="text-lg">↪</span>
-      </div>
-      <span class="text-[11px] font-bold">Logout</span>
-    </a>
-
-  </div>
-</footer>
 
 </div>
 
