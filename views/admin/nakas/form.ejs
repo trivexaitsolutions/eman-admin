@@ -1,286 +1,247 @@
+<%
+  const currentSurveyDate = isEdit && naka.surveyDate
+    ? (() => {
+        const date = new Date(naka.surveyDate);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      })()
+    : '';
+
+  const hasExistingVerificationPhoto = Boolean(isEdit && naka.verificationPhotoUrl);
+%>
+
 <div class="mb-8 flex items-center">
-  <a
-    href="/admin/nakas"
-    class="mr-4 text-stone-400 hover:text-stone-600 transition-colors"
-  >
-    <svg
-      class="w-6 h-6"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M10 19l-7-7m0 0l7-7m-7 7h18"
-      ></path>
+  <a href="/admin/nakas" class="mr-4 text-stone-400 hover:text-stone-600 transition-colors" aria-label="Back to Naka list">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
     </svg>
   </a>
 
   <div>
-    <h1 class="text-3xl font-bold text-stone-900">
-      <%= isEdit ? "Edit Naka" : "Add New Naka" %>
-    </h1>
-
-    <p class="text-sm text-stone-500 mt-1">
-      Set the exact Naka / Chouk location for future map-based matching.
-    </p>
+    <h1 class="text-3xl font-bold text-stone-900"><%= isEdit ? 'Edit Naka' : 'Add New Naka' %></h1>
+    <p class="text-sm text-stone-500 mt-1">Create the Naka record first, then either verify it now or keep it in the non-verified list.</p>
   </div>
 </div>
 
 <% if (error) { %>
-  <div class="mb-5 max-w-3xl rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-    <p class="text-sm font-bold text-red-700">
-      <%= error %>
-    </p>
+  <div class="mb-5 max-w-4xl rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+    <p class="text-sm font-bold text-red-700"><%= error %></p>
   </div>
 <% } %>
 
-<div class="bg-white border border-stone-200 rounded-xl shadow-sm p-6 md:p-8 max-w-3xl">
-  <form id="nakaForm" action="/admin/nakas/save" method="POST">
+<div class="max-w-4xl rounded-xl border border-stone-200 bg-white p-6 shadow-sm md:p-8">
+  <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    <p class="font-bold">Verification rule</p>
+    <p class="mt-1">Only a <strong>verified</strong> Naka is operational. Every verified Naka becomes due for re-verification after 6 months.</p>
+  </div>
 
+  <form id="nakaForm" action="/admin/nakas/save" method="POST" enctype="multipart/form-data">
     <% if (isEdit) { %>
       <input type="hidden" name="id" value="<%= naka.id %>" />
     <% } %>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-      <div>
-        <label class="block text-stone-700 text-sm font-bold mb-2">
-          City <span class="text-red-500">*</span>
-        </label>
-
-        <select
-          name="cityId"
-          required
-          class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-stone-700"
-        >
-          <option value="" disabled <%= !isEdit ? "selected" : "" %>>
-            -- Select City --
-          </option>
-
-          <% cities.forEach(city => { %>
-            <option
-              value="<%= city.id %>"
-              <%= isEdit && naka.cityId === city.id ? "selected" : "" %>
-            >
-              <%= city.name %>
-            </option>
-          <% }) %>
-        </select>
-
-        <% if (cities.length === 0) { %>
-          <p class="text-xs text-red-500 mt-2">
-            You must create a City first before adding a Naka.
-          </p>
-        <% } %>
+    <section>
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-stone-900">1. Basic Naka Details</h2>
+        <p class="mt-1 text-sm text-stone-500">This identifies the place that will later be surveyed and used for worker matching.</p>
       </div>
 
-      <div>
-        <label class="block text-stone-700 text-sm font-bold mb-2">
-          Area Pincode <span class="text-red-500">*</span>
-        </label>
-
-        <input
-          type="text"
-          id="nakaPincode"
-          name="pincode"
-          value="<%= isEdit ? naka.pincode || "" : "" %>"
-          required
-          inputmode="numeric"
-          maxlength="6"
-          pattern="[0-9]{6}"
-          placeholder="Example: 421201"
-          class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-stone-700"
-        />
-
-        <p class="text-xs text-stone-500 mt-2">
-          Naka / Chouk jis area me hai, us area ka pincode.
-        </p>
-      </div>
-
-    </div>
-
-    <div class="mt-5">
-      <label class="block text-stone-700 text-sm font-bold mb-2">
-        Naka / Chouk Name <span class="text-red-500">*</span>
-      </label>
-
-      <input
-        type="text"
-        name="name"
-        value="<%= isEdit ? naka.name || "" : "" %>"
-        required
-        minlength="2"
-        maxlength="120"
-        placeholder="Example: Station Road Naka"
-        class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-stone-700"
-      />
-    </div>
-
-    <div class="mt-7 border-t border-stone-100 pt-6">
-      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
-          <h2 class="text-lg font-bold text-stone-900">
-            Exact Map Location <span class="text-red-500">*</span>
-          </h2>
-
-          <p class="text-sm text-stone-500 mt-1">
-            Map par exact Naka / Chouk wali jagah click karein.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          id="useCurrentLocationBtn"
-          class="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-lg text-sm font-bold transition"
-        >
-          Use Current Location
-        </button>
-      </div>
-
-      <div
-        id="locationStatus"
-        class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"
-      >
-        <% if (isEdit && naka.latitude != null && naka.longitude != null) { %>
-          Saved map location loaded. You can click another point to update it.
-        <% } else { %>
-          Map par exact location select karna mandatory hai.
-        <% } %>
-      </div>
-
-      <div
-        id="map"
-        class="w-full rounded-xl border border-stone-200 overflow-hidden"
-        style="height: 360px; z-index: 1;"
-      ></div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
-        <div>
-          <label class="block text-stone-700 text-sm font-bold mb-2">
-            Latitude
-          </label>
-
-          <input
-            type="text"
-            id="latitude"
-            name="latitude"
-            value="<%= isEdit && naka.latitude != null ? naka.latitude : "" %>"
-            readonly
-            required
-            placeholder="Select point from map"
-            class="w-full px-4 py-2.5 bg-stone-100 border border-stone-200 rounded-lg outline-none text-stone-700 cursor-not-allowed"
-          />
+          <label class="mb-2 block text-sm font-bold text-stone-700">City <span class="text-red-500">*</span></label>
+          <select name="cityId" required class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+            <option value="" disabled <%= !isEdit ? 'selected' : '' %>>-- Select City --</option>
+            <% cities.forEach(city => { %>
+              <option value="<%= city.id %>" <%= isEdit && naka.cityId === city.id ? 'selected' : '' %>><%= city.name %></option>
+            <% }) %>
+          </select>
+          <% if (cities.length === 0) { %>
+            <p class="mt-2 text-xs text-red-500">You must create a City first before adding a Naka.</p>
+          <% } %>
         </div>
 
         <div>
-          <label class="block text-stone-700 text-sm font-bold mb-2">
-            Longitude
-          </label>
-
-          <input
-            type="text"
-            id="longitude"
-            name="longitude"
-            value="<%= isEdit && naka.longitude != null ? naka.longitude : "" %>"
-            readonly
-            required
-            placeholder="Select point from map"
-            class="w-full px-4 py-2.5 bg-stone-100 border border-stone-200 rounded-lg outline-none text-stone-700 cursor-not-allowed"
-          />
+          <label class="mb-2 block text-sm font-bold text-stone-700">Area Pincode <span class="text-red-500">*</span></label>
+          <input type="text" id="nakaPincode" name="pincode" value="<%= isEdit ? naka.pincode || '' : '' %>" required inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="Example: 421201" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" />
+          <p class="mt-2 text-xs text-stone-500">Use the pincode of the actual Naka / Chouk location.</p>
         </div>
       </div>
-    </div>
 
-    <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-7 mt-7 border-t border-stone-100">
-      <a
-        href="/admin/nakas"
-        class="px-6 py-2.5 text-center text-stone-600 hover:bg-stone-100 font-medium rounded-lg"
-      >
-        Cancel
-      </a>
+      <div class="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Naka / Chouk Name <span class="text-red-500">*</span></label>
+          <input type="text" name="name" value="<%= isEdit ? naka.name || '' : '' %>" required minlength="2" maxlength="120" placeholder="Example: Station Road Naka" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" />
+        </div>
 
-      <button
-        type="submit"
-        <%= cities.length === 0 ? "disabled" : "" %>
-        class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 text-white font-medium rounded-lg transition"
-      >
-        <%= isEdit ? "Update Naka" : "Create Naka" %>
-      </button>
-    </div>
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Nearest Landmark</label>
+          <input type="text" name="landmark" value="<%= isEdit ? naka.landmark || '' : '' %>" maxlength="191" placeholder="Example: Outside railway station gate" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" />
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-8 border-t border-stone-100 pt-7">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-stone-900">2. Survey Evidence</h2>
+        <p class="mt-1 text-sm text-stone-500">All fields are shown now. GPS, photo, survey date and peak-hour headcount are compulsory only for <strong>Save &amp; Verify</strong>.</p>
+      </div>
+
+      <div class="mb-6 rounded-xl border border-stone-200 bg-white p-4">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-stone-900">Exact Map Location <span class="text-red-500">*</span></h3>
+            <p class="mt-1 text-xs text-stone-500">Click the exact Naka / Chouk on the map, drag the marker to refine it, or use current location while you are at the site.</p>
+          </div>
+          <button type="button" id="useCurrentLocationBtn" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100">Use Current Location</button>
+        </div>
+
+        <div id="locationStatus" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          <% if (isEdit && naka.latitude != null && naka.longitude != null) { %>
+            Saved map location loaded. You can click another point to update it.
+          <% } else { %>
+            Map par exact location select karna mandatory hai.
+          <% } %>
+        </div>
+
+        <div id="map" class="w-full overflow-hidden rounded-xl border border-stone-200" style="height: 360px; z-index: 1;"></div>
+
+        <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="mb-2 block text-sm font-bold text-stone-700">Latitude</label>
+            <input type="text" id="latitude" name="latitude" value="<%= isEdit && naka.latitude != null ? naka.latitude : '' %>" readonly required placeholder="Select point from map" class="w-full cursor-not-allowed rounded-lg border border-stone-200 bg-stone-100 px-4 py-2.5 text-stone-700 outline-none" />
+          </div>
+          <div>
+            <label class="mb-2 block text-sm font-bold text-stone-700">Longitude</label>
+            <input type="text" id="longitude" name="longitude" value="<%= isEdit && naka.longitude != null ? naka.longitude : '' %>" readonly required placeholder="Select point from map" class="w-full cursor-not-allowed rounded-lg border border-stone-200 bg-stone-100 px-4 py-2.5 text-stone-700 outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Confidence Level <span class="text-red-500">*</span></label>
+          <select id="confidenceLevel" name="confidenceLevel" required class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+            <option value="" disabled <%= !isEdit || !naka.confidenceLevel ? 'selected' : '' %>>-- Select --</option>
+            <option value="HIGH" <%= isEdit && naka.confidenceLevel === 'HIGH' ? 'selected' : '' %>>High — known labour gathering</option>
+            <option value="MEDIUM" <%= isEdit && naka.confidenceLevel === 'MEDIUM' ? 'selected' : '' %>>Medium — likely gathering</option>
+            <option value="LOW" <%= isEdit && naka.confidenceLevel === 'LOW' ? 'selected' : '' %>>Low — lead to be checked</option>
+            <option value="N_A" <%= isEdit && naka.confidenceLevel === 'N_A' ? 'selected' : '' %>>N/A — survey from zero</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Survey Date</label>
+          <input type="date" id="surveyDate" name="surveyDate" value="<%= currentSurveyDate %>" max="<%= new Date().toISOString().slice(0, 10) %>" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" />
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Peak-Hour Worker Headcount</label>
+          <input type="number" id="peakHourHeadcount" name="peakHourHeadcount" min="0" step="1" value="<%= isEdit && naka.peakHourHeadcount != null ? naka.peakHourHeadcount : '' %>" placeholder="Example: 35" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" />
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <label class="mb-2 block text-sm font-bold text-stone-700">Survey Notes</label>
+        <textarea name="surveyNotes" rows="3" maxlength="3000" placeholder="What was observed at this Naka? Include timing, worker types, access conditions, or any concern." class="w-full resize-y rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"><%= isEdit ? naka.surveyNotes || '' : '' %></textarea>
+      </div>
+
+      <div class="mt-5 rounded-xl border border-stone-200 bg-stone-50 p-4">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <label class="block text-sm font-bold text-stone-700">Verification Photo</label>
+            <p class="mt-1 text-xs text-stone-500">JPG, PNG or WEBP, maximum 5 MB. This is compulsory when verifying a Naka.</p>
+          </div>
+          <% if (hasExistingVerificationPhoto) { %>
+            <a href="<%= naka.verificationPhotoUrl %>" target="_blank" rel="noopener" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">View current photo</a>
+          <% } %>
+        </div>
+        <input type="file" id="verificationPhoto" name="verificationPhoto" accept="image/jpeg,image/png,image/webp" class="mt-3 block w-full cursor-pointer rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-600 file:mr-4 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-bold file:text-emerald-700 hover:file:bg-emerald-100" />
+      </div>
+    </section>
+
+    <section class="mt-8 border-t border-stone-100 pt-7">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-stone-900">3. Admin Verification</h2>
+        <p class="mt-1 text-sm text-stone-500">These two values are recorded in the permanent verification history when you use <strong>Save &amp; Verify</strong>.</p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Verification Method</label>
+          <select id="verificationMethod" name="verificationMethod" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+            <option value="">-- Select method when verifying --</option>
+            <option value="ADMIN_ON_SITE_VISIT">Admin on-site visit</option>
+            <option value="PHOTO_GPS_REVIEW">Photo and GPS review</option>
+            <option value="PHONE_OR_VIDEO_CONFIRMATION">Phone / video confirmation</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-bold text-stone-700">Verification Note</label>
+          <textarea id="verificationNote" name="verificationNote" rows="3" maxlength="3000" placeholder="Why is this Naka being verified? Required only for Save & Verify." class="w-full resize-y rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-8 border-t border-stone-100 pt-7">
+      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <a href="/admin/nakas" class="rounded-lg px-5 py-2.5 text-center font-medium text-stone-600 hover:bg-stone-100">Cancel</a>
+
+        <div class="flex flex-col gap-3 sm:flex-row">
+          <button type="submit" name="saveAction" value="VERIFY_LATER" <%= cities.length === 0 ? 'disabled' : '' %> class="rounded-lg border border-stone-300 bg-white px-5 py-2.5 font-bold text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:bg-stone-100">
+            <%= isEdit ? 'Save Changes, Verify Later' : 'Verify Later' %>
+          </button>
+          <button type="submit" name="saveAction" value="VERIFY_NOW" <%= cities.length === 0 ? 'disabled' : '' %> class="rounded-lg bg-emerald-600 px-5 py-2.5 font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-stone-300">
+            <%= isEdit ? 'Save Changes & Verify' : 'Save & Verify' %>
+          </button>
+        </div>
+      </div>
+    </section>
   </form>
 </div>
 
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  const savedLatitude = <%= isEdit && naka.latitude != null ? naka.latitude : "null" %>;
-  const savedLongitude = <%= isEdit && naka.longitude != null ? naka.longitude : "null" %>;
+  const savedLatitude = <%= isEdit && naka.latitude != null ? naka.latitude : 'null' %>;
+  const savedLongitude = <%= isEdit && naka.longitude != null ? naka.longitude : 'null' %>;
+  const hasExistingVerificationPhoto = <%= hasExistingVerificationPhoto ? 'true' : 'false' %>;
 
   const defaultLatitude = 19.2183;
   const defaultLongitude = 73.0867;
+  const hasSavedLocation = Number.isFinite(savedLatitude) && Number.isFinite(savedLongitude);
 
-  const hasSavedLocation =
-    Number.isFinite(savedLatitude) &&
-    Number.isFinite(savedLongitude);
-
-  const initialLatitude = hasSavedLocation
-    ? savedLatitude
-    : defaultLatitude;
-
-  const initialLongitude = hasSavedLocation
-    ? savedLongitude
-    : defaultLongitude;
-
-  const initialZoom = hasSavedLocation ? 16 : 13;
-
-  const map = L.map("map").setView(
-    [initialLatitude, initialLongitude],
-    initialZoom
+  const map = L.map('map').setView(
+    [hasSavedLocation ? savedLatitude : defaultLatitude, hasSavedLocation ? savedLongitude : defaultLongitude],
+    hasSavedLocation ? 16 : 13
   );
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors",
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
     maxZoom: 19,
   }).addTo(map);
 
   let marker = null;
-
-  const latitudeInput = document.getElementById("latitude");
-  const longitudeInput = document.getElementById("longitude");
-  const locationStatus = document.getElementById("locationStatus");
-  const useCurrentLocationBtn = document.getElementById(
-    "useCurrentLocationBtn"
-  );
+  const latitudeInput = document.getElementById('latitude');
+  const longitudeInput = document.getElementById('longitude');
+  const locationStatus = document.getElementById('locationStatus');
+  const useCurrentLocationBtn = document.getElementById('useCurrentLocationBtn');
 
   function setSelectedLocation(latitude, longitude, zoomToLocation = true) {
     const lat = Number(latitude);
     const lng = Number(longitude);
 
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return;
-    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
     if (!marker) {
-      marker = L.marker([lat, lng], {
-        draggable: true,
-      }).addTo(map);
-
-      marker.on("dragend", function () {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', function () {
         const markerPosition = marker.getLatLng();
-
-        setSelectedLocation(
-          markerPosition.lat,
-          markerPosition.lng,
-          false
-        );
+        setSelectedLocation(markerPosition.lat, markerPosition.lng, false);
       });
     } else {
       marker.setLatLng([lat, lng]);
@@ -288,92 +249,108 @@
 
     latitudeInput.value = lat.toFixed(6);
     longitudeInput.value = lng.toFixed(6);
+    locationStatus.className = 'mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800';
+    locationStatus.textContent = 'Exact Naka location selected. You can drag the pin or click another point to adjust it.';
 
-    locationStatus.className =
-      "mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800";
-
-    locationStatus.textContent =
-      "Exact Naka location selected. You can drag the pin or click another point to adjust it.";
-
-    if (zoomToLocation) {
-      map.setView([lat, lng], 16);
-    }
+    if (zoomToLocation) map.setView([lat, lng], 16);
   }
 
-  if (hasSavedLocation) {
-    setSelectedLocation(savedLatitude, savedLongitude, false);
-  }
+  if (hasSavedLocation) setSelectedLocation(savedLatitude, savedLongitude, false);
 
-  map.on("click", function (event) {
-    setSelectedLocation(
-      event.latlng.lat,
-      event.latlng.lng
-    );
+  map.on('click', function (event) {
+    setSelectedLocation(event.latlng.lat, event.latlng.lng);
   });
 
-  useCurrentLocationBtn.addEventListener("click", function () {
+  useCurrentLocationBtn.addEventListener('click', function () {
     if (!navigator.geolocation) {
-      locationStatus.className =
-        "mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700";
-
-      locationStatus.textContent =
-        "This browser does not support current location.";
-
+      locationStatus.className = 'mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700';
+      locationStatus.textContent = 'This browser does not support current location.';
       return;
     }
 
     useCurrentLocationBtn.disabled = true;
-    useCurrentLocationBtn.textContent = "Getting Location...";
+    useCurrentLocationBtn.textContent = 'Getting Location...';
 
     navigator.geolocation.getCurrentPosition(
       function (position) {
-        setSelectedLocation(
-          position.coords.latitude,
-          position.coords.longitude
-        );
-
+        setSelectedLocation(position.coords.latitude, position.coords.longitude);
         useCurrentLocationBtn.disabled = false;
-        useCurrentLocationBtn.textContent = "Use Current Location";
+        useCurrentLocationBtn.textContent = 'Use Current Location';
       },
       function () {
-        locationStatus.className =
-          "mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700";
-
-        locationStatus.textContent =
-          "Current location unavailable. Please allow location permission or select the point manually.";
-
+        locationStatus.className = 'mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700';
+        locationStatus.textContent = 'Current location unavailable. Please allow location permission or select the point manually.';
         useCurrentLocationBtn.disabled = false;
-        useCurrentLocationBtn.textContent = "Use Current Location";
+        useCurrentLocationBtn.textContent = 'Use Current Location';
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   });
 
-  const nakaPincode = document.getElementById("nakaPincode");
-
-  nakaPincode.addEventListener("input", function () {
-    nakaPincode.value = nakaPincode.value
-      .replace(/\D/g, "")
-      .slice(0, 6);
+  const nakaPincode = document.getElementById('nakaPincode');
+  nakaPincode.addEventListener('input', function () {
+    nakaPincode.value = nakaPincode.value.replace(/\D/g, '').slice(0, 6);
   });
 
-  document.getElementById("nakaForm").addEventListener("submit", function (event) {
-    const pincode = nakaPincode.value.replace(/\D/g, "");
+  document.getElementById('nakaForm').addEventListener('submit', function (event) {
+    const submitter = event.submitter;
+    const saveAction = submitter ? submitter.value : 'VERIFY_LATER';
+    const pincode = nakaPincode.value.replace(/\D/g, '');
 
     if (!/^\d{6}$/.test(pincode)) {
       event.preventDefault();
-      alert("Please enter a valid 6-digit Naka pincode.");
+      alert('Please enter a valid 6-digit Naka pincode.');
       nakaPincode.focus();
       return;
     }
 
     if (!latitudeInput.value || !longitudeInput.value) {
       event.preventDefault();
-      alert("Please select the exact Naka location on the map.");
+      alert('Please select the exact Naka location on the map.');
+      return;
+    }
+
+    if (saveAction !== 'VERIFY_NOW') return;
+
+    const surveyDate = document.getElementById('surveyDate');
+    const headcount = document.getElementById('peakHourHeadcount');
+    const photo = document.getElementById('verificationPhoto');
+    const method = document.getElementById('verificationMethod');
+    const note = document.getElementById('verificationNote');
+
+    if (!surveyDate.value) {
+      event.preventDefault();
+      alert('Survey date is required for Save & Verify.');
+      surveyDate.focus();
+      return;
+    }
+
+    if (headcount.value === '' || Number(headcount.value) < 0 || !Number.isInteger(Number(headcount.value))) {
+      event.preventDefault();
+      alert('Enter a valid peak-hour worker headcount of 0 or more.');
+      headcount.focus();
+      return;
+    }
+
+    if (!hasExistingVerificationPhoto && !photo.files.length) {
+      event.preventDefault();
+      alert('Upload a verification photo before verifying this Naka.');
+      photo.focus();
+      return;
+    }
+
+    if (!method.value) {
+      event.preventDefault();
+      alert('Select how this Naka was verified.');
+      method.focus();
+      return;
+    }
+
+    if (note.value.trim().length < 5) {
+      event.preventDefault();
+      alert('Enter a verification note of at least 5 characters.');
+      note.focus();
     }
   });
 </script>
+

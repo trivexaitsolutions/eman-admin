@@ -2,28 +2,22 @@
 const express = require('express');
 const router = express.Router();
 const nakaController = require('../controllers/nakaController');
+const upload = require('../middlewares/uploadMiddleware');
 
 router.get('/', nakaController.listNakas);
 router.get('/create', nakaController.showForm);
 router.get('/edit/:id', nakaController.showForm);
-router.post('/save', nakaController.saveNaka);
+
+// Naka create/edit. The two submit buttons send saveAction=VERIFY_NOW or VERIFY_LATER.
+router.post('/save', upload.single('verificationPhoto'), nakaController.saveNaka);
+
+// The list-page verification modal uses these two endpoints.
+router.get('/:id/verification-details', nakaController.getVerificationDetails);
+router.post('/:id/verify', upload.single('verificationPhoto'), nakaController.verifyNaka);
+
 router.get('/delete/:id', nakaController.deleteNaka);
 
-// Add this to src/routes/nakaRoutes.js
-// API Endpoint for the frontend to fetch Nakas by pincode
-router.get('/api/by-pincode/:pincode', async (req, res) => {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-    
-    try {
-        const nakas = await prisma.naka.findMany({
-            where: { pincode: req.params.pincode },
-            select: { id: true, name: true, city: { select: { name: true } } }
-        });
-        res.json(nakas);
-    } catch (error) {
-        res.status(500).json({ error: "Failed to fetch Nakas" });
-    }
-});
+// Existing worker assignment API: only currently verified Nakas are operationally visible.
+router.get('/api/by-pincode/:pincode', nakaController.getNakasByPincode);
 
 module.exports = router;

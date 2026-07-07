@@ -18,6 +18,8 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  nakaVerifications NakaVerification[] @relation("NakaVerificationVerifier")
+
   @@map("employee")
 }
 
@@ -39,16 +41,60 @@ model Naka {
   latitude  Float?
   longitude Float?
 
+  // Survey / verification information
+  confidenceLevel      String?   // HIGH, MEDIUM, LOW, N_A
+  landmark             String?
+  surveyDate           DateTime? @db.Date
+  peakHourHeadcount    Int?
+  surveyNotes          String?   @db.Text
+  verificationPhotoUrl String?
+
+  // VERIFIED records become due again after 6 calendar months.
+  // The controller derives REVERIFY_REQUIRED from lastVerifiedAt;
+  // no scheduled job is needed for the list filter.
+  verificationStatus String    @default("PENDING_VERIFICATION")
+  lastVerifiedAt     DateTime?
+
   cityId Int
   city   City @relation(fields: [cityId], references: [id])
 
   workers Worker[] @relation("nakatoworker")
   mitras  Mitra[]  @relation("mitratonaka")
 
+  verificationHistory NakaVerification[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([verificationStatus, lastVerifiedAt])
   @@map("naka")
+}
+
+// One row is created every time an Admin verifies or re-verifies a Naka.
+// It gives a permanent audit trail of when, who and how the verification happened.
+model NakaVerification {
+  id Int @id @default(autoincrement())
+
+  nakaId Int
+  naka   Naka @relation(fields: [nakaId], references: [id], onDelete: Cascade)
+
+  verifiedById Int
+  verifiedBy   Employee @relation("NakaVerificationVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+
+  verificationMethod String
+  verificationNote   String @db.Text
+  verifiedAt         DateTime @default(now())
+
+  // Snapshot of the proof/data that was used at the moment of verification.
+  photoUrl           String?
+  surveyDate         DateTime? @db.Date
+  peakHourHeadcount  Int?
+  latitude           Float?
+  longitude          Float?
+
+  @@index([nakaId, verifiedAt])
+  @@index([verifiedById])
+  @@map("nakaverification")
 }
 
 model Mitra {
