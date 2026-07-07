@@ -4,8 +4,7 @@ const prisma = new PrismaClient();
 const { sendPushNotification } = require('../utils/sendNotification');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const { Expo } = require('expo-server-sdk');
-let expo = new Expo();
+
 // const { sendPushNotification } = require('../utils/sendNotification');
 
 
@@ -412,100 +411,141 @@ const getCurrentDuty = async (req, res) => {
 // 2. WORKER: QR scan hone ke baad Duty 'IN_PROGRESS' karne ke liye
 const verifyQrAndStartDuty = async (req, res) => {
     try {
-        const { bookingId, workerId } = req.body; // Worker app ab apna ID bhi bhejega
+        const { bookingId, workerId } = req.body;
 
-        // 1. Booking nikaalo
-        const booking = await prisma.booking.findUnique({ 
+        const booking = await prisma.booking.findUnique({
             where: { id: parseInt(bookingId) },
-            include: { customer: true }
+            include: {
+                customer: true,
+                workers: true,
+            },
         });
 
-        // 2. Naye worker ka ID list me add karo
-        let arrivedList = JSON.parse(booking.arrivedWorkerIds || "[]");
-        if (!arrivedList.includes(parseInt(workerId))) {
-            arrivedList.push(parseInt(workerId));
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found",
+            });
         }
 
-        // 3. Check karo kya sab workers aa gaye?
-        const allArrived = arrivedList.length >= booking.workerCount;
+        let arrivedList = [];
+
+        try {
+            arrivedList = JSON.parse(booking.arrivedWorkerIds || "[]");
+        } catch (error) {
+            arrivedList = [];
+        }
+
+        const numericWorkerId = parseInt(workerId);
+
+        if (!arrivedList.includes(numericWorkerId)) {
+            arrivedList.push(numericWorkerId);
+        }
+
+        const allArrived = arrivedList.length >= Number(booking.workerCount);
         const newStatus = allArrived ? "IN_PROGRESS" : "ASSIGNED";
 
-        console.log('Old arrival list:', booking.arrivedWorkerIds);
-        console.log('Updated arrival list:', arrivedList, parseInt(bookingId));
+        console.log("Old arrival list:", booking.arrivedWorkerIds);
+        console.log("Updated arrival list:", arrivedList);
 
-        // 4. Database update karo
         const updatedBooking = await prisma.booking.update({
             where: { id: parseInt(bookingId) },
-            data: { 
+            data: {
                 arrivedWorkerIds: JSON.stringify(arrivedList),
-                status: newStatus 
-            }
+                status: newStatus,
+            },
         });
 
-        // 🚀 PUSH NOTIFICATION TO CUSTOMER 
-        // 2. 🚀 ASLI PUSH NOTIFICATION LOGIC
-        const customerToken = booking.customer.pushToken; // Customer ka saved token
+        // Customer ko notification bhejo
+        const customerToken = booking.customer?.pushToken;
 
-        if (Expo.isExpoPushToken(customerToken)) {
-            await expo.sendPushNotificationsAsync([{
-                to: customerToken,
-                sound: 'default',
-                title: 'Worker Arrived! ✅',
-                body: 'Aapka worker site par pahunch gaya hai.',
-                data: { action: 'REFRESH_BOOKING' }, // Yeh app ko refresh karne bolega
-            }]);
+        if (customerToken) {
+            const title = allArrived
+                ? "All Workers Arrived! ✅"
+                : "Worker Arrived! ✅";
+
+            const body = allArrived
+                ? "Sabhi assigned workers aa gaye hain. Aap work start kar sakte hain."
+                : "Aapka ek worker site par pahunch gaya hai.";
+
+            await sendPushNotification(
+                customerToken,
+                title,
+                body,
+                {
+                    action: "REFRESH_BOOKING",
+                    bookingId: booking.id,
+                    workerId: numericWorkerId,
+                    allArrived,
+                }
+            );
         }
 
-        res.json({ success: true, message: "Duty Started!", booking: updatedBooking });
+        return res.json({
+            success: true,
+            message: allArrived
+                ? "All workers arrived. Work can start now."
+                : "Worker arrival verified successfully.",
+            allArrived,
+            booking: updatedBooking,
+        });
     } catch (error) {
         console.error("QR Verify Error:", error);
-        res.status(500).json({ success: false, message: "QR verification failed" });
+
+        return res.status(500).json({
+            success: false,
+            message: "QR verification failed",
+        });
     }
 };
-
 
 const completeBooking = async (req, res) => {
     try {
         const { bookingId } = req.body;
 
-        // 1. Booking ko "COMPLETED" mark karo aur workers ka data nikalo
         const updatedBooking = await prisma.booking.update({
             where: { id: parseInt(bookingId) },
-            data: { status: "COMPLETED" },
-            include: { workers: true } // Notification bhejne ke liye workers chahiye
+            data: {
+                status: "COMPLETED",
+            },
+            include: {
+                workers: true,
+            },
         });
 
-        // 2. Sabhi assigned workers ko Push Notification bhejo (Agar unka token hai)
-        const expo = new Expo();
-        let messages = [];
-
-        for (let worker of updatedBooking.workers) {
-            // Note: Ensure kijiye aapke Worker model me bhi pushToken save ho raha ho
-            if (worker.pushToken && Expo.isExpoPushToken(worker.pushToken)) {
-                messages.push({
-                    to: worker.pushToken,
-                    sound: 'default',
-                    title: 'Duty Completed! 🎉',
-                    body: 'Customer ne work complete mark kar diya hai. Please client ko rate karein.',
-                    data: { 
-                        action: 'RATE_CLIENT',
-                        bookingId: updatedBooking.id
-                    },
-                });
+        // Har worker ko separate notification bhejo
+        for (const worker of updatedBooking.workers) {
+            if (!worker.pushToken) {
+                continue;
             }
+
+            await sendPushNotification(
+                worker.pushToken,
+                "Duty Completed! 🎉",
+                "Customer ne work complete mark kar diya hai. Please client ko rate karein.",
+                {
+                    action: "RATE_CLIENT",
+                    bookingId: updatedBooking.id,
+                    workerId: worker.id,
+                }
+            );
+
+            console.log(
+                `Worker ${worker.name} ko work-complete notification bhej di gayi hai.`
+            );
         }
 
-        if (messages.length > 0) {
-            let chunks = expo.chunkPushNotifications(messages);
-            for (let chunk of chunks) {
-                await expo.sendPushNotificationsAsync(chunk);
-            }
-        }
-
-        res.json({ success: true, message: "Work Marked as Complete!" });
+        return res.json({
+            success: true,
+            message: "Work Marked as Complete!",
+        });
     } catch (error) {
         console.error("Complete Booking Error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+        });
     }
 };
 

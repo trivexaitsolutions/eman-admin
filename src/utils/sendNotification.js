@@ -1,37 +1,67 @@
-// utils/sendNotification.js
-const { Expo } = require('expo-server-sdk');
+// src/utils/sendNotification.js
 
-// Naya Expo client banayein
-let expo = new Expo();
+let expoClient = null;
+let ExpoClass = null;
+
+/**
+ * ESM-only expo-server-sdk ko CommonJS project me safely load karta hai.
+ */
+async function getExpoSdk() {
+  if (!ExpoClass) {
+    const expoSdk = await import("expo-server-sdk");
+    ExpoClass = expoSdk.Expo;
+  }
+
+  return ExpoClass;
+}
+
+async function getExpoClient() {
+  if (!expoClient) {
+    const Expo = await getExpoSdk();
+    expoClient = new Expo();
+  }
+
+  return expoClient;
+}
 
 const sendPushNotification = async (pushToken, title, body, data = {}) => {
-    // 1. Check karein ki token sahi format me hai ya nahi
+  try {
+    const Expo = await getExpoSdk();
+
+    // Token valid hai ya nahi
     if (!Expo.isExpoPushToken(pushToken)) {
-        console.error(`Push token ${pushToken} is not a valid Expo push token`);
-        return false;
+      console.error(
+        `Push token ${pushToken} is not a valid Expo push token`
+      );
+      return false;
     }
 
-    // 2. Message ka format tayar karein
-    let messages = [{
+    const expo = await getExpoClient();
+
+    const messages = [
+      {
         to: pushToken,
-        sound: 'default',
-        title: title,       // Jaise: "🎉 NAYA KAAM MIL GAYA!"
-        body: body,         // Jaise: "Station East naka par jaldi pahocho"
-        data: data,         // Extra info (Customer ka naam, phone number etc.)
-    }];
+        sound: "default",
+        title,
+        body,
+        data,
+      },
+    ];
 
-    // 3. Message bhejein
-    try {
-        let chunks = expo.chunkPushNotifications(messages);
-        for (let chunk of chunks) {
-            let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-            console.log("Notification Ticket:", ticketChunk);
-        }
-        return true;
-    } catch (error) {
-        console.error("Notification bhejne me error:", error);
-        return false;
+    const chunks = expo.chunkPushNotifications(messages);
+
+    for (const chunk of chunks) {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      console.log("Notification Ticket:", ticketChunk);
     }
+
+    return true;
+  } catch (error) {
+    console.error("Notification bhejne me error:", error);
+    return false;
+  }
 };
 
-module.exports = { sendPushNotification };
+module.exports = {
+  sendPushNotification,
+};
