@@ -486,6 +486,104 @@ const getWorkerDashboard = async (req, res) => {
 // --------------------------------------------------
 // Mitra Worker Onboarding: Shared Create + Edit helpers
 // --------------------------------------------------
+
+const NAKA_VERIFIED_STATUS = "VERIFIED";
+
+const getNakaVerificationCutoff = (referenceDate = new Date()) => {
+    const cutoff = new Date(referenceDate);
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    return cutoff;
+};
+
+const getOperationalMitraNakaWhere = (mitraId, pincode = null) => {
+    const where = {
+        verificationStatus: NAKA_VERIFIED_STATUS,
+        lastVerifiedAt: {
+            gte: getNakaVerificationCutoff(),
+        },
+        mitras: {
+            some: {
+                id: mitraId,
+            },
+        },
+    };
+
+    if (pincode) {
+        where.pincode = pincode;
+    }
+
+    return where;
+};
+
+/**
+ * GET /mitra/api/nakas/search?pincode=421202
+ * Returns the latest operational Nakas assigned to the logged-in Mitra.
+ * This avoids stale Naka cards in an already-open Worker Onboarding page.
+ */
+const searchMitraNakasByPincode = async (req, res) => {
+    try {
+        const mitraId = Number(req.user?.id);
+        const pincode = String(req.query.pincode || "").replace(/\D/g, "");
+
+        if (!Number.isInteger(mitraId) || mitraId <= 0) {
+            return res.status(401).json({
+                success: false,
+                message: "Mitra session was not found. Please login again.",
+            });
+        }
+
+        if (!/^\d{6}$/.test(pincode)) {
+            return res.status(422).json({
+                success: false,
+                message: "Please enter a valid 6-digit pincode.",
+                nakas: [],
+            });
+        }
+
+        const nakas = await prisma.naka.findMany({
+            where: getOperationalMitraNakaWhere(mitraId, pincode),
+            select: {
+                id: true,
+                name: true,
+                pincode: true,
+                city: {
+                    select: {
+                        name: true,
+                        state: {
+                            select: {
+                                name: true,
+                                code: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: {
+                name: "asc",
+            },
+        });
+
+        return res.json({
+            success: true,
+            nakas: nakas.map((naka) => ({
+                id: naka.id,
+                name: naka.name,
+                pincode: naka.pincode,
+                cityName: naka.city?.name || null,
+                stateName: naka.city?.state?.name || null,
+                stateCode: naka.city?.state?.code || null,
+            })),
+        });
+    } catch (error) {
+        console.error("Live Mitra Naka Search Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Nakas could not be loaded right now. Please try again.",
+            nakas: [],
+        });
+    }
+};
 const getMitraWorkerFormData = async (mitraId) => {
     const [skills, mitra] = await Promise.all([
         prisma.skill.findMany({
@@ -880,11 +978,7 @@ const normalizeMitraWorkerData = async ({
         }),
         prisma.mitra.findUnique({
             where: { id: mitraId },
-            include: {
-                nakas: {
-                    select: { id: true },
-                },
-            },
+            select: { id: true },
         }),
     ]);
 
@@ -896,14 +990,20 @@ const normalizeMitraWorkerData = async ({
         throw new Error("Mitra account was not found.");
     }
 
-    const mitraNakaIds = mitra.nakas.map((naka) => naka.id);
+    // Never trust selected IDs coming from the browser. The same eligibility
+    // rule used by the live search is enforced once more before saving.
+    const operationalNakas = await prisma.naka.findMany({
+        where: {
+            id: { in: selectedNakaIds },
+            ...getOperationalMitraNakaWhere(mitraId),
+        },
+        select: { id: true },
+    });
 
-    const hasUnauthorizedNaka = selectedNakaIds.some(
-        (nakaId) => !mitraNakaIds.includes(nakaId)
-    );
-
-    if (hasUnauthorizedNaka) {
-        throw new Error("You can only assign workers to your own Naka.");
+    if (operationalNakas.length !== selectedNakaIds.length) {
+        throw new Error(
+            "One or more selected Nakas are not assigned to you, are not verified, or need re-verification. Please search and select operational Nakas again."
+        );
     }
 
     const workerData = {
@@ -1271,6 +1371,7 @@ module.exports = {
     savePushToken,
     showMitraAddForm,
     showMitraEditForm,
+    searchMitraNakasByPincode,
     saveMitraWorker,
     updateMitraWorker,
     listMitraWorkers

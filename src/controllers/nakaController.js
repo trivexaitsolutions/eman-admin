@@ -40,6 +40,50 @@ function getVerificationDueDate(lastVerifiedAt) {
     return dueDate;
 }
 
+function getNakaCreator(naka) {
+    if (naka.createdByType === 'MITRA') {
+        if (naka.createdByMitra) {
+            return {
+                type: 'MITRA',
+                name: naka.createdByMitra.name,
+                phone: naka.createdByMitra.phone || null,
+                label: `Mitra: ${naka.createdByMitra.name}`,
+            };
+        }
+
+        return {
+            type: 'MITRA',
+            name: 'Mitra record unavailable',
+            phone: null,
+            label: 'Mitra submission',
+        };
+    }
+
+    if (naka.createdByType === 'ADMIN') {
+        if (naka.createdByEmployee) {
+            return {
+                type: 'ADMIN',
+                name: naka.createdByEmployee.name,
+                role: naka.createdByEmployee.role || null,
+                label: `Admin: ${naka.createdByEmployee.name}`,
+            };
+        }
+
+        return {
+            type: 'ADMIN',
+            name: 'Admin record unavailable',
+            role: null,
+            label: 'Admin entry',
+        };
+    }
+
+    return {
+        type: 'LEGACY',
+        name: 'Legacy / existing record',
+        label: 'Legacy / existing record',
+    };
+}
+
 function buildUploadUrl(file) {
     if (!file) return null;
     return `/uploads/naka-verification/${file.filename}`;
@@ -116,6 +160,10 @@ function getMissingVerificationFields(naka, photoUrl) {
         missing.push('peak-hour worker headcount');
     }
 
+    if (!/^[0-9]{6}$/.test(String(naka.pincode || ''))) {
+        missing.push('valid 6-digit PIN code');
+    }
+
     if (!photoUrl) {
         missing.push('verification photo');
     }
@@ -158,7 +206,13 @@ const listNakas = async (req, res) => {
             prisma.naka.findMany({
                 where: getFilterWhere(activeFilter, cutoff),
                 include: {
-                    city: true,
+                    city: {
+                        include: {
+                            state: { select: { id: true, name: true, code: true } },
+                        },
+                    },
+                    createdByMitra: { select: { id: true, name: true, phone: true } },
+                    createdByEmployee: { select: { id: true, name: true, role: true } },
                     _count: { select: { workers: true } },
                 },
                 orderBy: { id: 'desc' },
@@ -185,6 +239,7 @@ const listNakas = async (req, res) => {
             ...naka,
             computedVerificationStatus: getComputedVerificationStatus(naka, cutoff),
             verificationDueAt: getVerificationDueDate(naka.lastVerifiedAt),
+            addedBy: getNakaCreator(naka),
         }));
 
         return res.render('admin/nakas/index', {
@@ -206,16 +261,43 @@ const listNakas = async (req, res) => {
 
 const showForm = async (req, res) => {
     try {
-        const cities = await prisma.city.findMany({
-            orderBy: { name: 'asc' },
-        });
+        const [states, cities] = await Promise.all([
+            prisma.state.findMany({
+                orderBy: [
+                    { type: 'asc' },
+                    { name: 'asc' },
+                ],
+            }),
+            prisma.city.findMany({
+                where: {
+                    stateId: {
+                        not: null,
+                    },
+                },
+                include: {
+                    state: {
+                        select: {
+                            id: true,
+                            name: true,
+                            code: true,
+                        },
+                    },
+                },
+                orderBy: [
+                    { state: { name: 'asc' } },
+                    { name: 'asc' },
+                ],
+            }),
+        ]);
 
         let naka = {};
         let isEdit = false;
 
         if (req.params.id) {
             naka = await prisma.naka.findUnique({
-                where: { id: parseInt(req.params.id, 10) },
+                where: {
+                    id: parseInt(req.params.id, 10),
+                },
             });
 
             if (!naka) {
@@ -230,6 +312,7 @@ const showForm = async (req, res) => {
 
         return res.render('admin/nakas/form', {
             naka,
+            states,
             cities,
             isEdit,
             error: req.query.error || null,
@@ -263,8 +346,9 @@ const saveNaka = async (req, res) => {
         const {
             id,
             name,
-            cityId,
             pincode,
+            stateId,
+            cityId,
             latitude,
             longitude,
             confidenceLevel,
@@ -278,6 +362,7 @@ const saveNaka = async (req, res) => {
         } = req.body;
 
         const parsedId = id ? Number(id) : null;
+        const parsedStateId = Number(stateId);
         const parsedCityId = Number(cityId);
         const shouldVerifyNow = saveAction === 'VERIFY_NOW';
         const shouldVerifyLater = saveAction === 'VERIFY_LATER';
@@ -291,12 +376,12 @@ const saveNaka = async (req, res) => {
         }
 
         const cleanName = normalizeText(name, 120);
-        const cleanPincode = String(pincode || '').replace(/\D/g, '').slice(0, 6);
         const cleanLandmark = normalizeText(landmark, 191);
         const cleanSurveyNotes = normalizeText(surveyNotes, 3000);
         const cleanVerificationNote = normalizeText(verificationNote, 3000);
         const cleanConfidenceLevel = String(confidenceLevel || '').trim();
         const cleanVerificationMethod = String(verificationMethod || '').trim();
+        const normalizedPincode = String(pincode || '').trim().replace(/\s+/g, '');
 
         const latitudeValue = String(latitude || '').trim();
         const longitudeValue = String(longitude || '').trim();
@@ -315,16 +400,20 @@ const saveNaka = async (req, res) => {
             return redirectWithError('Landmark cannot exceed 191 characters.');
         }
 
+        if (!/^[0-9]{6}$/.test(normalizedPincode)) {
+            return redirectWithError('Please enter a valid 6-digit PIN code.');
+        }
+
         if (cleanSurveyNotes.tooLong || cleanVerificationNote.tooLong) {
             return redirectWithError('Notes cannot exceed 3000 characters.');
         }
 
-        if (!Number.isInteger(parsedCityId) || parsedCityId <= 0) {
-            return redirectWithError('Please select a valid city.');
+        if (!Number.isInteger(parsedStateId) || parsedStateId <= 0) {
+            return redirectWithError('Please select a valid State / Union Territory.');
         }
 
-        if (!/^\d{6}$/.test(cleanPincode)) {
-            return redirectWithError('Naka pincode must contain exactly 6 digits.');
+        if (!Number.isInteger(parsedCityId) || parsedCityId <= 0) {
+            return redirectWithError('Please select a valid city.');
         }
 
         if (!latitudeValue || !longitudeValue) {
@@ -354,13 +443,36 @@ const saveNaka = async (req, res) => {
             return redirectWithError('Peak-hour worker headcount must be a whole number of 0 or more.');
         }
 
+        /*
+         * The browser sends both values only for the dependent dropdown UI.
+         * The relation is verified on the server so a City from another State
+         * cannot be submitted through DevTools or a manually edited request.
+         */
         const city = await prisma.city.findUnique({
-            where: { id: parsedCityId },
-            select: { id: true },
+            where: {
+                id: parsedCityId,
+            },
+            include: {
+                state: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                    },
+                },
+            },
         });
 
-        if (!city) {
-            return redirectWithError('Selected city was not found.');
+        if (!city || !city.state) {
+            return redirectWithError(
+                'Selected City is missing its State / Union Territory. Please update the City master first.'
+            );
+        }
+
+        if (city.stateId !== parsedStateId) {
+            return redirectWithError(
+                `Selected City belongs to ${city.state.name}. Please select the matching State / Union Territory.`
+            );
         }
 
         let existingNaka = null;
@@ -394,6 +506,7 @@ const saveNaka = async (req, res) => {
 
         if (shouldVerifyNow) {
             const verificationCandidate = {
+                pincode: normalizedPincode,
                 latitude: parsedLatitude,
                 longitude: parsedLongitude,
                 confidenceLevel: cleanConfidenceLevel,
@@ -424,9 +537,16 @@ const saveNaka = async (req, res) => {
         }
 
         const now = new Date();
+        const creatorAdminId = Number(req.user?.id);
+
+        if (!Number.isInteger(creatorAdminId) || creatorAdminId <= 0) {
+            return redirectWithError('Your admin session is invalid. Please log in again.');
+        }
+
         const nakaData = {
             name: cleanName.text,
-            pincode: cleanPincode,
+            // Manual entry for now. A future postal/map API will auto-fill and validate this same value.
+            pincode: normalizedPincode,
             cityId: parsedCityId,
             latitude: parsedLatitude,
             longitude: parsedLongitude,
@@ -441,11 +561,14 @@ const saveNaka = async (req, res) => {
             lastVerifiedAt: shouldVerifyNow ? now : null,
         };
 
-        const verifierId = Number(req.user?.id);
-
-        if (shouldVerifyNow && (!Number.isInteger(verifierId) || verifierId <= 0)) {
-            return redirectWithError('Your admin session is invalid. Please log in again.');
+        // Preserve the original source on every edit. For a fresh Admin entry,
+        // persist the creating Admin so the list/audit trail can show ownership.
+        if (!parsedId) {
+            nakaData.createdByType = 'ADMIN';
+            nakaData.createdByEmployeeId = creatorAdminId;
         }
+
+        const verifierId = creatorAdminId;
 
         const savedNaka = await prisma.$transaction(async (tx) => {
             const naka = parsedId
@@ -503,7 +626,15 @@ const getVerificationDetails = async (req, res) => {
         const naka = await prisma.naka.findUnique({
             where: { id: nakaId },
             include: {
-                city: { select: { id: true, name: true } },
+                city: {
+                    select: {
+                        id: true,
+                        name: true,
+                        state: { select: { id: true, name: true, code: true } },
+                    },
+                },
+                createdByMitra: { select: { id: true, name: true, phone: true } },
+                createdByEmployee: { select: { id: true, name: true, role: true } },
                 _count: { select: { workers: true } },
                 verificationHistory: {
                     include: {
@@ -534,6 +665,7 @@ const getVerificationDetails = async (req, res) => {
                 ...naka,
                 computedVerificationStatus: currentStatus,
                 verificationDueAt: getVerificationDueDate(naka.lastVerifiedAt),
+                addedBy: getNakaCreator(naka),
                 missingVerificationFields,
             },
         });
@@ -584,6 +716,25 @@ const verifyNaka = async (req, res) => {
 
         if (!naka) {
             return redirectWithError('Naka was not found.');
+        }
+
+        const nakaCity = await prisma.city.findUnique({
+            where: {
+                id: naka.cityId,
+            },
+            include: {
+                state: {
+                    select: {
+                        id: true,
+                    },
+                },
+            },
+        });
+
+        if (!nakaCity?.state) {
+            return redirectWithError(
+                'This Naka City does not have a State / Union Territory yet. Update the City master before verification.'
+            );
         }
 
         const proofPhotoUrl = buildUploadUrl(req.file) || naka.verificationPhotoUrl;
@@ -665,7 +816,12 @@ const getNakasByPincode = async (req, res) => {
                 id: true,
                 name: true,
                 pincode: true,
-                city: { select: { name: true } },
+                city: {
+                    select: {
+                        name: true,
+                        state: { select: { name: true, code: true } },
+                    },
+                },
             },
             orderBy: { name: 'asc' },
         });
@@ -677,6 +833,52 @@ const getNakasByPincode = async (req, res) => {
     }
 };
 
+// Used only by Admin Naka form. The local City PIN master determines both State and City.
+const getLocationByPincode = async (req, res) => {
+    try {
+        const pincode = String(req.params.pincode || '').replace(/\D/g, '').slice(0, 6);
+
+        if (!/^\d{6}$/.test(pincode)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a valid 6-digit PIN code.',
+            });
+        }
+
+        const mapping = await prisma.cityPincode.findUnique({
+            where: { pincode },
+            include: {
+                city: {
+                    include: {
+                        state: { select: { id: true, name: true, code: true, type: true } },
+                    },
+                },
+            },
+        });
+
+        if (!mapping || !mapping.city?.state) {
+            return res.status(404).json({
+                success: false,
+                code: 'PINCODE_NOT_MAPPED',
+                message: 'This PIN is not mapped yet. Add it under Master: Cities before creating a Naka.',
+            });
+        }
+
+        return res.json({
+            success: true,
+            pincode,
+            city: { id: mapping.city.id, name: mapping.city.name },
+            state: mapping.city.state,
+        });
+    } catch (error) {
+        console.error('Get Location By Pincode Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to look up the PIN code right now.',
+        });
+    }
+};
+
 module.exports = {
     listNakas,
     showForm,
@@ -685,4 +887,5 @@ module.exports = {
     verifyNaka,
     deleteNaka,
     getNakasByPincode,
+    getLocationByPincode,
 };

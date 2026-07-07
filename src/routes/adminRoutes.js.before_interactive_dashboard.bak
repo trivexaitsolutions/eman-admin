@@ -5,7 +5,6 @@ const authController = require('../controllers/authController');
 const conflictRoutes = require('./conflictRoutes');
 const mitraRoutes = require('./mitraRoutes');
 const { authBouncer } = require('../middlewares/authBouncer');
-// const adminDashboardController = require('../controllers/adminDashboardController');
 
 const employeeRoutes = require('./employeeRoutes');
 const stateRoutes = require('./stateRoutes');
@@ -13,7 +12,6 @@ const cityRoutes = require('./cityRoutes');
 const nakaRoutes = require('./nakaRoutes');
 const skillRoutes = require('./skillRoutes');
 const workerRoutes = require('./workerRoutes');
-const adminDashboardController = require('../controllers/adminDashboardController');
 
 router.get('/login', authController.getLoginPage);
 router.post('/login', authController.login);
@@ -24,15 +22,10 @@ router.get('/logout', (req, res) => {
     res.redirect('/admin/login');
 });
 
-router.get(
-    '/dashboard',
-    authBouncer(['superadmin', 'admin', 'employee']),
-    (req, res, next) => {
-        console.log('✅ DASHBOARD CONTROLLER ROUTE HIT');
-        next();
-    },
-    adminDashboardController.showDashboard
-);
+router.get('/dashboard', authBouncer(['superadmin', 'admin', 'employee']), (req, res) => {
+    res.render('admin/dashboard');
+});
+
 router.use('/employees', authBouncer(['superadmin', 'admin']), employeeRoutes);
 router.use('/states', authBouncer(['superadmin', 'admin']), stateRoutes);
 router.use('/cities', authBouncer(['superadmin', 'admin']), cityRoutes);

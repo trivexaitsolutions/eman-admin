@@ -19,19 +19,62 @@ model Employee {
   updatedAt DateTime @updatedAt
 
   nakaVerifications NakaVerification[] @relation("NakaVerificationVerifier")
+  createdNakas     Naka[]             @relation("NakaCreatedByAdmin")
 
   @@map("employee")
 }
 
 // Master Data
-model City {
+// State / Union Territory is the top-level geographic master.
+// The initial seed contains all official Indian States and Union Territories.
+model State {
   id        Int      @id @default(autoincrement())
   name      String   @unique
-  nakas     Naka[]
+  code      String   @unique
+  type      String   // STATE or UNION_TERRITORY
+
+  cities    City[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@map("state")
+}
+
+model City {
+  id        Int      @id @default(autoincrement())
+  name      String
+
+  // Nullable only for old/legacy cities created before this upgrade.
+  // New City records are required by the controller to select a State.
+  stateId   Int?
+  state     State?   @relation(fields: [stateId], references: [id], onDelete: Restrict)
+
+  nakas     Naka[]
+  pincodes  CityPincode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stateId, name])
+  @@index([stateId])
   @@map("city")
+}
+
+// Internal PIN directory used by the Admin Naka form.
+// One PIN is deliberately mapped to one E-MAN City so State and City cannot conflict.
+model CityPincode {
+  id        Int      @id @default(autoincrement())
+  pincode   String   @unique @db.VarChar(6)
+
+  cityId    Int
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cityId])
+  @@map("citypincode")
 }
 
 model Naka {
@@ -55,6 +98,14 @@ model Naka {
   verificationStatus String    @default("PENDING_VERIFICATION")
   lastVerifiedAt     DateTime?
 
+  // Immutable source/audit fields. A Mitra submission remains linked to the
+  // submitting Mitra even after an Admin verifies the Naka.
+  createdByType       String   @default("LEGACY") // LEGACY, ADMIN, MITRA
+  createdByMitraId    Int?
+  createdByMitra      Mitra?   @relation("NakaSubmittedByMitra", fields: [createdByMitraId], references: [id], onDelete: SetNull)
+  createdByEmployeeId Int?
+  createdByEmployee   Employee? @relation("NakaCreatedByAdmin", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
+
   cityId Int
   city   City @relation(fields: [cityId], references: [id])
 
@@ -67,6 +118,8 @@ model Naka {
   updatedAt DateTime @updatedAt
 
   @@index([verificationStatus, lastVerifiedAt])
+  @@index([createdByMitraId])
+  @@index([createdByEmployeeId])
   @@map("naka")
 }
 
@@ -106,8 +159,11 @@ model Mitra {
   photoUrl String?
   isActive Boolean @default(true)
 
-  nakas     Naka[]     @relation("mitratonaka")
-  workers   Worker[]
+  // Nakas assigned to this Mitra. A Naka submitted by this Mitra is
+  // connected here immediately, before Admin verification.
+  nakas           Naka[] @relation("mitratonaka")
+  submittedNakas  Naka[] @relation("NakaSubmittedByMitra")
+  workers         Worker[]
   customers Customer[]
 
   createdAt DateTime @default(now())

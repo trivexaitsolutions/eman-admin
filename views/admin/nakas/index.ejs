@@ -98,7 +98,8 @@
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="font-bold text-stone-900"><%= naka.name %></p>
-            <p class="mt-0.5 text-xs text-stone-500"><%= naka.city.name %> • PIN: <%= naka.pincode || 'N/A' %></p>
+            <p class="mt-0.5 text-xs text-stone-500"><%= naka.city.state ? `${naka.city.state.name} • ` : '' %><%= naka.city.name %></p>
+            <p class="mt-1 text-xs font-semibold <%= naka.addedBy?.type === 'MITRA' ? 'text-blue-700' : 'text-stone-500' %>">Added by: <%= naka.addedBy?.label || 'Legacy / existing record' %></p>
           </div>
           <span class="rounded-md border px-2 py-1 text-[10px] font-bold <%= meta.badge %>"><%= meta.label %></span>
         </div>
@@ -123,11 +124,12 @@
 
   <div class="hidden overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm md:block">
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[980px] text-left">
+      <table class="w-full min-w-[1120px] text-left">
         <thead class="border-b border-stone-200 bg-stone-50">
           <tr>
             <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Naka</th>
             <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Status</th>
+            <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Added by</th>
             <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Survey / Last Verification</th>
             <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Workers</th>
             <th class="px-6 py-4 text-right text-xs font-semibold uppercase text-stone-500">Actions</th>
@@ -138,12 +140,18 @@
             <tr class="group transition-colors hover:bg-stone-50">
               <td class="px-6 py-4">
                 <p class="font-bold text-stone-900"><%= naka.name %></p>
-                <p class="mt-1 text-xs text-stone-500"><%= naka.city.name %> • PIN: <%= naka.pincode || '--' %><%= naka.landmark ? ` • ${naka.landmark}` : '' %></p>
+                <p class="mt-1 text-xs text-stone-500"><%= naka.city.state ? `${naka.city.state.name} • ` : '' %><%= naka.city.name %><%= naka.landmark ? ` • ${naka.landmark}` : '' %></p>
               </td>
               <td class="px-6 py-4">
                 <span class="inline-flex rounded-md border px-2.5 py-1 text-xs font-bold <%= meta.badge %>"><%= meta.label %></span>
                 <% if (naka.computedVerificationStatus === 'REVERIFY_REQUIRED') { %>
                   <p class="mt-1 text-[11px] text-amber-700">Due since <%= formatDate(naka.verificationDueAt) %></p>
+                <% } %>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm font-bold <%= naka.addedBy?.type === 'MITRA' ? 'text-blue-700' : 'text-stone-700' %>"><%= naka.addedBy?.label || 'Legacy / existing record' %></p>
+                <% if (naka.addedBy?.type === 'MITRA' && naka.addedBy?.phone) { %>
+                  <p class="mt-1 text-xs text-stone-500"><%= naka.addedBy.phone %></p>
                 <% } %>
               </td>
               <td class="px-6 py-4">
@@ -186,8 +194,9 @@
 
         <div class="rounded-xl border border-stone-200 bg-stone-50 p-4">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div><p class="text-xs font-semibold uppercase text-stone-400">City / Pincode</p><p id="modalCityPincode" class="mt-1 font-bold text-stone-800">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">State / City / PIN Code</p><p id="modalCityPincode" class="mt-1 font-bold text-stone-800">--</p></div>
             <div><p class="text-xs font-semibold uppercase text-stone-400">Current status</p><p id="modalStatus" class="mt-1 font-bold text-stone-800">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Added by</p><p id="modalAddedBy" class="mt-1 font-bold text-stone-800">--</p></div>
             <div><p class="text-xs font-semibold uppercase text-stone-400">Map coordinates</p><p id="modalCoordinates" class="mt-1 font-medium text-stone-700">--</p></div>
             <div><p class="text-xs font-semibold uppercase text-stone-400">Confidence / Headcount</p><p id="modalSurveyInfo" class="mt-1 font-medium text-stone-700">--</p></div>
             <div><p class="text-xs font-semibold uppercase text-stone-400">Survey date</p><p id="modalSurveyDate" class="mt-1 font-medium text-stone-700">--</p></div>
@@ -316,8 +325,9 @@
       verifyNakaForm.action = `/admin/nakas/${naka.id}/verify`;
       modalEditNakaButton.href = `/admin/nakas/edit/${naka.id}`;
 
-      setText('modalCityPincode', `${naka.city.name} • PIN: ${naka.pincode || '--'}`);
+      setText('modalCityPincode', `${naka.city.state?.name ? `${naka.city.state.name} • ` : ''}${naka.city.name}${naka.pincode ? ` • PIN ${naka.pincode}` : ' • PIN not entered'}`);
       setText('modalStatus', titleCase(naka.computedVerificationStatus));
+      setText('modalAddedBy', naka.addedBy?.label || 'Legacy / existing record');
       setText('modalCoordinates', naka.latitude != null && naka.longitude != null ? `${Number(naka.latitude).toFixed(6)}, ${Number(naka.longitude).toFixed(6)}` : '--');
       setText('modalSurveyInfo', `${titleCase(naka.confidenceLevel)} • ${naka.peakHourHeadcount != null ? `${naka.peakHourHeadcount} workers` : '--'}`);
       setText('modalSurveyDate', formatModalDate(naka.surveyDate));

@@ -15,6 +15,19 @@
       : []
   );
 
+  const initialSelectedNakasJson = JSON.stringify(
+    editMode && Array.isArray(formWorker.nakas)
+      ? formWorker.nakas.map((naka) => ({
+          id: Number(naka.id),
+          name: naka.name || "Selected Naka",
+          pincode: naka.pincode || ""
+        }))
+      : []
+  )
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+
   const hasExistingConsentVideo = Boolean(
     editMode && formWorker.consentVoiceUrl
   );
@@ -720,6 +733,9 @@
       id="selectedNakaList"
       class="flex flex-wrap gap-2 mt-4"
     ></div>
+
+    <!-- IDs remain here even after searching another PIN. -->
+    <div id="selectedNakaInputs"></div>
   </div>
 
   <!-- Search Result Message -->
@@ -750,45 +766,8 @@
     </p>
   </div>
 
-  <!-- Search Results -->
-  <div id="nakaList" class="space-y-3">
-    <% nakas.forEach(naka => { %>
-      <label
-        data-naka-card
-        data-naka-pincode="<%= naka.pincode || '' %>"
-        data-naka-name="<%= naka.name %>"
-        class="custom-checkbox cursor-pointer block hidden"
-      >
-        <input
-          type="checkbox"
-          name="nakaIds[]"
-          value="<%= naka.id %>"
-          <%= selectedNakaIds.has(Number(naka.id)) ? "checked" : "" %>
-          class="hidden naka-check"
-        />
-
-        <div class="px-4 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-600 transition flex items-center justify-between gap-4">
-          <div class="min-w-0">
-            <span class="block truncate"><%= naka.name %></span>
-
-            <span class="block text-[11px] text-gray-400 mt-1">
-              Pincode: <%= naka.pincode || 'Not configured' %>
-            </span>
-          </div>
-
-          <span class="text-xl shrink-0">📍</span>
-        </div>
-      </label>
-    <% }) %>
-  </div>
-
-  <% if (nakas.length === 0) { %>
-    <div class="rounded-2xl bg-red-50 border border-red-100 p-4">
-      <p class="text-sm text-red-600 font-black">
-        No active Nakas are assigned to this Mitra.
-      </p>
-    </div>
-  <% } %>
+  <!-- Results are loaded live from the current Mitra assignment. -->
+  <div id="nakaList" class="space-y-3" aria-live="polite"></div>
 </div>
 
             </section>
@@ -1355,7 +1334,7 @@ function validateCurrentStep() {
 
   if (currentStep === 3) {
     const skillChecked = document.querySelectorAll('.skill-check:checked').length > 0;
-    const nakaChecked = document.querySelectorAll('.naka-check:checked').length > 0;
+    const nakaChecked = document.querySelectorAll('#selectedNakaInputs input[name="nakaIds[]"]').length > 0;
 
     if (!skillChecked) {
       alert('Please select at least 1 skill.');
@@ -1429,127 +1408,277 @@ const workerPincode = document.getElementById('workerPincode');
 const nakaSearchPincode = document.getElementById("nakaSearchPincode");
 const nakaSearchHint = document.getElementById("nakaSearchHint");
 const nakaNoMatch = document.getElementById("nakaNoMatch");
-const nakaCards = document.querySelectorAll("[data-naka-card]");
-
+const nakaList = document.getElementById("nakaList");
 const selectedNakaList = document.getElementById("selectedNakaList");
 const selectedNakaEmpty = document.getElementById("selectedNakaEmpty");
 const selectedNakaCount = document.getElementById("selectedNakaCount");
+const selectedNakaInputs = document.getElementById("selectedNakaInputs");
+
+const initialSelectedNakas = <%- initialSelectedNakasJson %>;
+const selectedNakas = new Map();
+let latestSearchResults = [];
+let activeNakaSearchController = null;
+let nakaSearchRequestSerial = 0;
+
+initialSelectedNakas.forEach((naka) => {
+  const id = Number(naka?.id);
+
+  if (Number.isInteger(id) && id > 0) {
+    selectedNakas.set(id, {
+      id,
+      name: String(naka?.name || "Selected Naka"),
+      pincode: String(naka?.pincode || ""),
+      cityName: null,
+      stateName: null,
+    });
+  }
+});
 
 function cleanNakaPincode(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function setNakaSearchHint(title, description, tone = "neutral") {
+  const titleClass = tone === "success"
+    ? "text-emerald-800"
+    : tone === "error"
+      ? "text-red-700"
+      : "text-gray-700";
+
+  const descriptionClass = tone === "success"
+    ? "text-emerald-600"
+    : tone === "error"
+      ? "text-red-500"
+      : "text-gray-500";
+
+  nakaSearchHint.classList.remove("hidden");
+  nakaSearchHint.innerHTML = "";
+
+  const titleNode = document.createElement("p");
+  titleNode.className = `text-sm font-black ${titleClass}`;
+  titleNode.textContent = title;
+
+  const descriptionNode = document.createElement("p");
+  descriptionNode.className = `text-xs font-bold mt-1 ${descriptionClass}`;
+  descriptionNode.textContent = description;
+
+  nakaSearchHint.appendChild(titleNode);
+  nakaSearchHint.appendChild(descriptionNode);
+}
+
+function renderSelectedNakaInputs() {
+  selectedNakaInputs.innerHTML = "";
+
+  [...selectedNakas.values()]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .forEach((naka) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "nakaIds[]";
+      input.value = String(naka.id);
+      selectedNakaInputs.appendChild(input);
+    });
+}
+
 function refreshSelectedNakaSummary() {
-  const selectedCheckboxes = document.querySelectorAll(".naka-check:checked");
-
   selectedNakaList.innerHTML = "";
-  selectedNakaCount.textContent = selectedCheckboxes.length;
+  selectedNakaCount.textContent = String(selectedNakas.size);
+  selectedNakaEmpty.classList.toggle("hidden", selectedNakas.size > 0);
 
-  selectedNakaEmpty.classList.toggle(
-    "hidden",
-    selectedCheckboxes.length > 0
-  );
+  [...selectedNakas.values()]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .forEach((naka) => {
+      const chip = document.createElement("div");
+      chip.className =
+        "inline-flex items-center gap-2 rounded-full bg-white border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-800 shadow-sm";
 
-  selectedCheckboxes.forEach((checkbox) => {
-    const card = checkbox.closest("[data-naka-card]");
-    const nakaName = card?.dataset.nakaName || "Selected Naka";
-    const nakaPincode = card?.dataset.nakaPincode || "";
+      const chipText = document.createElement("span");
+      chipText.textContent = `${naka.name}${naka.pincode ? ` · ${naka.pincode}` : ""}`;
 
-    const chip = document.createElement("div");
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className =
+        "w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black leading-none hover:bg-emerald-200";
+      removeButton.textContent = "×";
+      removeButton.title = `Remove ${naka.name}`;
+      removeButton.setAttribute("aria-label", `Remove ${naka.name}`);
 
-    chip.className =
-      "inline-flex items-center gap-2 rounded-full bg-white border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-800 shadow-sm";
+      removeButton.addEventListener("click", () => {
+        selectedNakas.delete(naka.id);
+        refreshSelectedNakaSummary();
+        renderNakaSearchResults(latestSearchResults);
+      });
 
-    const chipText = document.createElement("span");
-    chipText.textContent = `${nakaName}${nakaPincode ? ` · ${nakaPincode}` : ""}`;
-
-    const removeButton = document.createElement("button");
-    removeButton.type = "button";
-    removeButton.className =
-      "w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black leading-none hover:bg-emerald-200";
-    removeButton.textContent = "×";
-    removeButton.title = `Remove ${nakaName}`;
-
-    removeButton.addEventListener("click", () => {
-      checkbox.checked = false;
-
-      refreshSelectedNakaSummary();
-      updateNakaSearchResults();
+      chip.appendChild(chipText);
+      chip.appendChild(removeButton);
+      selectedNakaList.appendChild(chip);
     });
 
-    chip.appendChild(chipText);
-    chip.appendChild(removeButton);
+  renderSelectedNakaInputs();
+}
 
-    selectedNakaList.appendChild(chip);
+function renderNakaSearchResults(nakas) {
+  nakaList.innerHTML = "";
+
+  nakas.forEach((naka) => {
+    const id = Number(naka.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return;
+    }
+
+    const label = document.createElement("label");
+    label.className = "custom-checkbox cursor-pointer block";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "hidden naka-check";
+    checkbox.checked = selectedNakas.has(id);
+
+    const card = document.createElement("div");
+    card.className =
+      "px-4 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-600 transition flex items-center justify-between gap-4";
+
+    const details = document.createElement("div");
+    details.className = "min-w-0";
+
+    const nameNode = document.createElement("span");
+    nameNode.className = "block truncate";
+    nameNode.textContent = String(naka.name || "Naka");
+
+    const locationNode = document.createElement("span");
+    locationNode.className = "block text-[11px] text-gray-400 mt-1";
+    const areaText = [naka.cityName, naka.stateName].filter(Boolean).join(", ");
+    locationNode.textContent =
+      `Pincode: ${naka.pincode || "Not configured"}${areaText ? ` · ${areaText}` : ""}`;
+
+    const marker = document.createElement("span");
+    marker.className = "text-xl shrink-0";
+    marker.textContent = "📍";
+
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        selectedNakas.set(id, {
+          id,
+          name: String(naka.name || "Naka"),
+          pincode: String(naka.pincode || ""),
+          cityName: naka.cityName || null,
+          stateName: naka.stateName || null,
+        });
+      } else {
+        selectedNakas.delete(id);
+      }
+
+      refreshSelectedNakaSummary();
+    });
+
+    details.appendChild(nameNode);
+    details.appendChild(locationNode);
+    card.appendChild(details);
+    card.appendChild(marker);
+    label.appendChild(checkbox);
+    label.appendChild(card);
+    nakaList.appendChild(label);
   });
 }
 
-function updateNakaSearchResults() {
+async function updateNakaSearchResults() {
   const enteredPincode = cleanNakaPincode(nakaSearchPincode.value);
+  nakaSearchPincode.value = enteredPincode.slice(0, 6);
+  const requestSerial = ++nakaSearchRequestSerial;
 
   if (!/^\d{6}$/.test(enteredPincode)) {
-    nakaCards.forEach((card) => {
-      card.classList.add("hidden");
-    });
+    if (activeNakaSearchController) {
+      activeNakaSearchController.abort();
+      activeNakaSearchController = null;
+    }
 
+    latestSearchResults = [];
+    nakaList.innerHTML = "";
     nakaNoMatch.classList.add("hidden");
-    nakaSearchHint.classList.remove("hidden");
-
-    nakaSearchHint.innerHTML = `
-      <p class="text-sm font-black text-gray-700">
-        Area ka valid 6-digit pincode enter karein.
-      </p>
-      <p class="text-xs font-bold text-gray-500 mt-1">
-        Matching Nakas yahan automatically dikhne lagenge.
-      </p>
-    `;
-
+    setNakaSearchHint(
+      "Area ka valid 6-digit pincode enter karein.",
+      "Matching verified Nakas live server se load honge."
+    );
     return;
   }
 
-  let matchedCount = 0;
+  if (activeNakaSearchController) {
+    activeNakaSearchController.abort();
+  }
 
-  nakaCards.forEach((card) => {
-    const nakaPincode = cleanNakaPincode(card.dataset.nakaPincode);
-    const isMatch = nakaPincode === enteredPincode;
+  activeNakaSearchController = new AbortController();
+  nakaNoMatch.classList.add("hidden");
+  nakaList.innerHTML = "";
+  setNakaSearchHint(
+    `Pincode ${enteredPincode} ke Nakas load ho rahe hain...`,
+    "Sirf aapko assigned aur currently verified Nakas dikhaye jayenge."
+  );
 
-    card.classList.toggle("hidden", !isMatch);
+  try {
+    const response = await fetch(
+      `/mitra/api/nakas/search?pincode=${encodeURIComponent(enteredPincode)}`,
+      {
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+        },
+        signal: activeNakaSearchController.signal,
+      }
+    );
 
-    if (isMatch) {
-      matchedCount++;
+    const payload = await response.json().catch(() => ({}));
+
+    if (requestSerial !== nakaSearchRequestSerial) {
+      return;
     }
-  });
 
-  if (matchedCount > 0) {
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.message || "Nakas load nahi ho paaye.");
+    }
+
+    latestSearchResults = Array.isArray(payload.nakas) ? payload.nakas : [];
+
+    if (latestSearchResults.length === 0) {
+      nakaList.innerHTML = "";
+      nakaSearchHint.classList.add("hidden");
+      nakaNoMatch.classList.remove("hidden");
+      return;
+    }
+
     nakaNoMatch.classList.add("hidden");
-    nakaSearchHint.classList.remove("hidden");
+    setNakaSearchHint(
+      `${latestSearchResults.length} Naka${latestSearchResults.length > 1 ? "s" : ""} found for pincode ${enteredPincode}.`,
+      "Required Nakas select karein. Search pincode change karne par selected Nakas remove nahi honge.",
+      "success"
+    );
+    renderNakaSearchResults(latestSearchResults);
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
 
-    nakaSearchHint.innerHTML = `
-      <p class="text-sm font-black text-emerald-800">
-        ${matchedCount} Naka${matchedCount > 1 ? "s" : ""} found for pincode ${enteredPincode}.
-      </p>
-      <p class="text-xs font-bold text-emerald-600 mt-1">
-        Required Nakas select karein. Search pincode change karne par selected Nakas remove nahi honge.
-      </p>
-    `;
-  } else {
-    nakaSearchHint.classList.add("hidden");
-    nakaNoMatch.classList.remove("hidden");
+    if (requestSerial !== nakaSearchRequestSerial) {
+      return;
+    }
+
+    latestSearchResults = [];
+    nakaList.innerHTML = "";
+    nakaNoMatch.classList.add("hidden");
+    setNakaSearchHint(
+      "Nakas load nahi ho paaye.",
+      error?.message || "Please try again.",
+      "error"
+    );
+  } finally {
+    if (requestSerial === nakaSearchRequestSerial) {
+      activeNakaSearchController = null;
+    }
   }
 }
 
 nakaSearchPincode.addEventListener("input", () => {
-  nakaSearchPincode.value = nakaSearchPincode.value
-    .replace(/\D/g, "")
-    .slice(0, 6);
-
   updateNakaSearchResults();
-});
-
-document.querySelectorAll(".naka-check").forEach((checkbox) => {
-  checkbox.addEventListener("change", () => {
-    refreshSelectedNakaSummary();
-  });
 });
 
 const idProofType = document.getElementById('idProofType');

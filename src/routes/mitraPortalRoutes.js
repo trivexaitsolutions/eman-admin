@@ -5,6 +5,8 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const mitraPortalController = require('../controllers/mitraPortalController');
+const mitraNakaController = require('../controllers/mitraNakaController');
+const nakaVerificationUpload = require('../middlewares/nakaVerificationUpload');
 const workerController = require('../controllers/workerController');
 const mitraBouncer = require('../middlewares/mitraBouncer');
 
@@ -30,6 +32,19 @@ router.get('/logout', mitraPortalController.logout);
 // --- PROTECTED ROUTES ---
 router.get('/dashboard', mitraBouncer, mitraPortalController.showDashboard);
 
+
+// Mitra Naka Submission
+// A Mitra can submit survey evidence, but cannot mark a Naka as VERIFIED.
+// Submission creates a PENDING_VERIFICATION Naka and assigns it to that Mitra.
+router.get('/nakas', mitraBouncer, mitraNakaController.listMyNakas);
+router.get('/nakas/add', mitraBouncer, mitraNakaController.showAddNakaForm);
+router.post(
+    '/nakas/submit',
+    mitraBouncer,
+    nakaVerificationUpload.single('verificationPhoto'),
+    mitraNakaController.submitNaka
+);
+
 // Conflict Management Routes
 router.get('/conflicts', mitraBouncer, mitraPortalController.getMitraConflicts);
 
@@ -44,6 +59,13 @@ router.get(
     workerController.listMitraWorkers
 );
 router.get('/workers/add', mitraBouncer, workerController.showMitraAddForm);
+
+// Live lookup: returns the current assigned + operational Nakas for a PIN.
+router.get(
+    '/api/nakas/search',
+    mitraBouncer,
+    workerController.searchMitraNakasByPincode
+);
 
 router.get(
     '/workers/edit/:id',
