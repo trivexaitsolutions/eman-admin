@@ -19,7 +19,7 @@ model Employee {
   updatedAt DateTime @updatedAt
 
   nakaVerifications NakaVerification[] @relation("NakaVerificationVerifier")
-  createdNakas     Naka[]             @relation("NakaCreatedByAdmin")
+  createdNakas      Naka[]             @relation("NakaCreatedByAdmin")
 
   @@map("employee")
 }
@@ -28,12 +28,12 @@ model Employee {
 // State / Union Territory is the top-level geographic master.
 // The initial seed contains all official Indian States and Union Territories.
 model State {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  code      String   @unique
-  type      String   // STATE or UNION_TERRITORY
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  code String @unique
+  type String // STATE or UNION_TERRITORY
 
-  cities    City[]
+  cities City[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -42,16 +42,16 @@ model State {
 }
 
 model City {
-  id        Int      @id @default(autoincrement())
-  name      String
+  id   Int    @id @default(autoincrement())
+  name String
 
   // Nullable only for old/legacy cities created before this upgrade.
   // New City records are required by the controller to select a State.
-  stateId   Int?
-  state     State?   @relation(fields: [stateId], references: [id], onDelete: Restrict)
+  stateId Int?
+  state   State? @relation(fields: [stateId], references: [id], onDelete: Restrict)
 
-  nakas     Naka[]
-  pincodes  CityPincode[]
+  nakas    Naka[]
+  pincodes CityPincode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -64,11 +64,11 @@ model City {
 // Internal PIN directory used by the Admin Naka form.
 // One PIN is deliberately mapped to one E-MAN City so State and City cannot conflict.
 model CityPincode {
-  id        Int      @id @default(autoincrement())
-  pincode   String   @unique @db.VarChar(6)
+  id      Int    @id @default(autoincrement())
+  pincode String @unique @db.VarChar(6)
 
-  cityId    Int
-  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  cityId Int
+  city   City @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -78,14 +78,14 @@ model CityPincode {
 }
 
 model Naka {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   name      String
   pincode   String?
   latitude  Float?
   longitude Float?
 
   // Survey / verification information
-  confidenceLevel      String?   // HIGH, MEDIUM, LOW, N_A
+  confidenceLevel      String? // HIGH, MEDIUM, LOW, N_A
   landmark             String?
   surveyDate           DateTime? @db.Date
   peakHourHeadcount    Int?
@@ -100,9 +100,9 @@ model Naka {
 
   // Immutable source/audit fields. A Mitra submission remains linked to the
   // submitting Mitra even after an Admin verifies the Naka.
-  createdByType       String   @default("LEGACY") // LEGACY, ADMIN, MITRA
+  createdByType       String    @default("LEGACY") // LEGACY, ADMIN, MITRA
   createdByMitraId    Int?
-  createdByMitra      Mitra?   @relation("NakaSubmittedByMitra", fields: [createdByMitraId], references: [id], onDelete: SetNull)
+  createdByMitra      Mitra?    @relation("NakaSubmittedByMitra", fields: [createdByMitraId], references: [id], onDelete: SetNull)
   createdByEmployeeId Int?
   createdByEmployee   Employee? @relation("NakaCreatedByAdmin", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
 
@@ -135,15 +135,15 @@ model NakaVerification {
   verifiedBy   Employee @relation("NakaVerificationVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
 
   verificationMethod String
-  verificationNote   String @db.Text
+  verificationNote   String   @db.Text
   verifiedAt         DateTime @default(now())
 
   // Snapshot of the proof/data that was used at the moment of verification.
-  photoUrl           String?
-  surveyDate         DateTime? @db.Date
-  peakHourHeadcount  Int?
-  latitude           Float?
-  longitude          Float?
+  photoUrl          String?
+  surveyDate        DateTime? @db.Date
+  peakHourHeadcount Int?
+  latitude          Float?
+  longitude         Float?
 
   @@index([nakaId, verifiedAt])
   @@index([verifiedById])
@@ -161,10 +161,10 @@ model Mitra {
 
   // Nakas assigned to this Mitra. A Naka submitted by this Mitra is
   // connected here immediately, before Admin verification.
-  nakas           Naka[] @relation("mitratonaka")
-  submittedNakas  Naka[] @relation("NakaSubmittedByMitra")
-  workers         Worker[]
-  customers Customer[]
+  nakas          Naka[]     @relation("mitratonaka")
+  submittedNakas Naka[]     @relation("NakaSubmittedByMitra")
+  workers        Worker[]
+  customers      Customer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -173,14 +173,14 @@ model Mitra {
 }
 
 model Skill {
-  id          Int         @id @default(autoincrement())
-  name        String      @unique
-  description String?     @db.Text
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String? @db.Text
   imageUrl    String?
-  isActive    Boolean     @default(true)
+  isActive    Boolean @default(true)
 
   rates   SkillRate[]
-  workers Worker[] @relation("skilltoworker")
+  workers Worker[]    @relation("skilltoworker")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -279,8 +279,8 @@ model Customer {
 
   otp        String?
   otpExpiry  DateTime?
-  isVerified Boolean @default(false)
-  pushToken  String? @db.Text
+  isVerified Boolean   @default(false)
+  pushToken  String?   @db.Text
 
   mitraId Int?
   mitra   Mitra? @relation(fields: [mitraId], references: [id])
@@ -301,14 +301,23 @@ model Booking {
   skillId     Int
   workerCount Int
 
+  // Customer can select maximum 3 Nakas.
+  // nakaId remains as the legacy / primary Naka mirror.
+  selectedNakaIds String @default("[]") @db.Text
+
+  // Canonical customer work address used for this booking.
+  addressId Int?
+
   status String @default("PENDING")
 
   amount            Float?
   razorpayOrderId   String? @unique
   razorpayPaymentId String? @unique
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  workers  Worker[] @relation("bookingtoworker")
+  customer Customer         @relation(fields: [customerId], references: [id])
+  address  CustomerAddress? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  workers Worker[] @relation("bookingtoworker")
 
   arrivedWorkerIds   String  @default("[]")
   cancelledWorkerIds String  @default("[]")
@@ -323,6 +332,7 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([addressId])
   @@map("booking")
 }
 
@@ -440,7 +450,8 @@ model CustomerAddress {
 
   isDefault Boolean @default(false)
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  customer Customer  @relation(fields: [customerId], references: [id])
+  bookings Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

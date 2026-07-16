@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../../controllers/userController');
-const { submitRating,initiateBooking, verifyPayment, bookWorkers,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory,getBookingById /*, baaki purane functions */, } = require('../../controllers/bookingController');
+const { submitRating,initiateBooking, verifyPayment, bookWorkers,getCurrentBooking,getCurrentDuty,verifyQrAndStartDuty,completeBooking,getBookingHistory,cancelPendingBooking,getBookingById /*, baaki purane functions */, } = require('../../controllers/bookingController');
 const conflictController = require('../../controllers/conflictController');
 const customerAddressController = require("../../controllers/customerAddressController");
 const bookingController = require("../../controllers/bookingController");
@@ -15,12 +15,14 @@ router.get('/test', (req, res) => {
 router.post('/send-otp', userController.sendOtp);
 router.post('/verify-otp', userController.verifyOtp);
 router.get('/booking-options', userController.getBookingOptions);
+router.get('/nakas/search', userController.searchNakas);
 // router.post('/book-workers', bookingController.bookWorkers);
 // Frontend '/user/initiate-booking' pe call karega toh ye chalega
 router.post('/initiate-booking', initiateBooking);
 
 // Frontend '/user/verify-payment' pe call karega toh ye chalega
 router.post('/verify-payment', verifyPayment);
+router.post('/cancel-pending-booking', cancelPendingBooking);
 router.get('/current-booking/:customerId', getCurrentBooking);
 
 router.get('/worker/current-duty/:workerId', getCurrentDuty);

@@ -5,6 +5,36 @@ const { sendPushNotification } = require('../utils/sendNotification');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
+const NAKA_VERIFIED_STATUS = 'VERIFIED';
+
+const getNakaVerificationCutoff = () => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    return cutoff;
+};
+
+const findBookableNaka = async (nakaId) => {
+    const parsedNakaId = parseInt(nakaId, 10);
+
+    if (!Number.isInteger(parsedNakaId) || parsedNakaId <= 0) {
+        return null;
+    }
+
+    return prisma.naka.findFirst({
+        where: {
+            id: parsedNakaId,
+            verificationStatus: NAKA_VERIFIED_STATUS,
+            lastVerifiedAt: {
+                gte: getNakaVerificationCutoff()
+            }
+        },
+        select: {
+            id: true,
+            name: true
+        }
+    });
+};
+
 // const { sendPushNotification } = require('../utils/sendNotification');
 
 
@@ -37,93 +67,614 @@ const razorpay = new Razorpay({
 });
 
 const initiateBooking = async (req, res) => {
-    const { customerId, nakaId, skillId, workerCount, totalAmount } = req.body;
+    const {
+        customerId,
+        nakaIds,
+        skillId,
+        workerCount,
+        minRating = 0,
+        addressId
+    } = req.body;
+
+    let lockedWorkerIds = [];
+    let pendingBooking = null;
 
     try {
-        await expireOldAvailableWorkers();
+        /*
+        |--------------------------------------------------------------------------
+        | 1. Basic request validation
+        |--------------------------------------------------------------------------
+        */
 
-        const now = new Date();
-        // 1. Dhoondo kaun se workers free hain
-        const availableWorkers = await prisma.worker.findMany({
-            where: {
-                isAvailable: true,
-                availabilityUntil: {
-                    gt: now,
-                },
-                nakas: { some: { id: parseInt(nakaId) } },
-                skills: { some: { id: parseInt(skillId) } },
-            },
-            take: parseInt(workerCount),
-        });
+        const parsedCustomerId = Number(customerId);
+        const parsedSkillId = Number(skillId);
+        const parsedWorkerCount = Number(workerCount);
+        const parsedMinRating = Number(minRating || 0);
+        const parsedAddressId = Number(addressId);
 
-        // 2. Check karo ki kya utne workers mile?
-        if (availableWorkers.length < parseInt(workerCount)) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Sorry! Abhi is Naka par sirf ${availableWorkers.length} worker(s) free hain.` 
+        if (
+            !Number.isInteger(parsedCustomerId) ||
+            parsedCustomerId <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid customer selected."
             });
         }
 
-        const workerIds = availableWorkers.map(w => w.id);
+        if (
+            !Number.isInteger(parsedSkillId) ||
+            parsedSkillId <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select a valid skill."
+            });
+        }
 
-        // 3. TRANSACTION: Workers ko LOCK karo aur 'PENDING' booking banao
-        const pendingBooking = await prisma.$transaction(async (tx) => {
-            // A. Booking generate karo (Status PENDING)
-            const booking = await tx.booking.create({
-                data: {
-                    customerId: parseInt(customerId),
-                    nakaId: parseInt(nakaId),
-                    skillId: parseInt(skillId),
-                    workerCount: parseInt(workerCount),
-                    amount: totalAmount, // Naya field
-                    status: "PENDING",   // Naya status
-                    workers: {
-                        connect: workerIds.map(id => ({ id }))
-                    }
+        if (
+            !Number.isInteger(parsedWorkerCount) ||
+            parsedWorkerCount < 1 ||
+            parsedWorkerCount > 10
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Worker count must be between 1 and 10."
+            });
+        }
+
+        if (
+            !Number.isFinite(parsedMinRating) ||
+            parsedMinRating < 0 ||
+            parsedMinRating > 5
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid minimum rating selected."
+            });
+        }
+
+        if (
+            !Number.isInteger(parsedAddressId) ||
+            parsedAddressId <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select a valid work address."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 2. Validate selected Nakas
+        |--------------------------------------------------------------------------
+        */
+
+        if (!Array.isArray(nakaIds)) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select nearby Nakas."
+            });
+        }
+
+        const validNakaIds = [
+            ...new Set(
+                nakaIds
+                    .map((id) => Number(id))
+                    .filter(
+                        (id) =>
+                            Number.isInteger(id) &&
+                            id > 0
+                    )
+            )
+        ];
+
+        if (validNakaIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select at least one Naka."
+            });
+        }
+
+        if (validNakaIds.length > 3) {
+            return res.status(400).json({
+                success: false,
+                message: "You can select maximum 3 Nakas."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3. Expire workers whose availability has ended
+        |--------------------------------------------------------------------------
+        */
+
+        await expireOldAvailableWorkers();
+
+        /*
+        |--------------------------------------------------------------------------
+        | 4. Validate customer
+        |--------------------------------------------------------------------------
+        */
+
+        const customer = await prisma.customer.findUnique({
+            where: {
+                id: parsedCustomerId
+            },
+            select: {
+                id: true
+            }
+        });
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: "Customer account not found."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 5. Validate address ownership
+        |--------------------------------------------------------------------------
+        */
+
+        const customerAddress =
+            await prisma.customerAddress.findFirst({
+                where: {
+                    id: parsedAddressId,
+                    customerId: parsedCustomerId
+                },
+                select: {
+                    id: true
                 }
             });
 
-            // B. Un workers ko 'Busy' (Locked) mark kar do taaki koi aur book na kar le
-            await tx.worker.updateMany({
-                where: { id: { in: workerIds } },
-                data: { isAvailable: false }
+        if (!customerAddress) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Selected address does not belong to this customer."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 6. Validate that all selected Nakas are currently verified
+        |--------------------------------------------------------------------------
+        */
+
+        const verificationCutoff = new Date();
+
+        verificationCutoff.setMonth(
+            verificationCutoff.getMonth() - 6
+        );
+
+        const verifiedNakas = await prisma.naka.findMany({
+            where: {
+                id: {
+                    in: validNakaIds
+                },
+                verificationStatus: "VERIFIED",
+                lastVerifiedAt: {
+                    gte: verificationCutoff
+                }
+            },
+            select: {
+                id: true,
+                name: true
+            }
+        });
+
+        if (verifiedNakas.length !== validNakaIds.length) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "One or more selected Nakas are not currently available for booking."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 7. Get skill and calculate amount on backend
+        |--------------------------------------------------------------------------
+        */
+
+        const skill = await prisma.skill.findFirst({
+            where: {
+                id: parsedSkillId,
+                isActive: true
+            },
+            include: {
+                rates: true
+            }
+        });
+
+        if (!skill) {
+            return res.status(400).json({
+                success: false,
+                message: "Selected skill is not available."
+            });
+        }
+
+        if (
+            !Array.isArray(skill.rates) ||
+            skill.rates.length === 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Rate has not been configured for this skill."
+            });
+        }
+
+        let selectedRate = null;
+
+        // Rating 0 means Any Rating, therefore use lowest available rate.
+        if (parsedMinRating === 0) {
+            selectedRate = [...skill.rates].sort(
+                (a, b) =>
+                    Number(a.rate) - Number(b.rate)
+            )[0];
+        } else {
+            selectedRate = skill.rates.find(
+                (rate) =>
+                    Number(rate.star) ===
+                    parsedMinRating
+            );
+        }
+
+        if (!selectedRate) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Rate is not configured for the selected worker rating."
+            });
+        }
+
+        const unitPrice = Number(selectedRate.rate);
+
+        if (
+            !Number.isFinite(unitPrice) ||
+            unitPrice <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Invalid rate configured for this skill."
+            });
+        }
+
+        const totalAmount =
+            unitPrice * parsedWorkerCount;
+
+        /*
+        |--------------------------------------------------------------------------
+        | 8. Find workers from ANY selected Naka
+        |--------------------------------------------------------------------------
+        */
+
+        const now = new Date();
+
+        const availableWorkers =
+            await prisma.worker.findMany({
+                where: {
+                    isActive: true,
+                    isAvailable: true,
+
+                    availabilityUntil: {
+                        gt: now
+                    },
+
+                    nakas: {
+                        some: {
+                            id: {
+                                in: validNakaIds
+                            }
+                        }
+                    },
+
+                    skills: {
+                        some: {
+                            id: parsedSkillId
+                        }
+                    }
+                },
+
+                take: parsedWorkerCount,
+
+                select: {
+                    id: true,
+                    name: true
+                }
             });
 
-            return booking;
-        });
+        if (
+            availableWorkers.length <
+            parsedWorkerCount
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    `Sorry! Selected Nakas me abhi sirf ` +
+                    `${availableWorkers.length} worker(s) available hain.`
+            });
+        }
 
-        // 4. RAZORPAY ORDER GENERATE KARO
-        // Razorpay hamesha paise (paisa = rupees * 100) me leta hai
-        const options = {
-            amount: totalAmount * 100, 
-            currency: "INR",
-            receipt: `receipt_booking_${pendingBooking.id}`
-        };
+        lockedWorkerIds = availableWorkers.map(
+            (worker) => worker.id
+        );
 
-        const razorpayOrder = await razorpay.orders.create(options);
+        /*
+        |--------------------------------------------------------------------------
+        | 9. Create pending booking and lock workers
+        |--------------------------------------------------------------------------
+        */
 
-        // 5. Booking me Razorpay ka Order ID save karo
+        pendingBooking =
+            await prisma.$transaction(
+                async (tx) => {
+                    const booking =
+                        await tx.booking.create({
+                            data: {
+                                customerId:
+                                    parsedCustomerId,
+
+                                // Legacy primary Naka mirror
+                                nakaId:
+                                    validNakaIds[0],
+
+                                selectedNakaIds:
+                                    JSON.stringify(
+                                        validNakaIds
+                                    ),
+
+                                addressId:
+                                    parsedAddressId,
+
+                                skillId:
+                                    parsedSkillId,
+
+                                workerCount:
+                                    parsedWorkerCount,
+
+                                amount:
+                                    totalAmount,
+
+                                status:
+                                    "PENDING",
+
+                                workers: {
+                                    connect:
+                                        lockedWorkerIds.map(
+                                            (id) => ({
+                                                id
+                                            })
+                                        )
+                                }
+                            }
+                        });
+
+                    await tx.worker.updateMany({
+                        where: {
+                            id: {
+                                in: lockedWorkerIds
+                            },
+                            isAvailable: true
+                        },
+                        data: {
+                            isAvailable: false
+                        }
+                    });
+
+                    return booking;
+                }
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | 10. Create Razorpay order
+        |--------------------------------------------------------------------------
+        */
+
+        let razorpayOrder;
+
+        try {
+            razorpayOrder =
+                await razorpay.orders.create({
+                    amount: Math.round(
+                        totalAmount * 100
+                    ),
+                    currency: "INR",
+                    receipt:
+                        `receipt_booking_${pendingBooking.id}`
+                });
+        } catch (razorpayError) {
+            /*
+             * Razorpay order failed, therefore undo worker lock
+             * and remove pending booking.
+             */
+
+            await prisma.$transaction([
+                prisma.worker.updateMany({
+                    where: {
+                        id: {
+                            in: lockedWorkerIds
+                        }
+                    },
+                    data: {
+                        isAvailable: true
+                    }
+                }),
+
+                prisma.booking.delete({
+                    where: {
+                        id: pendingBooking.id
+                    }
+                })
+            ]);
+
+            pendingBooking = null;
+            lockedWorkerIds = [];
+
+            throw razorpayError;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 11. Save Razorpay order ID
+        |--------------------------------------------------------------------------
+        */
+
         await prisma.booking.update({
-            where: { id: pendingBooking.id },
-            data: { razorpayOrderId: razorpayOrder.id }
+            where: {
+                id: pendingBooking.id
+            },
+            data: {
+                razorpayOrderId:
+                    razorpayOrder.id
+            }
         });
 
-        // 6. Frontend ko response bhejo taaki wo payment popup khol sake
-        res.json({ 
-            success: true, 
-            message: "Workers Locked! Proceed to Payment.", 
-            bookingId: pendingBooking.id,
-            razorpayOrder: razorpayOrder 
+        /*
+        |--------------------------------------------------------------------------
+        | 12. Return secure backend-calculated details
+        |--------------------------------------------------------------------------
+        */
+
+        return res.json({
+            success: true,
+            message:
+                "Workers locked. Proceed to payment.",
+
+            bookingId:
+                pendingBooking.id,
+
+            unitPrice,
+            totalAmount,
+
+            selectedNakas:
+                verifiedNakas,
+
+            razorpayOrder
         });
 
     } catch (error) {
-        console.error("Initiate Booking Error:", error);
-        
-        // Agar Razorpay API key dummy hui, toh yahan error aayega
+        console.error(
+            "Initiate Booking Error:",
+            error
+        );
+
         if (error.statusCode === 401) {
-            return res.status(500).json({ success: false, message: "Razorpay API Keys missing or invalid." });
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Razorpay API keys are missing or invalid."
+            });
         }
-        res.status(500).json({ success: false, message: "Server error booking initiate karte waqt" });
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "Server error while initiating booking."
+        });
+    }
+};
+
+const cancelPendingBooking = async (req, res) => {
+    const { bookingId, customerId } = req.body;
+
+    try {
+        const parsedBookingId = Number(bookingId);
+        const parsedCustomerId = Number(customerId);
+
+        if (
+            !Number.isInteger(parsedBookingId) ||
+            parsedBookingId <= 0 ||
+            !Number.isInteger(parsedCustomerId) ||
+            parsedCustomerId <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid booking details."
+            });
+        }
+
+        const pendingBooking = await prisma.booking.findFirst({
+            where: {
+                id: parsedBookingId,
+                customerId: parsedCustomerId,
+                status: "PENDING",
+                razorpayPaymentId: null
+            },
+            include: {
+                workers: {
+                    select: {
+                        id: true
+                    }
+                }
+            }
+        });
+
+        if (!pendingBooking) {
+            return res.status(404).json({
+                success: false,
+                message: "Pending booking not found."
+            });
+        }
+
+        const workerIds = pendingBooking.workers.map(
+            (worker) => worker.id
+        );
+
+        const now = new Date();
+
+        await prisma.$transaction(async (tx) => {
+            /*
+             * Sirf un workers ko available karo
+             * jinki availability abhi expire nahi hui.
+             */
+            if (workerIds.length > 0) {
+                await tx.worker.updateMany({
+                    where: {
+                        id: {
+                            in: workerIds
+                        },
+                        availabilityUntil: {
+                            gt: now
+                        }
+                    },
+                    data: {
+                        isAvailable: true
+                    }
+                });
+            }
+
+            /*
+             * Pending unpaid booking delete kar do.
+             */
+            await tx.booking.delete({
+                where: {
+                    id: parsedBookingId
+                }
+            });
+        });
+
+        return res.json({
+            success: true,
+            message: "Pending booking cancelled and workers released."
+        });
+
+    } catch (error) {
+        console.error(
+            "Cancel Pending Booking Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Pending booking cancel nahi ho payi."
+        });
     }
 };
 
@@ -1066,5 +1617,6 @@ module.exports = {
     getBookingById,
     getWorkerBookingHistory,
     getWorkerBookingDetails,
-    completeWorkerDuty
+    completeWorkerDuty,
+    cancelPendingBooking
 };

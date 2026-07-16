@@ -3,6 +3,14 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendOtpEmail } = require('../utils/mailer');
 
+const NAKA_VERIFIED_STATUS = 'VERIFIED';
+
+const getNakaVerificationCutoff = () => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    return cutoff;
+};
+
 // 1. Send OTP (For both Login and Register)
 // 1. Send OTP (For both Login and Register)
 const sendOtp = async (req, res) => {
@@ -131,14 +139,27 @@ const verifyOtp = async (req, res) => {
 };
 const getBookingOptions = async (req, res) => {
     try {
-        // 🛠️ YAHAN UPDATE KIYA HAI: include { rates: true } add kiya
+        const verificationCutoff = getNakaVerificationCutoff();
+
         const skills = await prisma.skill.findMany({ 
             where: { isActive: true },
             include: { rates: true } 
         });
         
-        const cities = await prisma.city.findMany(); 
-        const nakas = await prisma.naka.findMany();  
+        const cities = await prisma.city.findMany();
+
+        // Customer ko sirf currently verified Nakas dikhane hain
+        const nakas = await prisma.naka.findMany({
+            where: {
+                verificationStatus: NAKA_VERIFIED_STATUS,
+                lastVerifiedAt: {
+                    gte: verificationCutoff
+                }
+            },
+            orderBy: {
+                name: 'asc'
+            }
+        });
 
         res.json({ 
             success: true, 
@@ -146,12 +167,104 @@ const getBookingOptions = async (req, res) => {
             cities, 
             nakas 
         });
+
     } catch (error) {
         console.error("Options fetch error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+
+        res.status(500).json({
+            success: false,
+            message: "Server Error"
+        });
     }
 };
 
 
+const searchNakas = async (req, res) => {
+    try {
+        const search = String(req.query.q || "").trim();
 
-module.exports = { sendOtp, verifyOtp, getBookingOptions };
+        // Empty search par saare Nakas return nahi karne
+        if (!search) {
+            return res.json({
+                success: true,
+                nakas: []
+            });
+        }
+
+        const verificationCutoff = new Date();
+        verificationCutoff.setMonth(
+            verificationCutoff.getMonth() - 6
+        );
+
+        const nakas = await prisma.naka.findMany({
+            where: {
+                verificationStatus: "VERIFIED",
+
+                lastVerifiedAt: {
+                    gte: verificationCutoff
+                },
+
+                OR: [
+                    {
+                        name: {
+                            contains: search
+                        }
+                    },
+                    {
+                        pincode: {
+                            contains: search
+                        }
+                    },
+                    {
+                        city: {
+                            name: {
+                                contains: search
+                            }
+                        }
+                    }
+                ]
+            },
+
+            select: {
+                id: true,
+                name: true,
+                pincode: true,
+                landmark: true,
+                cityId: true,
+
+                city: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
+            },
+
+            orderBy: {
+                name: "asc"
+            },
+
+            take: 20
+        });
+
+        return res.json({
+            success: true,
+            nakas
+        });
+
+    } catch (error) {
+        console.error("Search Nakas Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Nakas search nahi ho paye."
+        });
+    }
+};
+
+module.exports = {
+    sendOtp,
+    verifyOtp,
+    getBookingOptions,
+    searchNakas
+};
