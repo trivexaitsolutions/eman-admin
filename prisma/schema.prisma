@@ -459,6 +459,21 @@ model CustomerAddress {
   @@map("customeraddress")
 }
 
+enum WorkerAssignmentMode {
+  AUTO
+  CUSTOMER_SELECT
+}
+
+model BookingSetting {
+  id             Int                  @id @default(1)
+  assignmentMode WorkerAssignmentMode @default(AUTO)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bookingsetting")
+}
+
 enum ConflictRaisedBy {
   CLIENT
   WORKER
