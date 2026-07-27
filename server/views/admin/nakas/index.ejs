@@ -1,0 +1,411 @@
+<%
+  const statusMeta = {
+    VERIFIED: {
+      label: 'Verified',
+      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    },
+    REVERIFY_REQUIRED: {
+      label: 'Re-verification due',
+      badge: 'border-amber-200 bg-amber-50 text-amber-800',
+    },
+    PENDING_VERIFICATION: {
+      label: 'Non-verified',
+      badge: 'border-stone-200 bg-stone-100 text-stone-700',
+    },
+  };
+
+  const getStatusMeta = (status) => statusMeta[status] || {
+    label: String(status || 'Non-verified').replace(/_/g, ' '),
+    badge: 'border-stone-200 bg-stone-100 text-stone-700',
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '--';
+    return new Intl.DateTimeFormat('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    }).format(new Date(value));
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return '--';
+    return new Intl.DateTimeFormat('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(value));
+  };
+%>
+
+<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between md:mb-8">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-stone-900 md:text-3xl">Master: Nakas</h1>
+    <p class="mt-1 text-sm text-stone-500">Only currently verified Nakas are operational. Verification expires after 6 months.</p>
+  </div>
+
+  <a href="/admin/nakas/create" class="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 sm:w-auto">
+    <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+    Add Naka
+  </a>
+</div>
+
+<% if (success) { %>
+  <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><%= success %></div>
+<% } %>
+
+<% if (error) { %>
+  <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"><%= error %></div>
+<% } %>
+
+<div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+  <a href="/admin/nakas?filter=verified" class="rounded-xl border p-4 transition <%= activeFilter === 'verified' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/15' : 'border-stone-200 bg-white hover:border-emerald-300' %>">
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-semibold text-stone-700">Verified</span>
+      <span class="rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700"><%= counts.verified %></span>
+    </div>
+    <p class="mt-2 text-xs text-stone-500">Visible for operational use</p>
+  </a>
+
+  <a href="/admin/nakas?filter=nonverified" class="rounded-xl border p-4 transition <%= activeFilter === 'nonverified' ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-500/15' : 'border-stone-200 bg-white hover:border-amber-300' %>">
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-semibold text-stone-700">Non-verified</span>
+      <span class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800"><%= counts.nonverified %></span>
+    </div>
+    <p class="mt-2 text-xs text-stone-500">Pending or due for re-verification</p>
+  </a>
+
+  <a href="/admin/nakas?filter=all" class="rounded-xl border p-4 transition <%= activeFilter === 'all' ? 'border-stone-500 bg-stone-100 ring-2 ring-stone-500/10' : 'border-stone-200 bg-white hover:border-stone-300' %>">
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-semibold text-stone-700">All Nakas</span>
+      <span class="rounded-lg bg-stone-200 px-2.5 py-1 text-xs font-bold text-stone-700"><%= counts.all %></span>
+    </div>
+    <p class="mt-2 text-xs text-stone-500">Complete master-data view</p>
+  </a>
+</div>
+
+<div class="mb-5 flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+  <svg class="mt-0.5 h-5 w-5 shrink-0 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+  <p><strong>Re-verification:</strong> a Naka automatically appears under <strong>Non-verified</strong> when its last verification is older than six calendar months.</p>
+</div>
+
+<% if (nakas.length === 0) { %>
+  <div class="rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-14 text-center">
+    <svg class="mx-auto h-11 w-11 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+    <h2 class="mt-4 text-lg font-bold text-stone-800">No <%= activeFilter === 'verified' ? 'verified' : activeFilter === 'nonverified' ? 'non-verified' : '' %> Nakas found</h2>
+    <p class="mt-1 text-sm text-stone-500">Add a Naka, then save and verify it when the GPS, photo and survey evidence are ready.</p>
+  </div>
+<% } else { %>
+  <div class="grid grid-cols-1 gap-4 md:hidden">
+    <% nakas.forEach(naka => { const meta = getStatusMeta(naka.computedVerificationStatus); %>
+      <article class="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="font-bold text-stone-900"><%= naka.name %></p>
+            <p class="mt-0.5 text-xs text-stone-500"><%= naka.city.state ? `${naka.city.state.name} • ` : '' %><%= naka.city.name %></p>
+            <p class="mt-1 text-xs font-semibold <%= naka.addedBy?.type === 'MITRA' ? 'text-blue-700' : 'text-stone-500' %>">Added by: <%= naka.addedBy?.label || 'Legacy / existing record' %></p>
+          </div>
+          <span class="rounded-md border px-2 py-1 text-[10px] font-bold <%= meta.badge %>"><%= meta.label %></span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 rounded-xl bg-stone-50 p-3 text-xs">
+          <div><p class="text-stone-400">Last verified</p><p class="mt-1 font-semibold text-stone-700"><%= formatDateTime(naka.lastVerifiedAt) %></p></div>
+          <div><p class="text-stone-400">Workers</p><p class="mt-1 font-semibold text-stone-700"><%= naka._count.workers %></p></div>
+        </div>
+
+        <% if (naka.computedVerificationStatus === 'REVERIFY_REQUIRED') { %>
+          <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Re-verification became due on <%= formatDate(naka.verificationDueAt) %>.</p>
+        <% } %>
+
+        <div class="grid grid-cols-3 gap-2 border-t border-stone-100 pt-3">
+          <button type="button" onclick="openVerificationModal(<%= naka.id %>)" class="rounded-lg bg-emerald-600 px-2 py-2 text-center text-xs font-bold text-white hover:bg-emerald-700"><%= naka.computedVerificationStatus === 'VERIFIED' ? 'Re-verify' : 'Verify' %></button>
+          <a href="/admin/nakas/edit/<%= naka.id %>" class="rounded-lg bg-stone-100 px-2 py-2 text-center text-xs font-bold text-stone-700 hover:bg-stone-200">Edit</a>
+          <a href="/admin/nakas/delete/<%= naka.id %>" onclick="return confirm('Delete this Naka and its verification history?')" class="rounded-lg bg-red-50 px-2 py-2 text-center text-xs font-bold text-red-700 hover:bg-red-100">Delete</a>
+        </div>
+      </article>
+    <% }) %>
+  </div>
+
+  <div class="hidden overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm md:block">
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1120px] text-left">
+        <thead class="border-b border-stone-200 bg-stone-50">
+          <tr>
+            <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Naka</th>
+            <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Status</th>
+            <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Added by</th>
+            <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Survey / Last Verification</th>
+            <th class="px-6 py-4 text-xs font-semibold uppercase text-stone-500">Workers</th>
+            <th class="px-6 py-4 text-right text-xs font-semibold uppercase text-stone-500">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-stone-100">
+          <% nakas.forEach(naka => { const meta = getStatusMeta(naka.computedVerificationStatus); %>
+            <tr class="group transition-colors hover:bg-stone-50">
+              <td class="px-6 py-4">
+                <p class="font-bold text-stone-900"><%= naka.name %></p>
+                <p class="mt-1 text-xs text-stone-500"><%= naka.city.state ? `${naka.city.state.name} • ` : '' %><%= naka.city.name %><%= naka.landmark ? ` • ${naka.landmark}` : '' %></p>
+              </td>
+              <td class="px-6 py-4">
+                <span class="inline-flex rounded-md border px-2.5 py-1 text-xs font-bold <%= meta.badge %>"><%= meta.label %></span>
+                <% if (naka.computedVerificationStatus === 'REVERIFY_REQUIRED') { %>
+                  <p class="mt-1 text-[11px] text-amber-700">Due since <%= formatDate(naka.verificationDueAt) %></p>
+                <% } %>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm font-bold <%= naka.addedBy?.type === 'MITRA' ? 'text-blue-700' : 'text-stone-700' %>"><%= naka.addedBy?.label || 'Legacy / existing record' %></p>
+                <% if (naka.addedBy?.type === 'MITRA' && naka.addedBy?.phone) { %>
+                  <p class="mt-1 text-xs text-stone-500"><%= naka.addedBy.phone %></p>
+                <% } %>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm font-semibold text-stone-700"><%= naka.surveyDate ? `Survey: ${formatDate(naka.surveyDate)}` : 'Survey: --' %></p>
+                <p class="mt-1 text-xs text-stone-500">Verified: <%= formatDateTime(naka.lastVerifiedAt) %></p>
+              </td>
+              <td class="px-6 py-4"><span class="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700"><%= naka._count.workers %> assigned</span></td>
+              <td class="px-6 py-4 text-right">
+                <div class="flex justify-end gap-2">
+                  <button type="button" onclick="openVerificationModal(<%= naka.id %>)" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"><%= naka.computedVerificationStatus === 'VERIFIED' ? 'Re-verify' : 'Verify' %></button>
+                  <a href="/admin/nakas/edit/<%= naka.id %>" class="rounded-lg px-3 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100">Edit</a>
+                  <a href="/admin/nakas/delete/<%= naka.id %>" onclick="return confirm('Delete this Naka and its verification history?')" class="rounded-lg px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">Delete</a>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<div id="verificationModal" class="fixed inset-0 z-50 hidden items-end justify-center bg-stone-950/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="verificationModalTitle">
+  <div class="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl">
+    <div class="sticky top-0 z-10 flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-6">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Naka verification</p>
+        <h2 id="verificationModalTitle" class="mt-1 text-xl font-bold text-stone-900">Loading...</h2>
+      </div>
+      <button type="button" onclick="closeVerificationModal()" class="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700" aria-label="Close verification modal">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="p-5 sm:p-6">
+      <div id="verificationLoading" class="rounded-xl border border-stone-200 bg-stone-50 px-4 py-5 text-sm font-medium text-stone-600">Loading Naka information...</div>
+
+      <div id="verificationContent" class="hidden">
+        <div id="verificationMissingFields" class="mb-5 hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"></div>
+
+        <div class="rounded-xl border border-stone-200 bg-stone-50 p-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div><p class="text-xs font-semibold uppercase text-stone-400">State / City / PIN Code</p><p id="modalCityPincode" class="mt-1 font-bold text-stone-800">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Current status</p><p id="modalStatus" class="mt-1 font-bold text-stone-800">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Added by</p><p id="modalAddedBy" class="mt-1 font-bold text-stone-800">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Map coordinates</p><p id="modalCoordinates" class="mt-1 font-medium text-stone-700">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Confidence / Headcount</p><p id="modalSurveyInfo" class="mt-1 font-medium text-stone-700">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Survey date</p><p id="modalSurveyDate" class="mt-1 font-medium text-stone-700">--</p></div>
+            <div><p class="text-xs font-semibold uppercase text-stone-400">Last verified</p><p id="modalLastVerified" class="mt-1 font-medium text-stone-700">--</p></div>
+          </div>
+
+          <div id="modalLandmarkWrapper" class="mt-4 hidden border-t border-stone-200 pt-4"><p class="text-xs font-semibold uppercase text-stone-400">Landmark</p><p id="modalLandmark" class="mt-1 text-sm text-stone-700"></p></div>
+          <div id="modalSurveyNotesWrapper" class="mt-4 hidden border-t border-stone-200 pt-4"><p class="text-xs font-semibold uppercase text-stone-400">Survey notes</p><p id="modalSurveyNotes" class="mt-1 whitespace-pre-wrap text-sm text-stone-700"></p></div>
+          <div id="modalPhotoWrapper" class="mt-4 hidden border-t border-stone-200 pt-4"><p class="text-xs font-semibold uppercase text-stone-400">Current verification photo</p><a id="modalPhotoLink" target="_blank" rel="noopener" class="mt-2 inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">Open photo</a></div>
+        </div>
+
+        <div class="mt-6">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h3 class="font-bold text-stone-900">Verification History</h3>
+            <span id="historyCount" class="rounded-md bg-stone-100 px-2 py-1 text-xs font-bold text-stone-600"></span>
+          </div>
+          <div id="verificationHistory" class="space-y-3"></div>
+        </div>
+
+        <form id="verifyNakaForm" method="POST" enctype="multipart/form-data" class="mt-7 border-t border-stone-200 pt-6">
+          <h3 class="text-lg font-bold text-stone-900">Verify this Naka</h3>
+          <p class="mt-1 text-sm text-stone-500">Submitting creates a new permanent verification-history entry and resets the 6-month verification clock.</p>
+
+          <div class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <label class="mb-2 block text-sm font-bold text-stone-700">Verification Method <span class="text-red-500">*</span></label>
+              <select name="verificationMethod" id="modalVerificationMethod" required class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+                <option value="">-- Select method --</option>
+                <option value="ADMIN_ON_SITE_VISIT">Admin on-site visit</option>
+                <option value="PHOTO_GPS_REVIEW">Photo and GPS review</option>
+                <option value="PHONE_OR_VIDEO_CONFIRMATION">Phone / video confirmation</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-2 block text-sm font-bold text-stone-700">Fresh Photo (optional if current photo exists)</label>
+              <input type="file" name="verificationPhoto" id="modalVerificationPhoto" accept="image/jpeg,image/png,image/webp" class="block w-full cursor-pointer rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-600 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-bold file:text-emerald-700" />
+            </div>
+          </div>
+          <div class="mt-5">
+            <label class="mb-2 block text-sm font-bold text-stone-700">Verification Note <span class="text-red-500">*</span></label>
+            <textarea name="verificationNote" id="modalVerificationNote" required minlength="5" maxlength="3000" rows="4" placeholder="What was checked and why is this Naka approved?" class="w-full resize-y rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"></textarea>
+          </div>
+          <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" onclick="closeVerificationModal()" class="rounded-lg px-5 py-2.5 font-medium text-stone-600 hover:bg-stone-100">Cancel</button>
+            <a id="modalEditNakaButton" href="#" class="hidden rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-center font-bold text-stone-700 hover:bg-stone-100">Edit Naka First</a>
+            <button id="modalVerifySubmit" type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 font-bold text-white shadow-sm hover:bg-emerald-700">Verify Naka</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const verificationModal = document.getElementById('verificationModal');
+  const verificationLoading = document.getElementById('verificationLoading');
+  const verificationContent = document.getElementById('verificationContent');
+  const verificationModalTitle = document.getElementById('verificationModalTitle');
+  const verificationHistory = document.getElementById('verificationHistory');
+  const verifyNakaForm = document.getElementById('verifyNakaForm');
+  const modalVerifySubmit = document.getElementById('modalVerifySubmit');
+  const modalEditNakaButton = document.getElementById('modalEditNakaButton');
+  const verificationMissingFields = document.getElementById('verificationMissingFields');
+
+  function formatModalDate(value, withTime = false) {
+    if (!value) return '--';
+    return new Intl.DateTimeFormat('en-IN', withTime
+      ? { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }
+      : { day: '2-digit', month: 'short', year: 'numeric' }
+    ).format(new Date(value));
+  }
+
+  function titleCase(text) {
+    return String(text || '--').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  function setText(id, value) {
+    document.getElementById(id).textContent = value;
+  }
+
+  function toggleModalSection(wrapperId, contentId, value) {
+    const wrapper = document.getElementById(wrapperId);
+    const content = document.getElementById(contentId);
+    const show = Boolean(value);
+    wrapper.classList.toggle('hidden', !show);
+    if (show) content.textContent = value;
+  }
+
+  function closeVerificationModal() {
+    verificationModal.classList.add('hidden');
+    verificationModal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  async function openVerificationModal(nakaId) {
+    verificationModal.classList.remove('hidden');
+    verificationModal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+
+    verificationLoading.classList.remove('hidden');
+    verificationContent.classList.add('hidden');
+    verificationModalTitle.textContent = 'Loading...';
+    verificationHistory.innerHTML = '';
+    verificationMissingFields.classList.add('hidden');
+    modalVerifySubmit.disabled = false;
+    modalVerifySubmit.classList.remove('cursor-not-allowed', 'bg-stone-300', 'hover:bg-stone-300');
+    modalVerifySubmit.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+    modalEditNakaButton.classList.add('hidden');
+    document.getElementById('modalVerificationMethod').value = '';
+    document.getElementById('modalVerificationNote').value = '';
+    document.getElementById('modalVerificationPhoto').value = '';
+
+    try {
+      const response = await fetch(`/admin/nakas/${nakaId}/verification-details`, {
+        headers: { Accept: 'application/json' },
+      });
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || 'Unable to load verification details.');
+      }
+
+      const naka = payload.naka;
+      verificationModalTitle.textContent = naka.name;
+      verifyNakaForm.action = `/admin/nakas/${naka.id}/verify`;
+      modalEditNakaButton.href = `/admin/nakas/edit/${naka.id}`;
+
+      setText('modalCityPincode', `${naka.city.state?.name ? `${naka.city.state.name} • ` : ''}${naka.city.name}${naka.pincode ? ` • PIN ${naka.pincode}` : ' • PIN not entered'}`);
+      setText('modalStatus', titleCase(naka.computedVerificationStatus));
+      setText('modalAddedBy', naka.addedBy?.label || 'Legacy / existing record');
+      setText('modalCoordinates', naka.latitude != null && naka.longitude != null ? `${Number(naka.latitude).toFixed(6)}, ${Number(naka.longitude).toFixed(6)}` : '--');
+      setText('modalSurveyInfo', `${titleCase(naka.confidenceLevel)} • ${naka.peakHourHeadcount != null ? `${naka.peakHourHeadcount} workers` : '--'}`);
+      setText('modalSurveyDate', formatModalDate(naka.surveyDate));
+      setText('modalLastVerified', formatModalDate(naka.lastVerifiedAt, true));
+      toggleModalSection('modalLandmarkWrapper', 'modalLandmark', naka.landmark || '');
+      toggleModalSection('modalSurveyNotesWrapper', 'modalSurveyNotes', naka.surveyNotes || '');
+
+      const photoWrapper = document.getElementById('modalPhotoWrapper');
+      const photoLink = document.getElementById('modalPhotoLink');
+      photoWrapper.classList.toggle('hidden', !naka.verificationPhotoUrl);
+      if (naka.verificationPhotoUrl) photoLink.href = naka.verificationPhotoUrl;
+
+      const history = naka.verificationHistory || [];
+      document.getElementById('historyCount').textContent = `${history.length} record${history.length === 1 ? '' : 's'}`;
+
+      if (!history.length) {
+        verificationHistory.innerHTML = '<div class="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-sm text-stone-500">No prior verification record exists.</div>';
+      } else {
+        history.forEach((item) => {
+          const card = document.createElement('article');
+          card.className = 'rounded-xl border border-stone-200 bg-white p-4';
+
+          const heading = document.createElement('div');
+          heading.className = 'flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between';
+          const left = document.createElement('p');
+          left.className = 'font-bold text-stone-800';
+          left.textContent = `${item.verifiedBy?.name || 'Unknown Admin'} • ${titleCase(item.verificationMethod)}`;
+          const right = document.createElement('p');
+          right.className = 'text-xs text-stone-500';
+          right.textContent = formatModalDate(item.verifiedAt, true);
+          heading.append(left, right);
+
+          const note = document.createElement('p');
+          note.className = 'mt-2 whitespace-pre-wrap text-sm text-stone-600';
+          note.textContent = item.verificationNote;
+          card.append(heading, note);
+
+          const snapshot = document.createElement('p');
+          snapshot.className = 'mt-2 text-xs text-stone-400';
+          snapshot.textContent = `Snapshot: ${item.peakHourHeadcount != null ? `${item.peakHourHeadcount} workers` : 'headcount --'} • Survey ${formatModalDate(item.surveyDate)}`;
+          card.append(snapshot);
+
+          if (item.photoUrl) {
+            const link = document.createElement('a');
+            link.href = item.photoUrl;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.className = 'mt-3 inline-flex rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100';
+            link.textContent = 'Open proof photo';
+            card.append(link);
+          }
+
+          verificationHistory.append(card);
+        });
+      }
+
+      if (naka.missingVerificationFields?.length) {
+        verificationMissingFields.classList.remove('hidden');
+        verificationMissingFields.textContent = `This Naka cannot be verified yet. Missing: ${naka.missingVerificationFields.join(', ')}. Edit the Naka to complete these fields.`;
+        modalVerifySubmit.disabled = true;
+        modalVerifySubmit.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+        modalVerifySubmit.classList.add('cursor-not-allowed', 'bg-stone-300', 'hover:bg-stone-300');
+        modalEditNakaButton.classList.remove('hidden');
+      }
+
+      verificationLoading.classList.add('hidden');
+      verificationContent.classList.remove('hidden');
+    } catch (error) {
+      verificationLoading.textContent = error.message || 'Unable to load Naka verification details.';
+      verificationLoading.className = 'rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-sm font-semibold text-red-700';
+    }
+  }
+
+  verificationModal.addEventListener('click', function (event) {
+    if (event.target === verificationModal) closeVerificationModal();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !verificationModal.classList.contains('hidden')) closeVerificationModal();
+  });
+</script>

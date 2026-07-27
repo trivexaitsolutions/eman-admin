@@ -1,0 +1,19 @@
+<% if (success_msg && success_msg.length > 0) { %>
+    <div id="toast-success" class="fixed top-5 right-5 z-[9999] flex items-center w-full max-w-xs p-4 mb-4 text-emerald-800 bg-emerald-50 rounded-[18px] shadow-xl border border-emerald-100 transition-all duration-300" role="alert">
+        <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-emerald-600 bg-emerald-100 rounded-xl">
+            <span class="font-black text-lg">✓</span>
+        </div>
+        <div class="ml-3 text-sm font-bold"><%= success_msg %></div>
+    </div>
+    <script>setTimeout(() => { document.getElementById('toast-success')?.remove(); }, 4000);</script>
+<% } %>
+
+<% if (error_msg && error_msg.length > 0) { %>
+    <div id="toast-error" class="fixed top-5 right-5 z-[9999] flex items-center w-full max-w-xs p-4 mb-4 text-red-800 bg-red-50 rounded-[18px] shadow-xl border border-red-100 transition-all duration-300" role="alert">
+        <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-red-600 bg-red-100 rounded-xl">
+            <span class="font-black text-lg">⚠️</span>
+        </div>
+        <div class="ml-3 text-sm font-bold"><%= error_msg %></div>
+    </div>
+    <script>setTimeout(() => { document.getElementById('toast-error')?.remove(); }, 4000);</script>
+<% } %>

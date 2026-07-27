@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>E-MAN Conflict Review</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .app {
+      width: 100%;
+      height: 100dvh;
+      background: #f8fafc;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin: 0 auto;
+    }
+    .scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 112px;
+    }
+    .scroll-area::-webkit-scrollbar { display: none; }
+    .bottom-safe { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+    @media (max-width: 767px) {
+      .app { max-width: 430px; }
+      .tablet-container { width: 100%; }
+    }
+    @media (min-width: 768px) {
+      .app { max-width: 100%; background: #eef2f7; }
+      .tablet-container { max-width: 1120px; margin: 0 auto; }
+      .review-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; align-items: start; }
+      .scroll-area { padding-bottom: 40px; }
+      .mobile-bottom-nav { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+
+  <header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
+    <div class="tablet-container">
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <a href="/mitra/conflicts" class="text-sm font-black text-emerald-600">← Back to Conflicts</a>
+          <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate mt-1">
+            Conflict Review #<%= conflict.id %>
+          </h1>
+          <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
+            Booking #<%= conflict.bookingId %>
+          </p>
+        </div>
+
+        <% if (conflict.status === 'PENDING') { %>
+          <span class="bg-yellow-50 text-yellow-700 border border-yellow-100 px-3 py-1.5 rounded-full text-xs font-black">Pending</span>
+        <% } else if (conflict.status === 'IN_PROGRESS') { %>
+          <span class="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-full text-xs font-black">In Progress</span>
+        <% } else if (conflict.status === 'SOLVED') { %>
+          <span class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-full text-xs font-black">Solved</span>
+        <% } else { %>
+          <span class="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-full text-xs font-black">Unresolved</span>
+        <% } %>
+      </div>
+    </div>
+  </header>
+
+  <main class="scroll-area">
+    <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
+      <div class="review-grid space-y-4 md:space-y-0">
+
+        <div class="space-y-4">
+
+          <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="rounded-[24px] bg-white p-4 border border-gray-100 shadow-sm">
+              <p class="text-[10px] font-black text-gray-400 uppercase">Booking</p>
+              <p class="text-2xl font-black text-gray-900 mt-1">₹<%= conflict.totalBookingAmount || 0 %></p>
+            </div>
+
+            <div class="rounded-[24px] bg-white p-4 border border-gray-100 shadow-sm">
+              <p class="text-[10px] font-black text-gray-400 uppercase">Per Worker</p>
+              <p class="text-2xl font-black text-gray-900 mt-1">₹<%= conflict.perWorkerAmount || 0 %></p>
+            </div>
+
+            <div class="rounded-[24px] bg-red-50 p-4 border border-red-100 shadow-sm">
+              <p class="text-[10px] font-black text-red-500 uppercase">Refund</p>
+              <p class="text-2xl font-black text-red-700 mt-1">₹<%= conflict.suggestedRefundAmount || 0 %></p>
+            </div>
+
+            <div class="rounded-[24px] bg-orange-50 p-4 border border-orange-100 shadow-sm">
+              <p class="text-[10px] font-black text-orange-500 uppercase">Penalty</p>
+              <p class="text-2xl font-black text-orange-700 mt-1">₹<%= conflict.penaltyAmount || 0 %></p>
+            </div>
+          </section>
+
+          <section class="rounded-[28px] bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-gray-100">
+              <h2 class="text-lg font-black text-gray-900">Issue Details</h2>
+              <p class="text-sm text-gray-500 font-semibold mt-1">Reason, action and description.</p>
+            </div>
+
+            <div class="p-5 space-y-4">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-gray-50 rounded-2xl p-3">
+                  <p class="text-[10px] font-black text-gray-400 uppercase">Raised By</p>
+                  <p class="font-black text-gray-900"><%= conflict.raisedByType %></p>
+                </div>
+
+                <div class="bg-gray-50 rounded-2xl p-3">
+                  <p class="text-[10px] font-black text-gray-400 uppercase">Action</p>
+                  <p class="font-black text-gray-900 text-xs"><%= conflict.requestedAction || '-' %></p>
+                </div>
+              </div>
+
+              <div>
+                <p class="text-[10px] font-black text-gray-400 uppercase">Reason</p>
+                <p class="font-black text-gray-900 mt-1"><%= conflict.reason || '-' %></p>
+              </div>
+
+              <div>
+                <p class="text-[10px] font-black text-gray-400 uppercase">Description</p>
+                <div class="mt-1 rounded-2xl bg-gray-50 border border-gray-100 p-3 text-sm font-semibold text-gray-700 min-h-[70px]">
+                  <%= conflict.description || 'No description added.' %>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="rounded-[28px] bg-white border border-gray-100 shadow-sm p-5">
+              <h3 class="font-black text-gray-900 mb-4">Client Details</h3>
+              <p class="text-[10px] font-black text-gray-400 uppercase">Name</p>
+              <p class="font-black text-gray-900 mb-3"><%= conflict.customer?.name || '-' %></p>
+
+              <p class="text-[10px] font-black text-gray-400 uppercase">Phone</p>
+              <% if (conflict.customer?.phone) { %>
+                <a href="tel:<%= conflict.customer.phone %>" class="font-black text-emerald-600"><%= conflict.customer.phone %></a>
+              <% } else { %>
+                <p class="font-black text-gray-400">-</p>
+              <% } %>
+            </div>
+
+            <div class="rounded-[28px] bg-white border border-gray-100 shadow-sm p-5">
+              <h3 class="font-black text-gray-900 mb-4">Worker Details</h3>
+              <p class="text-[10px] font-black text-gray-400 uppercase">Name</p>
+              <p class="font-black text-gray-900 mb-3"><%= conflict.worker?.name || '-' %></p>
+
+              <p class="text-[10px] font-black text-gray-400 uppercase">Phone</p>
+              <% if (conflict.worker?.phone) { %>
+                <a href="tel:<%= conflict.worker.phone %>" class="font-black text-emerald-600"><%= conflict.worker.phone %></a>
+              <% } else { %>
+                <p class="font-black text-gray-400">Full booking / worker not selected</p>
+              <% } %>
+            </div>
+          </section>
+
+          <section class="rounded-[28px] bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-gray-100">
+              <h2 class="text-lg font-black text-gray-900">Timeline</h2>
+              <p class="text-sm text-gray-500 font-semibold mt-1">Status update history.</p>
+            </div>
+
+            <div class="p-5 space-y-4">
+              <% if (!conflict.timeline || conflict.timeline.length === 0) { %>
+                <p class="text-sm text-gray-500 font-semibold">No timeline found.</p>
+              <% } else { %>
+                <% conflict.timeline.forEach((item) => { %>
+                  <div class="flex gap-3">
+                    <div class="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-xs font-black shrink-0">✓</div>
+                    <div class="flex-1 rounded-2xl bg-gray-50 border border-gray-100 p-3">
+                      <div class="flex items-start justify-between gap-3">
+                        <p class="text-sm font-black text-gray-900">
+                          <%= item.oldStatus || 'NEW' %> → <%= item.newStatus %>
+                        </p>
+                        <p class="text-[11px] text-gray-400 font-bold">
+                          <%= new Date(item.createdAt).toLocaleDateString('en-IN') %>
+                        </p>
+                      </div>
+                      <p class="text-sm text-gray-700 font-semibold mt-2"><%= item.note || '-' %></p>
+                      <p class="text-[11px] text-gray-400 font-black mt-2">By: <%= item.updatedByType || 'SYSTEM' %></p>
+                    </div>
+                  </div>
+                <% }) %>
+              <% } %>
+            </div>
+          </section>
+
+        </div>
+
+        <div class="space-y-4">
+
+          <section class="rounded-[28px] bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-gray-100">
+              <h2 class="text-lg font-black text-gray-900">Update Status</h2>
+              <p class="text-sm text-gray-500 font-semibold mt-1">Admin ko follow-up clear dikhega.</p>
+            </div>
+
+            <form method="POST" action="/mitra/conflicts/<%= conflict.id %>/status" class="p-5 space-y-4">
+              <div>
+                <label class="text-xs font-black text-gray-500 uppercase">Status</label>
+                <select name="status" required class="mt-1 w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold bg-gray-50">
+                  <option value="PENDING" <%= conflict.status === 'PENDING' ? 'selected' : '' %>>Pending</option>
+                  <option value="IN_PROGRESS" <%= conflict.status === 'IN_PROGRESS' ? 'selected' : '' %>>In Progress</option>
+                  <option value="SOLVED" <%= conflict.status === 'SOLVED' ? 'selected' : '' %>>Solved</option>
+                  <option value="UNRESOLVED" <%= conflict.status === 'UNRESOLVED' ? 'selected' : '' %>>Unresolved</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="text-xs font-black text-gray-500 uppercase">Mitra Note</label>
+                <textarea
+                  name="note"
+                  rows="5"
+                  required
+                  placeholder="Example: Client se call par baat hui, refund admin approval ke liye pending hai..."
+                  class="mt-1 w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold bg-gray-50"
+                ></textarea>
+              </div>
+
+              <button class="w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl py-4 text-sm font-black">
+                Save Update
+              </button>
+            </form>
+          </section>
+
+          <section class="rounded-[28px] bg-red-50 border border-red-100 p-5">
+            <h3 class="font-black text-red-700">Refund Suggestion</h3>
+            <p class="text-sm text-red-600 font-semibold mt-2">System suggested refund:</p>
+            <p class="text-4xl font-black text-red-700 mt-2">₹<%= conflict.suggestedRefundAmount || 0 %></p>
+
+            <div class="mt-4 text-xs text-red-600 font-bold space-y-1">
+              <p>Booking Amount: ₹<%= conflict.totalBookingAmount || 0 %></p>
+              <p>Per Worker: ₹<%= conflict.perWorkerAmount || 0 %></p>
+              <p>Penalty: ₹<%= conflict.penaltyAmount || 0 %></p>
+            </div>
+          </section>
+
+          <section class="rounded-[28px] bg-white border border-gray-100 shadow-sm p-5">
+            <h3 class="font-black text-gray-900">Quick Call</h3>
+
+            <div class="space-y-3 mt-4">
+              <% if (conflict.customer?.phone) { %>
+                <a href="tel:<%= conflict.customer.phone %>" class="block text-center bg-gray-900 text-white rounded-2xl py-4 text-sm font-black">
+                  Call Client
+                </a>
+              <% } %>
+
+              <% if (conflict.worker?.phone) { %>
+                <a href="tel:<%= conflict.worker.phone %>" class="block text-center bg-emerald-500 text-white rounded-2xl py-4 text-sm font-black">
+                  Call Worker
+                </a>
+              <% } %>
+            </div>
+          </section>
+
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer class="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 px-4 pt-3 bottom-safe shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
+    <div class="grid grid-cols-5 items-end max-w-[430px] mx-auto">
+      <a href="/mitra/dashboard" class="flex flex-col items-center gap-1 text-gray-400">
+        <div class="w-10 h-8 rounded-full flex items-center justify-center"><span class="text-lg">⌂</span></div>
+        <span class="text-[11px] font-bold">Home</span>
+      </a>
+
+      <a href="/mitra/conflicts" class="flex flex-col items-center gap-1 text-emerald-600">
+        <div class="w-10 h-8 rounded-full bg-emerald-50 flex items-center justify-center"><span class="text-lg">⚠</span></div>
+        <span class="text-[11px] font-black">Issues</span>
+      </a>
+
+      <a href="/mitra/workers/add" class="flex flex-col items-center gap-1 text-emerald-600">
+        <div class="w-14 h-14 -mt-8 rounded-full bg-emerald-500 border-4 border-white shadow-lg shadow-emerald-200 flex items-center justify-center">
+          <span class="text-white text-3xl font-black leading-none">+</span>
+        </div>
+        <span class="text-[11px] font-black">Worker</span>
+      </a>
+
+      <a href="/mitra/clients/add" class="flex flex-col items-center gap-1 text-gray-400">
+        <div class="w-10 h-8 rounded-full flex items-center justify-center"><span class="text-lg">🏢</span></div>
+        <span class="text-[11px] font-bold">Client</span>
+      </a>
+
+      <a href="/mitra/logout" class="flex flex-col items-center gap-1 text-gray-400">
+        <div class="w-10 h-8 rounded-full flex items-center justify-center"><span class="text-lg">↪</span></div>
+        <span class="text-[11px] font-bold">Logout</span>
+      </a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

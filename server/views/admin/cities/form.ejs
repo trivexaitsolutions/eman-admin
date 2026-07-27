@@ -1,0 +1,55 @@
+<div class="mb-8 flex items-center">
+  <a href="/admin/cities" class="mr-4 text-stone-400 transition-colors hover:text-stone-600" aria-label="Back to City list">
+    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+  </a>
+  <div>
+    <h1 class="text-3xl font-bold text-stone-900"><%= isEdit ? 'Edit City' : 'Add New City' %></h1>
+    <p class="mt-1 text-sm text-stone-500">A City belongs to exactly one State / Union Territory. PIN-code mapping will be handled separately through the postal API later.</p>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="mb-5 max-w-2xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"><%= error %></div>
+<% } %>
+
+<div class="max-w-2xl rounded-xl border border-stone-200 bg-white p-6 shadow-sm md:p-8">
+  <% if (isEdit && city._count?.nakas > 0) { %>
+    <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      This City has <strong><%= city._count.nakas %> Naka(s)</strong>. Its State cannot be moved to another State once Nakas are attached.
+    </div>
+  <% } %>
+
+  <form action="/admin/cities/save" method="POST">
+    <% if (isEdit) { %>
+      <input type="hidden" name="id" value="<%= city.id %>" />
+    <% } %>
+
+    <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <div>
+        <label class="mb-2 block text-sm font-bold text-stone-700">State / Union Territory <span class="text-red-500">*</span></label>
+        <select name="stateId" required class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+          <option value="" disabled <%= !isEdit || !city.stateId ? 'selected' : '' %>>-- Select State / UT --</option>
+          <% states.forEach(state => { %>
+            <option value="<%= state.id %>" <%= Number(city.stateId) === state.id ? 'selected' : '' %>>
+              <%= state.name %> (<%= state.code %>)<%= state.type === 'UNION_TERRITORY' ? ' — UT' : '' %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-2 block text-sm font-bold text-stone-700">City Name <span class="text-red-500">*</span></label>
+        <input type="text" name="name" required minlength="2" maxlength="120" value="<%= isEdit ? city.name || '' : '' %>" placeholder="Example: Dombivli" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-stone-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" />
+      </div>
+    </div>
+
+    <div class="mt-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+      <strong>PIN codes are not maintained in City Master.</strong> For now, the Admin will manually choose State and City while adding a Naka. Later, a PIN-code API can detect and prefill the matching State and City.
+    </div>
+
+    <div class="mt-8 flex flex-col-reverse gap-3 border-t border-stone-100 pt-6 sm:flex-row sm:items-center sm:justify-end">
+      <a href="/admin/cities" class="rounded-lg px-5 py-2.5 text-center font-medium text-stone-600 hover:bg-stone-100">Cancel</a>
+      <button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 font-bold text-white shadow-sm transition hover:bg-emerald-700"><%= isEdit ? 'Update City' : 'Create City' %></button>
+    </div>
+  </form>
+</div>

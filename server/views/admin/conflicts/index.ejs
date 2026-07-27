@@ -1,0 +1,235 @@
+<div class="space-y-6">
+
+    <!-- Header Section -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-2">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold text-stone-900 tracking-tight">
+                Conflict Management
+            </h1>
+            <p class="text-sm text-stone-500 mt-1">
+                Monitor and resolve booking disputes, refunds, and penalties.
+            </p>
+        </div>
+
+        <a href="/admin/conflicts" class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-stone-700 bg-white border border-stone-200 hover:bg-stone-50 rounded-xl shadow-sm transition-all">
+            <svg class="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            Refresh Data
+        </a>
+    </div>
+
+    <!-- Smart Filter Bar -->
+    <div class="bg-white border border-stone-200 rounded-xl shadow-sm p-4">
+        <form method="GET" action="/admin/conflicts" class="flex flex-wrap lg:flex-nowrap items-end gap-4">
+            
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">From Date</label>
+                <input type="date" name="fromDate" value="<%= filters.fromDate %>" class="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"/>
+            </div>
+
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">To Date</label>
+                <input type="date" name="toDate" value="<%= filters.toDate %>" class="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"/>
+            </div>
+
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">Status</label>
+                <select name="status" class="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer">
+                    <option value="ALL" <%= filters.status === 'ALL' ? 'selected' : '' %>>All Status</option>
+                    <option value="PENDING" <%= filters.status === 'PENDING' ? 'selected' : '' %>>Pending</option>
+                    <option value="IN_PROGRESS" <%= filters.status === 'IN_PROGRESS' ? 'selected' : '' %>>In Progress</option>
+                    <option value="SOLVED" <%= filters.status === 'SOLVED' ? 'selected' : '' %>>Solved</option>
+                    <option value="UNRESOLVED" <%= filters.status === 'UNRESOLVED' ? 'selected' : '' %>>Unresolved</option>
+                </select>
+            </div>
+
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">Raised By</label>
+                <select name="raisedByType" class="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer">
+                    <option value="ALL" <%= filters.raisedByType === 'ALL' ? 'selected' : '' %>>All Parties</option>
+                    <option value="CLIENT" <%= filters.raisedByType === 'CLIENT' ? 'selected' : '' %>>Client</option>
+                    <option value="WORKER" <%= filters.raisedByType === 'WORKER' ? 'selected' : '' %>>Worker</option>
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
+                <button type="submit" class="flex-1 lg:flex-none bg-stone-800 hover:bg-stone-900 text-white font-medium rounded-lg px-6 py-2 text-sm transition-colors shadow-sm">
+                    Apply Filters
+                </button>
+                <a href="/admin/conflicts" class="flex-1 lg:flex-none text-center bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 font-medium rounded-lg px-6 py-2 text-sm transition-colors">
+                    Clear
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Main Data Table -->
+    <div class="bg-white border border-stone-200 rounded-xl shadow-sm overflow-hidden">
+        
+        <!-- Table Header Info -->
+        <div class="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-white">
+            <h2 class="text-base font-bold text-stone-800">Conflict Reports</h2>
+            <div class="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5">
+                <span class="text-xs text-stone-500 font-medium">Total Records:</span>
+                <span class="text-sm font-bold text-emerald-600"><%= conflicts.length %></span>
+            </div>
+        </div>
+
+        <% if (!conflicts || conflicts.length === 0) { %>
+            <div class="p-12 text-center flex flex-col items-center justify-center">
+                <div class="w-16 h-16 bg-stone-50 rounded-full flex items-center justify-center mb-3">
+                    <span class="text-2xl">🎉</span>
+                </div>
+                <h3 class="text-lg font-bold text-stone-900">All Clear!</h3>
+                <p class="text-stone-500 text-sm mt-1">No conflicts found for the selected filters.</p>
+            </div>
+        <% } else { %>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                        <tr class="bg-stone-50 border-b border-stone-200">
+                            <th class="px-6 py-4 text-xs font-semibold text-stone-500 uppercase tracking-wider">Issue ID & Date</th>
+                            <th class="px-6 py-4 text-xs font-semibold text-stone-500 uppercase tracking-wider">Raised By & Reason</th>
+                            <th class="px-6 py-4 text-xs font-semibold text-stone-500 uppercase tracking-wider">Parties Involved</th>
+                            <th class="px-6 py-4 text-xs font-semibold text-stone-500 uppercase tracking-wider">Financial Impact</th>
+                            <th class="px-6 py-4 text-xs font-semibold text-stone-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-4 text-xs font-semibold text-stone-500 uppercase tracking-wider text-right">Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y divide-stone-100">
+                        <% conflicts.forEach((conflict) => { %>
+                            <tr class="hover:bg-stone-50/80 transition-colors group">
+                                
+                                <!-- Column 1: ID & Date -->
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="font-bold text-stone-900 text-sm">C#<%= conflict.id %></span>
+                                        <span class="text-[10px] font-semibold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200">
+                                            B#<%= conflict.bookingId %>
+                                        </span>
+                                    </div>
+                                    <div class="text-xs text-stone-500 font-medium">
+                                        <%= new Date(conflict.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                                    </div>
+                                    <div class="text-[11px] text-stone-400">
+                                        <%= new Date(conflict.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) %>
+                                    </div>
+                                </td>
+
+                                <!-- Column 2: Reason & Type -->
+                                <td class="px-6 py-4">
+                                    <div class="mb-2">
+                                        <% if (conflict.raisedByType === 'CLIENT') { %>
+                                            <span class="inline-flex items-center bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide">
+                                                RAISED BY CLIENT
+                                            </span>
+                                        <% } else { %>
+                                            <span class="inline-flex items-center bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide">
+                                                RAISED BY WORKER
+                                            </span>
+                                        <% } %>
+                                    </div>
+                                    <div class="text-sm font-semibold text-stone-800 mb-0.5 max-w-[200px] truncate" title="<%= conflict.requestedAction %>">
+                                        <%= conflict.requestedAction || 'Action Not Specified' %>
+                                    </div>
+                                    <div class="text-xs text-stone-500 max-w-[200px] truncate" title="<%= conflict.reason %>">
+                                        <%= conflict.reason %>
+                                    </div>
+                                </td>
+
+                                <!-- Column 3: Parties Involved (Stacked) -->
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col gap-2">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-6 text-[10px] font-bold text-stone-400 uppercase">CLI</div>
+                                            <div class="text-sm font-medium text-stone-900 max-w-[120px] truncate"><%= conflict.customer?.name || 'N/A' %></div>
+                                            <% if (conflict.customer?.phone) { %>
+                                                <a href="tel:<%= conflict.customer.phone %>" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md transition-colors"><%= conflict.customer.phone %></a>
+                                            <% } %>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-6 text-[10px] font-bold text-stone-400 uppercase">WRK</div>
+                                            <div class="text-sm font-medium text-stone-900 max-w-[120px] truncate"><%= conflict.worker?.name || 'N/A' %></div>
+                                            <% if (conflict.worker?.phone) { %>
+                                                <a href="tel:<%= conflict.worker.phone %>" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md transition-colors"><%= conflict.worker.phone %></a>
+                                            <% } %>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-2">
+    <div class="w-6 text-[10px] font-bold text-stone-400 uppercase">MIT</div>
+
+    <% if (conflict.assignedMitra) { %>
+        <div class="text-sm font-medium text-stone-900 max-w-[120px] truncate">
+            <%= conflict.assignedMitra.name %>
+        </div>
+
+        <% if (conflict.assignedMitra.phone) { %>
+            <a
+                href="tel:<%= conflict.assignedMitra.phone %>"
+                class="text-xs font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md transition-colors"
+            >
+                <%= conflict.assignedMitra.phone %>
+            </a>
+        <% } %>
+    <% } else { %>
+        <div class="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">
+            Admin Only
+        </div>
+    <% } %>
+</div>
+                                    </div>
+                                </td>
+
+                                <!-- Column 4: Financial Impact -->
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col gap-1 text-xs">
+                                        <div class="flex items-center justify-between w-32">
+                                            <span class="text-stone-500 font-medium">Booking:</span>
+                                            <span class="font-bold text-stone-700">₹<%= conflict.totalBookingAmount || 0 %></span>
+                                        </div>
+                                        <div class="flex items-center justify-between w-32 border-t border-stone-100 pt-1">
+                                            <span class="text-stone-500 font-medium">Refund:</span>
+                                            <span class="font-bold text-red-600">₹<%= conflict.suggestedRefundAmount || 0 %></span>
+                                        </div>
+                                        <div class="flex items-center justify-between w-32 border-t border-stone-100 pt-1">
+                                            <span class="text-stone-500 font-medium">Penalty:</span>
+                                            <span class="font-bold text-orange-600">₹<%= conflict.penaltyAmount || 0 %></span>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Column 5: Status -->
+                                <td class="px-6 py-4">
+                                    <% if (conflict.status === 'PENDING') { %>
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1.5 animate-pulse"></span> Pending
+                                        </span>
+                                    <% } else if (conflict.status === 'IN_PROGRESS') { %>
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span> In Progress
+                                        </span>
+                                    <% } else if (conflict.status === 'SOLVED') { %>
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span> Solved
+                                        </span>
+                                    <% } else { %>
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span> Unresolved
+                                        </span>
+                                    <% } %>
+                                </td>
+
+                                <!-- Column 6: Actions -->
+                                <td class="px-6 py-4 text-right">
+                                    <a href="/admin/conflicts/<%= conflict.id %>" class="inline-flex items-center justify-center bg-white border border-stone-200 hover:border-emerald-500 hover:text-emerald-600 text-stone-600 px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow">
+                                        Review
+                                    </a>
+                                </td>
+                                
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        <% } %>
+    </div>
+</div>

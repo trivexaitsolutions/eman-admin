@@ -1,0 +1,493 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Admins who log into this panel
+model Employee {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nakaVerifications NakaVerification[] @relation("NakaVerificationVerifier")
+  createdNakas      Naka[]             @relation("NakaCreatedByAdmin")
+
+  @@map("employee")
+}
+
+// Master Data
+// State / Union Territory is the top-level geographic master.
+// The initial seed contains all official Indian States and Union Territories.
+model State {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  code String @unique
+  type String // STATE or UNION_TERRITORY
+
+  cities City[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("state")
+}
+
+model City {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  // Nullable only for old/legacy cities created before this upgrade.
+  // New City records are required by the controller to select a State.
+  stateId Int?
+  state   State? @relation(fields: [stateId], references: [id], onDelete: Restrict)
+
+  nakas    Naka[]
+  pincodes CityPincode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stateId, name])
+  @@index([stateId])
+  @@map("city")
+}
+
+// Internal PIN directory used by the Admin Naka form.
+// One PIN is deliberately mapped to one E-MAN City so State and City cannot conflict.
+model CityPincode {
+  id      Int    @id @default(autoincrement())
+  pincode String @unique @db.VarChar(6)
+
+  cityId Int
+  city   City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cityId])
+  @@map("citypincode")
+}
+
+model Naka {
+  id        Int     @id @default(autoincrement())
+  name      String
+  pincode   String?
+  latitude  Float?
+  longitude Float?
+
+  // Survey / verification information
+  confidenceLevel      String? // HIGH, MEDIUM, LOW, N_A
+  landmark             String?
+  surveyDate           DateTime? @db.Date
+  peakHourHeadcount    Int?
+  surveyNotes          String?   @db.Text
+  verificationPhotoUrl String?
+
+  // VERIFIED records become due again after 6 calendar months.
+  // The controller derives REVERIFY_REQUIRED from lastVerifiedAt;
+  // no scheduled job is needed for the list filter.
+  verificationStatus String    @default("PENDING_VERIFICATION")
+  lastVerifiedAt     DateTime?
+
+  // Immutable source/audit fields. A Mitra submission remains linked to the
+  // submitting Mitra even after an Admin verifies the Naka.
+  createdByType       String    @default("LEGACY") // LEGACY, ADMIN, MITRA
+  createdByMitraId    Int?
+  createdByMitra      Mitra?    @relation("NakaSubmittedByMitra", fields: [createdByMitraId], references: [id], onDelete: SetNull)
+  createdByEmployeeId Int?
+  createdByEmployee   Employee? @relation("NakaCreatedByAdmin", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
+
+  cityId Int
+  city   City @relation(fields: [cityId], references: [id])
+
+  workers Worker[] @relation("nakatoworker")
+  mitras  Mitra[]  @relation("mitratonaka")
+
+  verificationHistory NakaVerification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([verificationStatus, lastVerifiedAt])
+  @@index([createdByMitraId])
+  @@index([createdByEmployeeId])
+  @@map("naka")
+}
+
+// One row is created every time an Admin verifies or re-verifies a Naka.
+// It gives a permanent audit trail of when, who and how the verification happened.
+model NakaVerification {
+  id Int @id @default(autoincrement())
+
+  nakaId Int
+  naka   Naka @relation(fields: [nakaId], references: [id], onDelete: Cascade)
+
+  verifiedById Int
+  verifiedBy   Employee @relation("NakaVerificationVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+
+  verificationMethod String
+  verificationNote   String   @db.Text
+  verifiedAt         DateTime @default(now())
+
+  // Snapshot of the proof/data that was used at the moment of verification.
+  photoUrl          String?
+  surveyDate        DateTime? @db.Date
+  peakHourHeadcount Int?
+  latitude          Float?
+  longitude         Float?
+
+  @@index([nakaId, verifiedAt])
+  @@index([verifiedById])
+  @@map("nakaverification")
+}
+
+model Mitra {
+  id       Int     @id @default(autoincrement())
+  name     String
+  phone    String  @unique
+  email    String? @unique
+  password String
+  photoUrl String?
+  isActive Boolean @default(true)
+
+  // Nakas assigned to this Mitra. A Naka submitted by this Mitra is
+  // connected here immediately, before Admin verification.
+  nakas          Naka[]     @relation("mitratonaka")
+  submittedNakas Naka[]     @relation("NakaSubmittedByMitra")
+  workers        Worker[]
+  customers      Customer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mitra")
+}
+
+model Skill {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String? @db.Text
+  imageUrl    String?
+  isActive    Boolean @default(true)
+
+  rates   SkillRate[]
+  workers Worker[]    @relation("skilltoworker")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("skill")
+}
+
+model SkillRate {
+  id      Int   @id @default(autoincrement())
+  skillId Int
+  skill   Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  star Float
+  rate Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([skillId, star])
+  @@map("skillrate")
+}
+
+model Worker {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  phone    String  @unique
+  email    String? @unique
+  password String
+
+  dob           DateTime @db.Date
+  age           Int
+  qualification String?
+  photoUrl      String?
+
+  // AADHAR / PAN / VOTING / DRIVING
+  idProofType String
+
+  // Legacy mirror field
+  idNumber String @unique
+
+  aadhaarNumber String? @unique
+  panNumber     String? @unique
+  otherIdNumber String? @unique
+
+  consentVoiceUrl String?
+  address         String  @db.Text
+  pincode         String
+
+  gender   String?
+  heightCm Float?
+  weightKg Float?
+  bmi      Float?
+
+  bankDetails String? @db.Text
+  upiId       String?
+  upiNumber   String?
+
+  isActive Boolean @default(true)
+
+  nakas    Naka[]    @relation("nakatoworker")
+  skills   Skill[]   @relation("skilltoworker")
+  bookings Booking[] @relation("bookingtoworker")
+
+  isAvailable Boolean  @default(false)
+  lastActive  DateTime @default(now())
+
+  pushToken String? @db.Text
+
+  mitraId Int?
+  mitra   Mitra? @relation(fields: [mitraId], references: [id])
+
+  availabilityType  String?
+  availabilityStart DateTime?
+  availabilityHours Int?
+  availabilityUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("worker")
+}
+
+model Customer {
+  id    Int     @id @default(autoincrement())
+  phone String  @unique
+  email String? @unique
+  name  String
+
+  clientType        String?
+  businessName      String?
+  businessType      String?
+  siteAddress       String? @db.Text
+  gstNumber         String?
+  workerRequirement String?
+
+  otp        String?
+  otpExpiry  DateTime?
+  isVerified Boolean   @default(false)
+  pushToken  String?   @db.Text
+
+  mitraId Int?
+  mitra   Mitra? @relation(fields: [mitraId], references: [id])
+
+  bookings  Booking[]
+  addresses CustomerAddress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customer")
+}
+
+model Booking {
+  id          Int @id @default(autoincrement())
+  customerId  Int
+  nakaId      Int
+  skillId     Int
+  workerCount Int
+
+  // Customer can select maximum 3 Nakas.
+  // nakaId remains as the legacy / primary Naka mirror.
+  selectedNakaIds String @default("[]") @db.Text
+
+  // Canonical customer work address used for this booking.
+  addressId Int?
+
+  status String @default("PENDING")
+
+  amount            Float?
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String? @unique
+
+  customer Customer         @relation(fields: [customerId], references: [id])
+  address  CustomerAddress? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  workers Worker[] @relation("bookingtoworker")
+
+  arrivedWorkerIds   String  @default("[]")
+  cancelledWorkerIds String  @default("[]")
+  completedWorkerIds String? @db.Text
+
+  isRated Boolean @default(false)
+
+  ratings             Rating[]
+  conflicts           Conflict[]
+  workerClientRatings WorkerClientRating[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([addressId])
+  @@map("booking")
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  bookingId Int
+  workerId  Int
+  mehnat    Int
+  vyavhaar  Int
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("rating")
+}
+
+model WorkerClientRating {
+  id Int @id @default(autoincrement())
+
+  bookingId  Int
+  workerId   Int
+  customerId Int
+
+  rating           Int
+  behaviour        Int?
+  locationAccuracy Int?
+  coordination     Int?
+  comment          String? @db.Text
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingId, workerId])
+  @@map("workerclientrating")
+}
+
+model Conflict {
+  id Int @id @default(autoincrement())
+
+  bookingId Int
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  raisedByType ConflictRaisedBy
+  raisedById   Int?
+
+  customerId Int?
+  workerId   Int?
+  mitraId    Int?
+
+  reason      String
+  description String?
+
+  penaltyAmount Int?
+  status        ConflictStatus @default(PENDING)
+
+  continueWork    Boolean @default(true)
+  requestedAction String?
+
+  timeline ConflictTimeline[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("conflict")
+}
+
+model ConflictTimeline {
+  id Int @id @default(autoincrement())
+
+  conflictId Int
+  conflict   Conflict @relation(fields: [conflictId], references: [id])
+
+  updatedByType ConflictUpdatedBy
+  updatedById   Int?
+
+  oldStatus ConflictStatus?
+  newStatus ConflictStatus
+
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@map("conflicttimeline")
+}
+
+model CustomerAddress {
+  id         Int @id @default(autoincrement())
+  customerId Int
+
+  title    String?
+  fullName String?
+  phone    String?
+
+  addressLine   String
+  addressDetail String? @db.Text
+  mapAddress    String? @db.Text
+  landmark      String?
+
+  cityId Int?
+  city   String?
+
+  nakaId   Int?
+  nakaName String?
+
+  state   String?
+  pincode String?
+
+  latitude  String?
+  longitude String?
+
+  placeId        String?
+  locationSource String?
+
+  isDefault Boolean @default(false)
+
+  customer Customer  @relation(fields: [customerId], references: [id])
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customeraddress")
+}
+
+enum WorkerAssignmentMode {
+  AUTO
+  CUSTOMER_SELECT
+}
+
+model BookingSetting {
+  id             Int                  @id @default(1)
+  assignmentMode WorkerAssignmentMode @default(AUTO)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bookingsetting")
+}
+
+enum ConflictRaisedBy {
+  CLIENT
+  WORKER
+}
+
+enum ConflictStatus {
+  PENDING
+  IN_PROGRESS
+  SOLVED
+  UNRESOLVED
+}
+
+enum ConflictUpdatedBy {
+  ADMIN
+  MITRA
+  SYSTEM
+}

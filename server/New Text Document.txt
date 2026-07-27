@@ -1,0 +1,8 @@
+
+
+* Product page: In the **"Click Here"** form, remove Category & Sub Category. Keep only the text field and remove the "select at least 1 product" validation.
+* Career page: Fix captcha validation, resume upload validation, and show proper error messages.
+* Report Issue: After submitting the form from the Datasheet Download/Product Detail page,  the missing **"Click Here"** link text in the email so it opens the Report Issue form.
+* CAD Model: missing  the admin email format.
+* After submitting the Datasheet/CAD Model form, the file should download automatically rather than opening in browser.
+* Send Enquiry page: The form is not working and we are not receiving the enquiry email for both side customer and admin. Please fix this issue.
