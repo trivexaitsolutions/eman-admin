@@ -882,6 +882,29 @@
                   </div>
                 </div>
 
+                <!-- Handset-only camera utilities.
+                     JS capability detection controls actual visibility. -->
+                <div
+                  id="cameraUtilityControls"
+                  class="hidden grid grid-cols-2 gap-3 mb-3"
+                >
+                  <button
+                    type="button"
+                    id="switchCameraBtn"
+                    class="h-[50px] rounded-2xl bg-white/10 border border-white/15 text-white font-black active:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    🔄 Back Camera
+                  </button>
+
+                  <button
+                    type="button"
+                    id="torchBtn"
+                    class="hidden h-[50px] rounded-2xl bg-amber-500 text-gray-950 font-black active:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    🔦 Torch Off
+                  </button>
+                </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -1888,7 +1911,11 @@ refreshSelectedNakaSummary();
 
   let mediaRecorder;
   let recordedChunks = [];
-  let stream;
+  let stream = null;
+  let activeVideoTrack = null;
+  let currentFacingMode = 'user';
+  let torchEnabled = false;
+  let videoDevices = [];
 
   const cameraPreview = document.getElementById('cameraPreview');
   const faceOval = document.getElementById('faceOval');
@@ -1900,27 +1927,269 @@ refreshSelectedNakaSummary();
   const recordingIndicator = document.getElementById('recordingIndicator');
   const cameraPlaceholder = document.getElementById('cameraPlaceholder');
 
-  startCameraBtn.addEventListener('click', async () => {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: true
-      });
+  const cameraUtilityControls = document.getElementById('cameraUtilityControls');
+  const switchCameraBtn = document.getElementById('switchCameraBtn');
+  const torchBtn = document.getElementById('torchBtn');
 
+  /*
+   * Capability detection is preferred over screen-size-only detection.
+   * Coarse pointer / mobile user-agent is used only to avoid showing phone
+   * controls unnecessarily on a normal desktop setup.
+   */
+  const isLikelyHandset =
+    window.matchMedia('(pointer: coarse)').matches ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+  function stopCurrentStream() {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+
+    stream = null;
+    activeVideoTrack = null;
+    torchEnabled = false;
+
+    torchBtn.classList.add('hidden');
+    torchBtn.textContent = '🔦 Torch Off';
+    torchBtn.classList.remove('bg-emerald-500', 'text-white');
+    torchBtn.classList.add('bg-amber-500', 'text-gray-950');
+  }
+
+  function updatePreviewDirection() {
+    /*
+     * Front camera behaves like a mirror.
+     * Back camera must display normally.
+     */
+    cameraPreview.style.transform =
+      currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+  }
+
+  async function refreshVideoDevices() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+
+      videoDevices = devices.filter(
+        (device) => device.kind === 'videoinput'
+      );
+
+      const canSwitchCamera =
+        isLikelyHandset && videoDevices.length > 1;
+
+      cameraUtilityControls.classList.toggle(
+        'hidden',
+        !canSwitchCamera && torchBtn.classList.contains('hidden')
+      );
+
+      switchCameraBtn.classList.toggle(
+        'hidden',
+        !canSwitchCamera
+      );
+
+      switchCameraBtn.textContent =
+        currentFacingMode === 'user'
+          ? '🔄 Back Camera'
+          : '🔄 Front Camera';
+    } catch (error) {
+      console.log('Camera device list error:', error);
+
+      switchCameraBtn.classList.add('hidden');
+
+      if (torchBtn.classList.contains('hidden')) {
+        cameraUtilityControls.classList.add('hidden');
+      }
+    }
+  }
+
+  async function refreshTorchSupport() {
+    torchBtn.classList.add('hidden');
+    torchEnabled = false;
+    torchBtn.textContent = '🔦 Torch Off';
+
+    if (!isLikelyHandset || !activeVideoTrack) {
+      if (switchCameraBtn.classList.contains('hidden')) {
+        cameraUtilityControls.classList.add('hidden');
+      }
+      return;
+    }
+
+    /*
+     * Browser torch control is generally exposed only by a back camera.
+     */
+    if (currentFacingMode !== 'environment') {
+      if (switchCameraBtn.classList.contains('hidden')) {
+        cameraUtilityControls.classList.add('hidden');
+      }
+      return;
+    }
+
+    try {
+      const capabilities =
+        typeof activeVideoTrack.getCapabilities === 'function'
+          ? activeVideoTrack.getCapabilities()
+          : {};
+
+      const supportsTorch = Boolean(capabilities.torch);
+
+      if (supportsTorch) {
+        cameraUtilityControls.classList.remove('hidden');
+        torchBtn.classList.remove('hidden');
+      } else if (switchCameraBtn.classList.contains('hidden')) {
+        cameraUtilityControls.classList.add('hidden');
+      }
+    } catch (error) {
+      console.log('Torch capability check error:', error);
+
+      if (switchCameraBtn.classList.contains('hidden')) {
+        cameraUtilityControls.classList.add('hidden');
+      }
+    }
+  }
+
+  async function requestCameraStream(facingMode) {
+    const baseVideoConstraints = {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    };
+
+    /*
+     * First try exact front/back selection. Some desktop browsers do not
+     * understand exact facingMode, so a relaxed fallback is included.
+     */
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        video: {
+          ...baseVideoConstraints,
+          facingMode: { exact: facingMode },
+        },
+        audio: true,
+      });
+    } catch (exactError) {
+      return navigator.mediaDevices.getUserMedia({
+        video: {
+          ...baseVideoConstraints,
+          facingMode: { ideal: facingMode },
+        },
+        audio: true,
+      });
+    }
+  }
+
+  async function openCamera(facingMode = currentFacingMode) {
+    if (
+      mediaRecorder &&
+      mediaRecorder.state &&
+      mediaRecorder.state !== 'inactive'
+    ) {
+      alert('Recording ke dauran camera switch nahi kar sakte.');
+      return;
+    }
+
+    try {
+      stopCurrentStream();
+
+      currentFacingMode = facingMode;
+      stream = await requestCameraStream(currentFacingMode);
+
+      activeVideoTrack = stream.getVideoTracks()[0] || null;
+
+      cameraPreview.pause();
+      cameraPreview.removeAttribute('src');
       cameraPreview.srcObject = stream;
       cameraPreview.muted = true;
       cameraPreview.controls = false;
 
+      updatePreviewDirection();
+
+      await cameraPreview.play();
+
       cameraPlaceholder.classList.add('hidden');
       startCameraBtn.classList.add('hidden');
       startRecordBtn.classList.remove('hidden');
+      retakeBtn.classList.add('hidden');
       faceOval.classList.remove('hidden');
-    } catch (err) {
-      alert('Camera/Microphone permission denied. Browser settings check karein.');
+
+      await refreshVideoDevices();
+      await refreshTorchSupport();
+    } catch (error) {
+      console.error('Camera open error:', error);
+
+      stopCurrentStream();
+
+      alert(
+        'Camera/Microphone open nahi hua. Permission aur HTTPS connection check karein.'
+      );
+
+      cameraPlaceholder.classList.remove('hidden');
+      startCameraBtn.classList.remove('hidden');
+      startRecordBtn.classList.add('hidden');
+      cameraUtilityControls.classList.add('hidden');
+    }
+  }
+
+  startCameraBtn.addEventListener('click', async () => {
+    await openCamera(currentFacingMode);
+  });
+
+  switchCameraBtn.addEventListener('click', async () => {
+    if (
+      mediaRecorder &&
+      mediaRecorder.state &&
+      mediaRecorder.state !== 'inactive'
+    ) {
+      alert('Pehle recording stop karein, phir camera switch karein.');
+      return;
+    }
+
+    const nextFacingMode =
+      currentFacingMode === 'user' ? 'environment' : 'user';
+
+    await openCamera(nextFacingMode);
+  });
+
+  torchBtn.addEventListener('click', async () => {
+    if (!activeVideoTrack) {
+      return;
+    }
+
+    try {
+      const nextTorchState = !torchEnabled;
+
+      await activeVideoTrack.applyConstraints({
+        advanced: [
+          {
+            torch: nextTorchState,
+          },
+        ],
+      });
+
+      torchEnabled = nextTorchState;
+
+      torchBtn.textContent = torchEnabled
+        ? '🔦 Torch On'
+        : '🔦 Torch Off';
+
+      torchBtn.classList.toggle('bg-emerald-500', torchEnabled);
+      torchBtn.classList.toggle('text-white', torchEnabled);
+      torchBtn.classList.toggle('bg-amber-500', !torchEnabled);
+      torchBtn.classList.toggle('text-gray-950', !torchEnabled);
+    } catch (error) {
+      console.error('Torch toggle error:', error);
+
+      alert(
+        'Is handset/browser me torch control available nahi hai.'
+      );
+
+      torchEnabled = false;
+      torchBtn.textContent = '🔦 Torch Off';
     }
   });
 
   startRecordBtn.addEventListener('click', () => {
+    if (!stream) {
+      alert('Pehle camera turn on karein.');
+      return;
+    }
+
     recordedChunks = [];
 
     let options = {};
@@ -1931,27 +2200,59 @@ refreshSelectedNakaSummary();
       options = { mimeType: 'video/webm' };
     }
 
-    mediaRecorder = new MediaRecorder(stream, options);
+    try {
+      mediaRecorder = new MediaRecorder(stream, options);
+    } catch (error) {
+      /*
+       * Safari/mobile fallback: let the browser choose its own MIME type.
+       */
+      mediaRecorder = new MediaRecorder(stream);
+    }
 
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        recordedChunks.push(e.data);
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
       }
     };
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const file = new File([blob], 'consent-' + Date.now() + '.webm', { type: 'video/webm' });
+      const recordedType =
+        mediaRecorder.mimeType ||
+        recordedChunks[0]?.type ||
+        'video/webm';
+
+      const extension = recordedType.includes('mp4')
+        ? 'mp4'
+        : recordedType.includes('ogg')
+          ? 'ogv'
+          : 'webm';
+
+      const blob = new Blob(recordedChunks, {
+        type: recordedType,
+      });
+
+      const file = new File(
+        [blob],
+        'consent-' + Date.now() + '.' + extension,
+        {
+          type: recordedType,
+        }
+      );
 
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
       videoConsentFile.files = dataTransfer.files;
 
+      stopCurrentStream();
+
       cameraPreview.srcObject = null;
+      cameraPreview.style.transform = 'scaleX(1)';
       cameraPreview.src = URL.createObjectURL(blob);
       cameraPreview.muted = false;
       cameraPreview.controls = true;
       cameraPreview.play();
+
+      cameraUtilityControls.classList.add('hidden');
     };
 
     mediaRecorder.start();
@@ -1960,6 +2261,12 @@ refreshSelectedNakaSummary();
     stopRecordBtn.classList.remove('hidden');
     recordingIndicator.classList.remove('hidden');
     faceOval.classList.add('hidden');
+
+    /*
+     * Switching camera while recording would produce an invalid/incomplete
+     * recording on many mobile browsers.
+     */
+    switchCameraBtn.disabled = true;
   });
 
   stopRecordBtn.addEventListener('click', () => {
@@ -1967,23 +2274,39 @@ refreshSelectedNakaSummary();
       mediaRecorder.stop();
     }
 
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-
     stopRecordBtn.classList.add('hidden');
     recordingIndicator.classList.add('hidden');
     retakeBtn.classList.remove('hidden');
+    switchCameraBtn.disabled = false;
   });
 
   retakeBtn.addEventListener('click', () => {
+    stopCurrentStream();
+
     videoConsentFile.value = '';
+
+    cameraPreview.pause();
+    cameraPreview.srcObject = null;
     cameraPreview.removeAttribute('src');
+    cameraPreview.style.transform = 'scaleX(1)';
     cameraPreview.load();
 
     retakeBtn.classList.add('hidden');
+    startRecordBtn.classList.add('hidden');
+    stopRecordBtn.classList.add('hidden');
+    recordingIndicator.classList.add('hidden');
+    faceOval.classList.add('hidden');
+    cameraUtilityControls.classList.add('hidden');
+
     cameraPlaceholder.classList.remove('hidden');
     startCameraBtn.classList.remove('hidden');
+  });
+
+  /*
+   * Camera must be released when the Mitra leaves/reloads the page.
+   */
+  window.addEventListener('beforeunload', () => {
+    stopCurrentStream();
   });
 
   const workerForm = document.getElementById("workerForm");

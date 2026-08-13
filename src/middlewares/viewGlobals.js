@@ -33,10 +33,22 @@ const viewGlobals = (req, res, next) => {
             roles: ['superadmin', 'admin'],
         },
         {
+            name: 'Bookings',
+            path: '/admin/bookings',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5l5 5v11a2 2 0 01-2 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 3v5h5"/>',
+            roles: ['superadmin', 'admin', 'employee'],
+        },
+        {
             name: 'Conflict Management',
             path: '/admin/conflicts',
             icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>',
             roles: ['superadmin', 'admin', 'employee'],
+        },
+        {
+            name: 'Booking Settings',
+            path: '/admin/booking-settings',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m12 14a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>',
+            roles: ['superadmin', 'admin'],
         },
         {
             name: 'Master: States',

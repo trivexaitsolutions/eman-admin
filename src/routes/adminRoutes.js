@@ -13,6 +13,8 @@ const cityRoutes = require('./cityRoutes');
 const nakaRoutes = require('./nakaRoutes');
 const skillRoutes = require('./skillRoutes');
 const workerRoutes = require('./workerRoutes');
+const bookingSettingRoutes = require('./bookingSettingRoutes');
+const adminBookingRoutes = require('./adminBookingRoutes');
 const adminDashboardController = require('../controllers/adminDashboardController');
 
 router.get('/login', authController.getLoginPage);
@@ -38,6 +40,8 @@ router.use('/states', authBouncer(['superadmin', 'admin']), stateRoutes);
 router.use('/cities', authBouncer(['superadmin', 'admin']), cityRoutes);
 router.use('/nakas', authBouncer(['superadmin', 'admin']), nakaRoutes);
 router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
+router.use('/booking-settings', authBouncer(['superadmin', 'admin']), bookingSettingRoutes);
+router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminBookingRoutes);
 
 router.use('/workers', authBouncer(['superadmin', 'admin', 'employee']), workerRoutes);
 router.use('/mitras', authBouncer(['superadmin', 'admin']), mitraRoutes);

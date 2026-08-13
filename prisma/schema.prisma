@@ -241,6 +241,9 @@ model Worker {
 
   isActive Boolean @default(true)
 
+  // Starting rating used until the worker receives real customer reviews.
+  baseRating Float @default(3)
+
   nakas    Naka[]    @relation("nakatoworker")
   skills   Skill[]   @relation("skilltoworker")
   bookings Booking[] @relation("bookingtoworker")

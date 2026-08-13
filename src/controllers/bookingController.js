@@ -906,14 +906,45 @@ const getCurrentBooking = async (req, res) => {
 const getCurrentDuty = async (req, res) => {
   try {
     const { workerId } = req.params;
+    const numericWorkerId = Number(workerId);
+
+    if (!Number.isInteger(numericWorkerId) || numericWorkerId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid worker id",
+      });
+    }
+
+    const worker = await prisma.worker.findUnique({
+      where: { id: numericWorkerId },
+      select: { availabilityStart: true },
+    });
+
+    if (!worker) {
+      return res.status(404).json({
+        success: false,
+        message: "Worker not found",
+      });
+    }
+
+    const activeDutyWhere = {
+      status: { in: ["ASSIGNED", "IN_PROGRESS"] },
+      workers: {
+        some: { id: numericWorkerId },
+      },
+    };
+
+    // A worker must only see a booking assigned during the availability
+    // session they just started. This prevents an unfinished legacy booking
+    // from opening immediately after the 3-second hold.
+    if (worker.availabilityStart) {
+      activeDutyWhere.createdAt = {
+        gte: worker.availabilityStart,
+      };
+    }
 
     const activeDuty = await prisma.booking.findFirst({
-      where: {
-        status: { in: ["ASSIGNED", "IN_PROGRESS"] },
-        workers: {
-          some: { id: parseInt(workerId) },
-        },
-      },
+      where: activeDutyWhere,
       include: {
         customer: true,
         // naka: true, // agar tumhare Booking model me naka relation hai
@@ -939,7 +970,7 @@ const getCurrentDuty = async (req, res) => {
       cancelledWorkerIds = [];
     }
 
-    if (cancelledWorkerIds.map(Number).includes(Number(workerId))) {
+    if (cancelledWorkerIds.map(Number).includes(numericWorkerId)) {
       return res.json({
         success: false,
         message: "This duty has been cancelled for this worker.",
@@ -959,13 +990,27 @@ const getCurrentDuty = async (req, res) => {
   }
 };
 
-// 2. WORKER: QR scan hone ke baad Duty 'IN_PROGRESS' karne ke liye
+// 2. CUSTOMER: Worker ka QR scan karke arrival verify karne ke liye
 const verifyQrAndStartDuty = async (req, res) => {
     try {
-        const { bookingId, workerId } = req.body;
+        const { bookingId, workerId, customerId } = req.body;
+        const numericBookingId = Number(bookingId);
+        const numericWorkerId = Number(workerId);
+        const numericCustomerId = Number(customerId);
+
+        if (
+            !Number.isInteger(numericBookingId) ||
+            !Number.isInteger(numericWorkerId) ||
+            !Number.isInteger(numericCustomerId)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid QR verification request",
+            });
+        }
 
         const booking = await prisma.booking.findUnique({
-            where: { id: parseInt(bookingId) },
+            where: { id: numericBookingId },
             include: {
                 customer: true,
                 workers: true,
@@ -979,38 +1024,81 @@ const verifyQrAndStartDuty = async (req, res) => {
             });
         }
 
+        if (Number(booking.customerId) !== numericCustomerId) {
+            return res.status(403).json({
+                success: false,
+                message: "This booking does not belong to this customer",
+            });
+        }
+
+        if (!["ASSIGNED", "IN_PROGRESS"].includes(booking.status)) {
+            return res.status(409).json({
+                success: false,
+                message: "This booking is not accepting worker arrivals",
+            });
+        }
+
+        const assignedWorker = booking.workers.find(
+            (worker) => Number(worker.id) === numericWorkerId
+        );
+
+        if (!assignedWorker) {
+            return res.status(403).json({
+                success: false,
+                message: "This worker is not assigned to your booking",
+            });
+        }
+
         let arrivedList = [];
+        let cancelledWorkerIds = [];
 
         try {
-            arrivedList = JSON.parse(booking.arrivedWorkerIds || "[]");
+            arrivedList = JSON.parse(booking.arrivedWorkerIds || "[]").map(Number);
         } catch (error) {
             arrivedList = [];
         }
 
-        const numericWorkerId = parseInt(workerId);
+        try {
+            cancelledWorkerIds = JSON.parse(
+                booking.cancelledWorkerIds || "[]"
+            ).map(Number);
+        } catch (error) {
+            cancelledWorkerIds = [];
+        }
+
+        if (cancelledWorkerIds.includes(numericWorkerId)) {
+            return res.status(409).json({
+                success: false,
+                message: "This worker has been cancelled from the booking",
+            });
+        }
 
         if (!arrivedList.includes(numericWorkerId)) {
             arrivedList.push(numericWorkerId);
         }
 
-        const allArrived = arrivedList.length >= Number(booking.workerCount);
+        arrivedList = [...new Set(arrivedList)];
+
+        const activeWorkerIds = booking.workers
+            .map((worker) => Number(worker.id))
+            .filter((id) => !cancelledWorkerIds.includes(id));
+        const allArrived =
+            activeWorkerIds.length > 0 &&
+            activeWorkerIds.every((id) => arrivedList.includes(id));
         const newStatus = allArrived ? "IN_PROGRESS" : "ASSIGNED";
 
-        console.log("Old arrival list:", booking.arrivedWorkerIds);
-        console.log("Updated arrival list:", arrivedList);
-
         const updatedBooking = await prisma.booking.update({
-            where: { id: parseInt(bookingId) },
+            where: { id: numericBookingId },
             data: {
                 arrivedWorkerIds: JSON.stringify(arrivedList),
                 status: newStatus,
             },
         });
 
-        // Customer ko notification bhejo
-        const customerToken = booking.customer?.pushToken;
+        // Customer ke scan ke baad verified worker ko confirmation bhejo.
+        const workerToken = assignedWorker.pushToken;
 
-        if (customerToken) {
+        if (workerToken) {
             const title = allArrived
                 ? "All Workers Arrived! ✅"
                 : "Worker Arrived! ✅";
@@ -1020,11 +1108,11 @@ const verifyQrAndStartDuty = async (req, res) => {
                 : "Aapka ek worker site par pahunch gaya hai.";
 
             await sendPushNotification(
-                customerToken,
-                title,
-                body,
+                workerToken,
+                "Arrival Verified",
+                "Customer ne aapka QR scan kar liya hai. Aap duty start kar sakte hain.",
                 {
-                    action: "REFRESH_BOOKING",
+                    action: "OPEN_ACTIVE_DUTY",
                     bookingId: booking.id,
                     workerId: numericWorkerId,
                     allArrived,
@@ -1036,8 +1124,12 @@ const verifyQrAndStartDuty = async (req, res) => {
             success: true,
             message: allArrived
                 ? "All workers arrived. Work can start now."
-                : "Worker arrival verified successfully.",
+                : `${assignedWorker.name || "Worker"} arrival verified successfully.`,
             allArrived,
+            worker: {
+                id: assignedWorker.id,
+                name: assignedWorker.name,
+            },
             booking: updatedBooking,
         });
     } catch (error) {

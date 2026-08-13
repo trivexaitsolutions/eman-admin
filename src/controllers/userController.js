@@ -141,43 +141,64 @@ const getBookingOptions = async (req, res) => {
     try {
         const verificationCutoff = getNakaVerificationCutoff();
 
-        const skills = await prisma.skill.findMany({ 
-            where: { isActive: true },
-            include: { rates: true } 
-        });
-        
-        const cities = await prisma.city.findMany();
+        // Admin setting read karo. Row missing ho toh current working AUTO mode use hoga.
+        let bookingSetting = null;
 
-        // Customer ko sirf currently verified Nakas dikhane hain
-        const nakas = await prisma.naka.findMany({
-            where: {
-                verificationStatus: NAKA_VERIFIED_STATUS,
-                lastVerifiedAt: {
-                    gte: verificationCutoff
+        try {
+            bookingSetting = await prisma.bookingSetting.findUnique({
+                where: { id: 1 },
+                select: {
+                    assignmentMode: true,
+                    updatedAt: true
                 }
-            },
-            orderBy: {
-                name: 'asc'
-            }
-        });
+            });
+        } catch (settingError) {
+            // Booking options ko setting read failure ki wajah se break nahi karna.
+            console.error("Booking setting fetch error; using AUTO fallback:", settingError);
+        }
 
-        res.json({ 
-            success: true, 
-            skills, 
-            cities, 
-            nakas 
+        const assignmentMode = bookingSetting?.assignmentMode || "AUTO";
+
+        const [skills, cities, nakas] = await Promise.all([
+            prisma.skill.findMany({
+                where: { isActive: true },
+                include: { rates: true }
+            }),
+
+            prisma.city.findMany(),
+
+            // Customer ko sirf currently verified Nakas dikhane hain
+            prisma.naka.findMany({
+                where: {
+                    verificationStatus: NAKA_VERIFIED_STATUS,
+                    lastVerifiedAt: {
+                        gte: verificationCutoff
+                    }
+                },
+                orderBy: {
+                    name: "asc"
+                }
+            })
+        ]);
+
+        return res.json({
+            success: true,
+            assignmentMode,
+            settingUpdatedAt: bookingSetting?.updatedAt || null,
+            skills,
+            cities,
+            nakas
         });
 
     } catch (error) {
         console.error("Options fetch error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Server Error"
         });
     }
 };
-
 
 const searchNakas = async (req, res) => {
     try {
@@ -262,9 +283,424 @@ const searchNakas = async (req, res) => {
     }
 };
 
+
+const getAvailableWorkers = async (req, res) => {
+    try {
+        const {
+            nakaIds,
+            skillId,
+            minRating = 0
+        } = req.body;
+
+        /*
+        |--------------------------------------------------------------------------
+        | 1. Admin mode check
+        |--------------------------------------------------------------------------
+        */
+
+        let assignmentMode = "AUTO";
+
+        try {
+            const bookingSetting =
+                await prisma.bookingSetting.findUnique({
+                    where: { id: 1 },
+                    select: {
+                        assignmentMode: true
+                    }
+                });
+
+            assignmentMode =
+                bookingSetting?.assignmentMode || "AUTO";
+        } catch (settingError) {
+            console.error(
+                "Available workers setting fetch error:",
+                settingError
+            );
+        }
+
+        if (assignmentMode !== "CUSTOMER_SELECT") {
+            return res.status(409).json({
+                success: false,
+                code: "WORKER_SELECTION_DISABLED",
+                assignmentMode,
+                message:
+                    "Customer worker selection is currently disabled."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 2. Request validation
+        |--------------------------------------------------------------------------
+        */
+
+        if (!Array.isArray(nakaIds)) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select nearby Nakas."
+            });
+        }
+
+        const validNakaIds = [
+            ...new Set(
+                nakaIds
+                    .map((id) => Number(id))
+                    .filter(
+                        (id) =>
+                            Number.isInteger(id) &&
+                            id > 0
+                    )
+            )
+        ];
+
+        const parsedSkillId = Number(skillId);
+        const parsedMinRating = Number(minRating || 0);
+
+        if (
+            validNakaIds.length < 1 ||
+            validNakaIds.length > 3
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Please select between 1 and 3 Nakas."
+            });
+        }
+
+        if (
+            !Number.isInteger(parsedSkillId) ||
+            parsedSkillId <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select a valid skill."
+            });
+        }
+
+        if (
+            !Number.isFinite(parsedMinRating) ||
+            parsedMinRating < 0 ||
+            parsedMinRating > 5
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid minimum rating selected."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3. Validate selected Nakas and skill
+        |--------------------------------------------------------------------------
+        */
+
+        const verificationCutoff =
+            getNakaVerificationCutoff();
+
+        const [verifiedNakas, skill] =
+            await Promise.all([
+                prisma.naka.findMany({
+                    where: {
+                        id: {
+                            in: validNakaIds
+                        },
+                        verificationStatus:
+                            NAKA_VERIFIED_STATUS,
+                        lastVerifiedAt: {
+                            gte: verificationCutoff
+                        }
+                    },
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }),
+
+                prisma.skill.findFirst({
+                    where: {
+                        id: parsedSkillId,
+                        isActive: true
+                    },
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                })
+            ]);
+
+        if (
+            verifiedNakas.length !==
+            validNakaIds.length
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "One or more selected Nakas are not currently available."
+            });
+        }
+
+        if (!skill) {
+            return res.status(400).json({
+                success: false,
+                message: "Selected skill is not available."
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 4. Find active and currently available workers
+        |--------------------------------------------------------------------------
+        */
+
+        const now = new Date();
+
+        const workers = await prisma.worker.findMany({
+            where: {
+                isActive: true,
+                isAvailable: true,
+
+                availabilityUntil: {
+                    gt: now
+                },
+
+                nakas: {
+                    some: {
+                        id: {
+                            in: validNakaIds
+                        }
+                    }
+                },
+
+                skills: {
+                    some: {
+                        id: parsedSkillId
+                    }
+                }
+            },
+
+            select: {
+                id: true,
+                name: true,
+                photoUrl: true,
+                age: true,
+                gender: true,
+                qualification: true,
+                baseRating: true,
+                lastActive: true,
+                availabilityUntil: true,
+
+                nakas: {
+                    where: {
+                        id: {
+                            in: validNakaIds
+                        }
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                        pincode: true,
+
+                        city: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
+                    }
+                },
+
+                skills: {
+                    where: {
+                        id: parsedSkillId
+                    },
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
+            },
+
+            orderBy: {
+                lastActive: "desc"
+            },
+
+            take: 100
+        });
+
+        if (workers.length === 0) {
+            return res.json({
+                success: true,
+                assignmentMode,
+                selectedNakas: verifiedNakas,
+                skill,
+                workers: [],
+                total: 0
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 5. Calculate worker ratings
+        |--------------------------------------------------------------------------
+        */
+
+        const workerIds =
+            workers.map((worker) => worker.id);
+
+        const ratingGroups =
+            await prisma.rating.groupBy({
+                by: ["workerId"],
+
+                where: {
+                    workerId: {
+                        in: workerIds
+                    }
+                },
+
+                _avg: {
+                    mehnat: true,
+                    vyavhaar: true
+                },
+
+                _count: {
+                    _all: true
+                }
+            });
+
+        const ratingMap = new Map();
+
+        ratingGroups.forEach((item) => {
+            const mehnat =
+                Number(item._avg.mehnat || 0);
+
+            const vyavhaar =
+                Number(item._avg.vyavhaar || 0);
+
+            const averageRating =
+                (mehnat + vyavhaar) / 2;
+
+            ratingMap.set(item.workerId, {
+                averageRating:
+                    Number(averageRating.toFixed(1)),
+
+                ratingCount:
+                    Number(item._count._all || 0),
+
+                mehnatRating:
+                    Number(mehnat.toFixed(1)),
+
+                vyavhaarRating:
+                    Number(vyavhaar.toFixed(1)),
+                isDefaultRating: false
+            });
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | 6. Safe response + minimum rating filter
+        |--------------------------------------------------------------------------
+        */
+
+        const safeWorkers = workers
+            .map((worker) => {
+                const rating =
+                    ratingMap.get(worker.id) || {
+                        averageRating:
+                            Number(worker.baseRating || 3),
+                        ratingCount: 0,
+                        mehnatRating:
+                            Number(worker.baseRating || 3),
+                        vyavhaarRating:
+                            Number(worker.baseRating || 3),
+                        isDefaultRating: true
+                    };
+
+                return {
+                    id: worker.id,
+                    name: worker.name,
+                    photoUrl: worker.photoUrl,
+                    age: worker.age,
+                    gender: worker.gender,
+                    qualification:
+                        worker.qualification,
+
+                    isDefaultRating:
+                        Boolean(rating.isDefaultRating),
+
+                    averageRating:
+                        rating.averageRating,
+
+                    ratingCount:
+                        rating.ratingCount,
+
+                    mehnatRating:
+                        rating.mehnatRating,
+
+                    vyavhaarRating:
+                        rating.vyavhaarRating,
+
+                    availabilityUntil:
+                        worker.availabilityUntil,
+
+                    nakas: worker.nakas,
+                    skills: worker.skills
+                };
+            })
+            .filter((worker) => {
+                if (parsedMinRating === 0) {
+                    return true;
+                }
+
+                return (
+                    worker.averageRating >=
+                    parsedMinRating
+                );
+            })
+            .sort((a, b) => {
+                if (
+                    b.averageRating !==
+                    a.averageRating
+                ) {
+                    return (
+                        b.averageRating -
+                        a.averageRating
+                    );
+                }
+
+                return (
+                    b.ratingCount -
+                    a.ratingCount
+                );
+            });
+
+        return res.json({
+            success: true,
+            assignmentMode,
+            selectedNakas: verifiedNakas,
+            skill,
+            workers: safeWorkers,
+            total: safeWorkers.length
+        });
+
+    } catch (error) {
+        console.error(
+            "Available Workers Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "Available workers fetch nahi ho paye."
+        });
+    }
+};
+
+
 module.exports = {
     sendOtp,
     verifyOtp,
     getBookingOptions,
-    searchNakas
+    searchNakas,
+    getAvailableWorkers
 };

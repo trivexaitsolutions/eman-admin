@@ -6,12 +6,65 @@ const bcrypt = require('bcryptjs');
 const listWorkers = async (req, res) => {
     try {
         const workers = await prisma.worker.findMany({
-            include: { nakas: true, skills: true },
-            orderBy: { id: 'desc' }
+            include: {
+                nakas: true,
+                skills: true,
+            },
+            orderBy: { id: "desc" },
         });
-        res.render('admin/workers/index', { workers });
+
+        const workerIds = workers.map((worker) => worker.id);
+
+        const ratingGroups = workerIds.length
+            ? await prisma.rating.groupBy({
+                  by: ["workerId"],
+                  where: {
+                      workerId: {
+                          in: workerIds,
+                      },
+                  },
+                  _avg: {
+                      mehnat: true,
+                      vyavhaar: true,
+                  },
+                  _count: {
+                      _all: true,
+                  },
+              })
+            : [];
+
+        const ratingMap = new Map();
+
+        ratingGroups.forEach((item) => {
+            const mehnatRating = Number(item._avg.mehnat || 0);
+            const vyavhaarRating = Number(item._avg.vyavhaar || 0);
+            const averageRating = (mehnatRating + vyavhaarRating) / 2;
+
+            ratingMap.set(item.workerId, {
+                averageRating: Number(averageRating.toFixed(1)),
+                ratingCount: Number(item._count._all || 0),
+                mehnatRating: Number(mehnatRating.toFixed(1)),
+                vyavhaarRating: Number(vyavhaarRating.toFixed(1)),
+                isDefaultRating: false,
+            });
+        });
+
+        const workersWithRatings = workers.map((worker) => ({
+            ...worker,
+            rating: ratingMap.get(worker.id) || {
+                averageRating: Number(worker.baseRating || 3),
+                ratingCount: 0,
+                mehnatRating: Number(worker.baseRating || 3),
+                vyavhaarRating: Number(worker.baseRating || 3),
+                isDefaultRating: true,
+            },
+        }));
+
+        res.render("admin/workers/index", {
+            workers: workersWithRatings,
+        });
     } catch (error) {
-        console.error(error);
+        console.error("Admin Worker List Error:", error);
         res.status(500).send("Server Error");
     }
 };
@@ -87,8 +140,13 @@ const saveWorker = async (req, res) => {
                 data: { ...workerData, nakas: { set: selectedNakas }, skills: { set: selectedSkills } } 
             });
         } else {
-            await prisma.worker.create({ 
-                data: { ...workerData, nakas: { connect: selectedNakas }, skills: { connect: selectedSkills } } 
+            await prisma.worker.create({
+                data: {
+                    ...workerData,
+                    baseRating: 3,
+                    nakas: { connect: selectedNakas },
+                    skills: { connect: selectedSkills },
+                },
             });
         }
         
@@ -220,6 +278,13 @@ const getRemainingSeconds = (untilDate) => {
     return Math.max(0, Math.floor(diff / 1000));
 };
 
+const getElapsedSeconds = (startDate) => {
+    if (!startDate) return 0;
+
+    const diff = new Date().getTime() - new Date(startDate).getTime();
+    return Math.max(0, Math.floor(diff / 1000));
+};
+
 const updateStatus = async (req, res) => {
     const {
         workerId,
@@ -255,6 +320,45 @@ const updateStatus = async (req, res) => {
             return res.json({
                 success: true,
                 message: "Aap Offline hain!",
+            });
+        }
+
+        // Starting availability is idempotent. If the worker is already in an
+        // active pool, preserve the original start time instead of resetting
+        // the elapsed timer when the app retries the request.
+        const existingWorker = await prisma.worker.findUnique({
+            where: { id: workerIdNumber },
+            select: {
+                isAvailable: true,
+                availabilityType: true,
+                availabilityStart: true,
+                availabilityHours: true,
+                availabilityUntil: true,
+            },
+        });
+
+        if (!existingWorker) {
+            return res.status(404).json({
+                success: false,
+                message: "Worker not found",
+            });
+        }
+
+        if (
+            existingWorker.isAvailable &&
+            existingWorker.availabilityStart &&
+            existingWorker.availabilityUntil &&
+            new Date(existingWorker.availabilityUntil) > new Date()
+        ) {
+            return res.json({
+                success: true,
+                message: "Aap pehle se pool mein available hain!",
+                pool: {
+                    ...existingWorker,
+                    elapsedSeconds: getElapsedSeconds(existingWorker.availabilityStart),
+                    remainingSeconds: getRemainingSeconds(existingWorker.availabilityUntil),
+                    serverTime: new Date().toISOString(),
+                },
             });
         }
 
@@ -340,7 +444,9 @@ if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
                 availabilityStart: updatedWorker.availabilityStart,
                 availabilityHours: updatedWorker.availabilityHours,
                 availabilityUntil: updatedWorker.availabilityUntil,
+                elapsedSeconds: getElapsedSeconds(updatedWorker.availabilityStart),
                 remainingSeconds: getRemainingSeconds(updatedWorker.availabilityUntil),
+                serverTime: new Date().toISOString(),
             },
         });
     } catch (error) {
@@ -410,7 +516,9 @@ const getPoolStatus = async (req, res) => {
             availabilityStart: worker.availabilityStart,
             availabilityHours: worker.availabilityHours,
             availabilityUntil: worker.availabilityUntil,
+            elapsedSeconds: getElapsedSeconds(worker.availabilityStart),
             remainingSeconds: getRemainingSeconds(worker.availabilityUntil),
+            serverTime: new Date().toISOString(),
         });
     } catch (error) {
         console.error("Pool status error:", error);

@@ -16,6 +16,7 @@ router.post('/send-otp', userController.sendOtp);
 router.post('/verify-otp', userController.verifyOtp);
 router.get('/booking-options', userController.getBookingOptions);
 router.get('/nakas/search', userController.searchNakas);
+router.post('/available-workers', userController.getAvailableWorkers);
 // router.post('/book-workers', bookingController.bookWorkers);
 // Frontend '/user/initiate-booking' pe call karega toh ye chalega
 router.post('/initiate-booking', initiateBooking);
@@ -27,7 +28,7 @@ router.get('/current-booking/:customerId', getCurrentBooking);
 
 router.get('/worker/current-duty/:workerId', getCurrentDuty);
 
-// Worker app QR scan karke yahan request bhejega
+// Customer app worker ka QR scan karke arrival verify karega
 router.post('/worker/verify-qr', verifyQrAndStartDuty);
 router.post('/complete-booking', completeBooking);
 

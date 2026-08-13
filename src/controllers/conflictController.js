@@ -255,6 +255,36 @@ const createConflict = async (req, res) => {
       };
     }
 
+    // Mobile retries or a repeated long-press must not create duplicate Mitra
+    // requests for the same worker and booking.
+    if (
+      raisedBy === "WORKER" &&
+      shouldContinueWork === false &&
+      finalRequestedAction === "CANCEL_DUTY"
+    ) {
+      const existingCancelRequest = await prisma.conflict.findFirst({
+        where: {
+          bookingId: parseInt(bookingId),
+          workerId: finalWorkerId,
+          raisedByType: "WORKER",
+          requestedAction: "CANCEL_DUTY",
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (existingCancelRequest) {
+        return res.json({
+          success: true,
+          message: "Mitra request already exists.",
+          conflict: existingCancelRequest,
+          cancelledWorkerInfo,
+          assignedMitraId: existingCancelRequest.mitraId,
+          duplicate: true,
+        });
+      }
+    }
+
     const conflict = await prisma.$transaction(async (tx) => {
       const createdConflict = await tx.conflict.create({
         data: {

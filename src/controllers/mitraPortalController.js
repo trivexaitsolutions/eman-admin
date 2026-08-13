@@ -62,10 +62,23 @@ const showDashboard = async (req, res) => {
         const clientsToday = await prisma.customer.count({ where: { mitraId, createdAt: { gte: startOfToday } } });
         const clientsMonth = await prisma.customer.count({ where: { mitraId, createdAt: { gte: startOfMonth } } });
 
+        // Worker ke direct "Connect Mitra" cancellation requests.
+        const pendingWorkerRequests = await prisma.conflict.count({
+            where: {
+                mitraId,
+                raisedByType: "WORKER",
+                requestedAction: "CANCEL_DUTY",
+                status: {
+                    in: ["PENDING", "IN_PROGRESS"],
+                },
+            },
+        });
+
         // Data EJS ko bhejna
         const stats = {
             totalWorkers, workersToday, workersMonth,
             totalClients, clientsToday, clientsMonth,
+            pendingWorkerRequests,
             totalNetwork: totalWorkers + totalClients
         };
 
