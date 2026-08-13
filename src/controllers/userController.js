@@ -2,6 +2,13 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendOtpEmail } = require('../utils/mailer');
+const {
+    findNearbyVerifiedNakas
+} = require('../utils/nearbyNakas');
+const {
+    getBookingSetting,
+    toPublicMapSettings
+} = require('../utils/bookingSettings');
 
 const NAKA_VERIFIED_STATUS = 'VERIFIED';
 
@@ -141,23 +148,8 @@ const getBookingOptions = async (req, res) => {
     try {
         const verificationCutoff = getNakaVerificationCutoff();
 
-        // Admin setting read karo. Row missing ho toh current working AUTO mode use hoga.
-        let bookingSetting = null;
-
-        try {
-            bookingSetting = await prisma.bookingSetting.findUnique({
-                where: { id: 1 },
-                select: {
-                    assignmentMode: true,
-                    updatedAt: true
-                }
-            });
-        } catch (settingError) {
-            // Booking options ko setting read failure ki wajah se break nahi karna.
-            console.error("Booking setting fetch error; using AUTO fallback:", settingError);
-        }
-
-        const assignmentMode = bookingSetting?.assignmentMode || "AUTO";
+        const bookingSetting = await getBookingSetting(prisma);
+        const assignmentMode = bookingSetting.assignmentMode;
 
         const [skills, cities, nakas] = await Promise.all([
             prisma.skill.findMany({
@@ -184,7 +176,8 @@ const getBookingOptions = async (req, res) => {
         return res.json({
             success: true,
             assignmentMode,
-            settingUpdatedAt: bookingSetting?.updatedAt || null,
+            mapSettings: toPublicMapSettings(bookingSetting),
+            settingUpdatedAt: bookingSetting.updatedAt,
             skills,
             cities,
             nakas
@@ -283,11 +276,45 @@ const searchNakas = async (req, res) => {
     }
 };
 
+const getNearbyNakas = async (req, res) => {
+    try {
+        const bookingSetting = await getBookingSetting(prisma);
+        const nearbyResult = await findNearbyVerifiedNakas(prisma, {
+            latitude: req.body.workLatitude,
+            longitude: req.body.workLongitude,
+            radiusMeters: bookingSetting.nearbyNakaRadiusMeters
+        });
+
+        return res.json({
+            success: true,
+            mapSettings: toPublicMapSettings(bookingSetting),
+            ...nearbyResult,
+            total: nearbyResult.nearbyNakas.length
+        });
+    } catch (error) {
+        if (error.code === "INVALID_WORK_LOCATION") {
+            return res.status(400).json({
+                success: false,
+                code: error.code,
+                message: error.message
+            });
+        }
+
+        console.error("Nearby Nakas Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Nearby Nakas load nahi ho paye."
+        });
+    }
+};
+
 
 const getAvailableWorkers = async (req, res) => {
     try {
         const {
-            nakaIds,
+            workLatitude,
+            workLongitude,
             skillId,
             minRating = 0
         } = req.body;
@@ -298,25 +325,8 @@ const getAvailableWorkers = async (req, res) => {
         |--------------------------------------------------------------------------
         */
 
-        let assignmentMode = "AUTO";
-
-        try {
-            const bookingSetting =
-                await prisma.bookingSetting.findUnique({
-                    where: { id: 1 },
-                    select: {
-                        assignmentMode: true
-                    }
-                });
-
-            assignmentMode =
-                bookingSetting?.assignmentMode || "AUTO";
-        } catch (settingError) {
-            console.error(
-                "Available workers setting fetch error:",
-                settingError
-            );
-        }
+        const bookingSetting = await getBookingSetting(prisma);
+        const assignmentMode = bookingSetting.assignmentMode;
 
         if (assignmentMode !== "CUSTOMER_SELECT") {
             return res.status(409).json({
@@ -334,38 +344,8 @@ const getAvailableWorkers = async (req, res) => {
         |--------------------------------------------------------------------------
         */
 
-        if (!Array.isArray(nakaIds)) {
-            return res.status(400).json({
-                success: false,
-                message: "Please select nearby Nakas."
-            });
-        }
-
-        const validNakaIds = [
-            ...new Set(
-                nakaIds
-                    .map((id) => Number(id))
-                    .filter(
-                        (id) =>
-                            Number.isInteger(id) &&
-                            id > 0
-                    )
-            )
-        ];
-
         const parsedSkillId = Number(skillId);
         const parsedMinRating = Number(minRating || 0);
-
-        if (
-            validNakaIds.length < 1 ||
-            validNakaIds.length > 3
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Please select between 1 and 3 Nakas."
-            });
-        }
 
         if (
             !Number.isInteger(parsedSkillId) ||
@@ -390,54 +370,36 @@ const getAvailableWorkers = async (req, res) => {
 
         /*
         |--------------------------------------------------------------------------
-        | 3. Validate selected Nakas and skill
+        | 3. Resolve the immutable nearby Naka pool and validate skill
         |--------------------------------------------------------------------------
         */
 
-        const verificationCutoff =
-            getNakaVerificationCutoff();
+        const nearbyResult = await findNearbyVerifiedNakas(prisma, {
+            latitude: workLatitude,
+            longitude: workLongitude,
+            radiusMeters: bookingSetting.nearbyNakaRadiusMeters
+        });
+        const verifiedNakas = nearbyResult.selectedNakas;
+        const validNakaIds = verifiedNakas.map((naka) => naka.id);
 
-        const [verifiedNakas, skill] =
-            await Promise.all([
-                prisma.naka.findMany({
-                    where: {
-                        id: {
-                            in: validNakaIds
-                        },
-                        verificationStatus:
-                            NAKA_VERIFIED_STATUS,
-                        lastVerifiedAt: {
-                            gte: verificationCutoff
-                        }
-                    },
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                }),
-
-                prisma.skill.findFirst({
-                    where: {
-                        id: parsedSkillId,
-                        isActive: true
-                    },
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                })
-            ]);
-
-        if (
-            verifiedNakas.length !==
-            validNakaIds.length
-        ) {
+        if (validNakaIds.length === 0) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "One or more selected Nakas are not currently available."
+                code: "NO_NAKAS_IN_RADIUS",
+                message: `Is work location ke ${bookingSetting.nearbyNakaRadiusMeters} meter radius me koi verified Naka nahi mila.`
             });
         }
+
+        const skill = await prisma.skill.findFirst({
+            where: {
+                id: parsedSkillId,
+                isActive: true
+            },
+            select: {
+                id: true,
+                name: true
+            }
+        });
 
         if (!skill) {
             return res.status(400).json({
@@ -688,6 +650,14 @@ const getAvailableWorkers = async (req, res) => {
             error
         );
 
+        if (error.code === "INVALID_WORK_LOCATION") {
+            return res.status(400).json({
+                success: false,
+                code: error.code,
+                message: error.message
+            });
+        }
+
         return res.status(500).json({
             success: false,
             message:
@@ -702,5 +672,6 @@ module.exports = {
     verifyOtp,
     getBookingOptions,
     searchNakas,
+    getNearbyNakas,
     getAvailableWorkers
 };

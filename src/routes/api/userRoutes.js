@@ -16,6 +16,7 @@ router.post('/send-otp', userController.sendOtp);
 router.post('/verify-otp', userController.verifyOtp);
 router.get('/booking-options', userController.getBookingOptions);
 router.get('/nakas/search', userController.searchNakas);
+router.post('/nakas/nearby', userController.getNearbyNakas);
 router.post('/available-workers', userController.getAvailableWorkers);
 // router.post('/book-workers', bookingController.bookWorkers);
 // Frontend '/user/initiate-booking' pe call karega toh ye chalega

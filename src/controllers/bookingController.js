@@ -4,6 +4,10 @@ const prisma = new PrismaClient();
 const { sendPushNotification } = require('../utils/sendNotification');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const {
+    findNearbyVerifiedNakas
+} = require('../utils/nearbyNakas');
+const { getBookingSetting } = require('../utils/bookingSettings');
 
 const NAKA_VERIFIED_STATUS = 'VERIFIED';
 
@@ -69,15 +73,21 @@ const razorpay = new Razorpay({
 const initiateBooking = async (req, res) => {
     const {
         customerId,
-        nakaIds,
         skillId,
         workerCount,
         minRating = 0,
-        addressId
+        addressId,
+        workLatitude,
+        workLongitude,
+        workLocationText,
+        selectedWorkerIds = []
     } = req.body;
 
     let lockedWorkerIds = [];
     let pendingBooking = null;
+    let validNakaIds = [];
+    let verifiedNakas = [];
+    let confirmedWorkLocation = null;
 
     try {
         /*
@@ -146,40 +156,28 @@ const initiateBooking = async (req, res) => {
 
         /*
         |--------------------------------------------------------------------------
-        | 2. Validate selected Nakas
+        | 2. Resolve Nakas automatically from the confirmed work location
         |--------------------------------------------------------------------------
         */
 
-        if (!Array.isArray(nakaIds)) {
-            return res.status(400).json({
-                success: false,
-                message: "Please select nearby Nakas."
-            });
-        }
+        // Never trust Naka IDs or radius sent by the app. Both the preview
+        // and final booking use the current admin setting and Haversine.
+        const bookingSetting = await getBookingSetting(prisma);
+        const nearbyResult = await findNearbyVerifiedNakas(prisma, {
+            latitude: workLatitude,
+            longitude: workLongitude,
+            radiusMeters: bookingSetting.nearbyNakaRadiusMeters
+        });
 
-        const validNakaIds = [
-            ...new Set(
-                nakaIds
-                    .map((id) => Number(id))
-                    .filter(
-                        (id) =>
-                            Number.isInteger(id) &&
-                            id > 0
-                    )
-            )
-        ];
+        verifiedNakas = nearbyResult.selectedNakas;
+        validNakaIds = verifiedNakas.map((naka) => naka.id);
+        confirmedWorkLocation = nearbyResult.workLocation;
 
         if (validNakaIds.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: "Please select at least one Naka."
-            });
-        }
-
-        if (validNakaIds.length > 3) {
-            return res.status(400).json({
-                success: false,
-                message: "You can select maximum 3 Nakas."
+                code: "NO_NAKAS_IN_RADIUS",
+                message: `Is work location ke ${bookingSetting.nearbyNakaRadiusMeters} meter radius me koi verified Naka nahi mila.`
             });
         }
 
@@ -240,39 +238,9 @@ const initiateBooking = async (req, res) => {
 
         /*
         |--------------------------------------------------------------------------
-        | 6. Validate that all selected Nakas are currently verified
+        | 6. Nakas were already selected and verified from GPS above
         |--------------------------------------------------------------------------
         */
-
-        const verificationCutoff = new Date();
-
-        verificationCutoff.setMonth(
-            verificationCutoff.getMonth() - 6
-        );
-
-        const verifiedNakas = await prisma.naka.findMany({
-            where: {
-                id: {
-                    in: validNakaIds
-                },
-                verificationStatus: "VERIFIED",
-                lastVerifiedAt: {
-                    gte: verificationCutoff
-                }
-            },
-            select: {
-                id: true,
-                name: true
-            }
-        });
-
-        if (verifiedNakas.length !== validNakaIds.length) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "One or more selected Nakas are not currently available for booking."
-            });
-        }
 
         /*
         |--------------------------------------------------------------------------
@@ -350,13 +318,13 @@ const initiateBooking = async (req, res) => {
 
         /*
         |--------------------------------------------------------------------------
-        | 8. Find workers from ANY selected Naka
+        | 8. Find eligible workers from system-selected nearby Nakas
         |--------------------------------------------------------------------------
         */
 
         const now = new Date();
 
-        const availableWorkers =
+        const candidateWorkers =
             await prisma.worker.findMany({
                 where: {
                     isActive: true,
@@ -381,27 +349,130 @@ const initiateBooking = async (req, res) => {
                     }
                 },
 
-                take: parsedWorkerCount,
+                take: 100,
 
                 select: {
                     id: true,
-                    name: true
+                    name: true,
+                    baseRating: true,
+                    lastActive: true
+                },
+
+                orderBy: {
+                    lastActive: "desc"
                 }
             });
 
-        if (
-            availableWorkers.length <
-            parsedWorkerCount
-        ) {
+        const candidateWorkerIds = candidateWorkers.map(
+            (worker) => worker.id
+        );
+
+        const ratingGroups = candidateWorkerIds.length
+            ? await prisma.rating.groupBy({
+                by: ["workerId"],
+                where: {
+                    workerId: {
+                        in: candidateWorkerIds
+                    }
+                },
+                _avg: {
+                    mehnat: true,
+                    vyavhaar: true
+                }
+            })
+            : [];
+
+        const ratingMap = new Map();
+
+        ratingGroups.forEach((rating) => {
+            const average =
+                (Number(rating._avg.mehnat || 0) +
+                    Number(rating._avg.vyavhaar || 0)) /
+                2;
+
+            ratingMap.set(rating.workerId, average);
+        });
+
+        const eligibleWorkers = candidateWorkers
+            .map((worker) => ({
+                ...worker,
+                averageRating: ratingMap.has(worker.id)
+                    ? Number(ratingMap.get(worker.id))
+                    : Number(worker.baseRating || 3)
+            }))
+            .filter(
+                (worker) =>
+                    parsedMinRating === 0 ||
+                    worker.averageRating >= parsedMinRating
+            )
+            .sort((first, second) => {
+                if (second.averageRating !== first.averageRating) {
+                    return second.averageRating - first.averageRating;
+                }
+
+                return (
+                    new Date(second.lastActive || 0).getTime() -
+                    new Date(first.lastActive || 0).getTime()
+                );
+            });
+
+        const assignmentMode = bookingSetting.assignmentMode;
+
+        let workersToBook = [];
+
+        if (assignmentMode === "CUSTOMER_SELECT") {
+            const normalizedSelectedWorkerIds = Array.isArray(selectedWorkerIds)
+                ? [
+                    ...new Set(
+                        selectedWorkerIds
+                            .map((id) => Number(id))
+                            .filter(
+                                (id) => Number.isInteger(id) && id > 0
+                            )
+                    )
+                ]
+                : [];
+
+            if (
+                normalizedSelectedWorkerIds.length !== parsedWorkerCount
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    code: "SELECTED_WORKERS_INVALID",
+                    message: `Please select exactly ${parsedWorkerCount} worker(s).`
+                });
+            }
+
+            const eligibleWorkerMap = new Map(
+                eligibleWorkers.map((worker) => [worker.id, worker])
+            );
+
+            workersToBook = normalizedSelectedWorkerIds
+                .map((id) => eligibleWorkerMap.get(id))
+                .filter(Boolean);
+
+            if (workersToBook.length !== parsedWorkerCount) {
+                return res.status(409).json({
+                    success: false,
+                    code: "WORKERS_NO_LONGER_AVAILABLE",
+                    message: "Selected worker me se koi ab available nahi hai. Please workers refresh karke dobara select karein."
+                });
+            }
+        } else {
+            workersToBook = eligibleWorkers.slice(0, parsedWorkerCount);
+        }
+
+        if (workersToBook.length < parsedWorkerCount) {
             return res.status(400).json({
                 success: false,
+                code: "NOT_ENOUGH_WORKERS",
                 message:
-                    `Sorry! Selected Nakas me abhi sirf ` +
-                    `${availableWorkers.length} worker(s) available hain.`
+                    `Sorry! Is location ke nearby Nakas me abhi sirf ` +
+                    `${eligibleWorkers.length} matching worker(s) available hain.`
             });
         }
 
-        lockedWorkerIds = availableWorkers.map(
+        lockedWorkerIds = workersToBook.map(
             (worker) => worker.id
         );
 
@@ -414,6 +485,29 @@ const initiateBooking = async (req, res) => {
         pendingBooking =
             await prisma.$transaction(
                 async (tx) => {
+                    const workerLock = await tx.worker.updateMany({
+                        where: {
+                            id: {
+                                in: lockedWorkerIds
+                            },
+                            isAvailable: true,
+                            availabilityUntil: {
+                                gt: now
+                            }
+                        },
+                        data: {
+                            isAvailable: false
+                        }
+                    });
+
+                    if (workerLock.count !== lockedWorkerIds.length) {
+                        const lockError = new Error(
+                            "Selected workers are no longer available."
+                        );
+                        lockError.code = "WORKERS_NO_LONGER_AVAILABLE";
+                        throw lockError;
+                    }
+
                     const booking =
                         await tx.booking.create({
                             data: {
@@ -431,6 +525,17 @@ const initiateBooking = async (req, res) => {
 
                                 addressId:
                                     parsedAddressId,
+
+                                workLatitude:
+                                    confirmedWorkLocation.latitude,
+
+                                workLongitude:
+                                    confirmedWorkLocation.longitude,
+
+                                workLocationText:
+                                    String(workLocationText || "")
+                                        .trim()
+                                        .slice(0, 1000) || null,
 
                                 skillId:
                                     parsedSkillId,
@@ -454,18 +559,6 @@ const initiateBooking = async (req, res) => {
                                 }
                             }
                         });
-
-                    await tx.worker.updateMany({
-                        where: {
-                            id: {
-                                in: lockedWorkerIds
-                            },
-                            isAvailable: true
-                        },
-                        data: {
-                            isAvailable: false
-                        }
-                    });
 
                     return booking;
                 }
@@ -564,6 +657,22 @@ const initiateBooking = async (req, res) => {
             "Initiate Booking Error:",
             error
         );
+
+        if (error.code === "INVALID_WORK_LOCATION") {
+            return res.status(400).json({
+                success: false,
+                code: error.code,
+                message: error.message
+            });
+        }
+
+        if (error.code === "WORKERS_NO_LONGER_AVAILABLE") {
+            return res.status(409).json({
+                success: false,
+                code: error.code,
+                message: "Selected worker me se koi ab available nahi hai. Please refresh karke dobara select karein."
+            });
+        }
 
         if (error.statusCode === 401) {
             return res.status(500).json({
@@ -947,7 +1056,7 @@ const getCurrentDuty = async (req, res) => {
       where: activeDutyWhere,
       include: {
         customer: true,
-        // naka: true, // agar tumhare Booking model me naka relation hai
+        address: true,
         workers: true,
       },
       orderBy: {
