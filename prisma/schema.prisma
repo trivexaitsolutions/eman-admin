@@ -20,6 +20,10 @@ model Employee {
 
   nakaVerifications NakaVerification[] @relation("NakaVerificationVerifier")
   createdNakas      Naka[]             @relation("NakaCreatedByAdmin")
+  leaveRequests       LeaveRequest[] @relation("EmployeeLeaveRequests")
+  leaveDecisions      LeaveRequest[] @relation("LeaveDecisionByEmployee")
+  leaveEntriesCreated LeaveRequest[] @relation("LeaveCreatedByEmployee")
+  leaveReturns        LeaveRequest[] @relation("LeaveReturnedByEmployee")
 
   @@map("employee")
 }
@@ -165,11 +169,72 @@ model Mitra {
   submittedNakas Naka[]     @relation("NakaSubmittedByMitra")
   workers        Worker[]
   customers      Customer[]
+  leaveRequests             LeaveRequest[] @relation("MitraLeaveRequests")
+  leaveReassignmentTargets  LeaveRequest[] @relation("LeaveReassignToMitra")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("mitra")
+}
+
+
+model LeaveRequest {
+  id Int @id @default(autoincrement())
+
+  // Common leave record for internal Employees and Mitras.
+  subjectType String // EMPLOYEE or MITRA
+
+  employeeId Int?
+  employee   Employee? @relation("EmployeeLeaveRequests", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  mitraId Int?
+  mitra   Mitra? @relation("MitraLeaveRequests", fields: [mitraId], references: [id], onDelete: Cascade)
+
+  leaveType String // CASUAL, SICK, EMERGENCY, PAID, UNPAID, OTHER
+  dayType   String @default("FULL_DAY") // FULL_DAY or HALF_DAY
+  fromDate  DateTime @db.Date
+  // Optional. NULL means open-ended leave until Admin marks the person returned.
+  toDate    DateTime? @db.Date
+  reason    String @db.Text
+
+  status       String @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  decisionNote String? @db.Text
+
+  // REQUEST = staff raised it, ADMIN = Admin created it directly (phone/manual entry).
+  entrySource String @default("REQUEST")
+
+  // Existing Mitra work stays untouched unless Admin explicitly selects a target Mitra.
+  workHandling       String @default("KEEP") // KEEP or REASSIGN_SELECTED
+  reassignToMitraId  Int?
+  reassignToMitra    Mitra? @relation("LeaveReassignToMitra", fields: [reassignToMitraId], references: [id], onDelete: SetNull)
+  workReassignedAt   DateTime?
+
+  decidedByEmployeeId Int?
+  decidedByEmployee   Employee? @relation("LeaveDecisionByEmployee", fields: [decidedByEmployeeId], references: [id], onDelete: SetNull)
+  decidedAt            DateTime?
+  cancelledAt          DateTime?
+
+  createdByEmployeeId Int?
+  createdByEmployee   Employee? @relation("LeaveCreatedByEmployee", fields: [createdByEmployeeId], references: [id], onDelete: SetNull)
+
+  // Explicit return closes an open-ended/current leave immediately.
+  returnedAt           DateTime?
+  returnedByEmployeeId Int?
+  returnedByEmployee   Employee? @relation("LeaveReturnedByEmployee", fields: [returnedByEmployeeId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subjectType, status, fromDate, toDate])
+  @@index([employeeId])
+  @@index([mitraId])
+  @@index([decidedByEmployeeId])
+  @@index([createdByEmployeeId])
+  @@index([returnedByEmployeeId])
+  @@index([workHandling, workReassignedAt])
+  @@index([reassignToMitraId])
+  @@map("leaverequest")
 }
 
 model Skill {

@@ -1,6 +1,7 @@
 // src/controllers/adminConflictController.js
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { currentLeaveFilter } = require("../services/conflictAssignmentService");
 
 const getMitraMap = async (conflicts) => {
   const mitraIds = [
@@ -272,12 +273,25 @@ const getConflictDetails = async (req, res) => {
     }
 
     const mitraMap = await getMitraMap([conflict]);
+    const formattedConflict = formatConflict(conflict, mitraMap);
 
-const formattedConflict = formatConflict(conflict, mitraMap);
+    let availableMitras = [];
+    if (conflict.booking?.nakaId && ["PENDING", "IN_PROGRESS"].includes(conflict.status)) {
+      availableMitras = await prisma.mitra.findMany({
+        where: {
+          isActive: true,
+          nakas: { some: { id: Number(conflict.booking.nakaId) } },
+          leaveRequests: { none: currentLeaveFilter() },
+        },
+        select: { id: true, name: true, phone: true },
+        orderBy: { name: "asc" },
+      });
+    }
 
     return res.render("admin/conflicts/show", {
       title: `Conflict #${conflict.id}`,
       conflict: formattedConflict,
+      availableMitras,
     });
   } catch (error) {
     console.error("Get Conflict Details Error:", error);
@@ -327,7 +341,7 @@ const updateConflictStatus = async (req, res) => {
         data: {
           conflictId: parseInt(id),
           updatedByType: "ADMIN",
-          updatedById: req.session?.user?.id || null,
+          updatedById: req.user?.id ? Number(req.user.id) : null,
           oldStatus: conflict.status,
           newStatus: status,
           note: note.trim(),
@@ -347,8 +361,69 @@ const updateConflictStatus = async (req, res) => {
   }
 };
 
+const assignConflictMitra = async (req, res) => {
+  try {
+    const conflictId = Number(req.params.id);
+    const mitraId = Number(req.body.mitraId);
+
+    if (!Number.isInteger(mitraId) || mitraId <= 0) {
+      return res.status(400).send("Please select a valid Mitra.");
+    }
+
+    const conflict = await prisma.conflict.findUnique({
+      where: { id: conflictId },
+      include: { booking: { select: { nakaId: true } } },
+    });
+
+    if (!conflict) return res.status(404).send("Conflict not found");
+    if (!["PENDING", "IN_PROGRESS"].includes(conflict.status)) {
+      return res.status(400).send("Only open conflicts can be reassigned.");
+    }
+
+    const mitra = await prisma.mitra.findFirst({
+      where: {
+        id: mitraId,
+        isActive: true,
+        nakas: { some: { id: Number(conflict.booking.nakaId) } },
+        leaveRequests: { none: currentLeaveFilter() },
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!mitra) {
+      return res.status(400).send("Selected Mitra is unavailable, on leave, or not assigned to this Naka.");
+    }
+
+    const oldMitraId = conflict.mitraId;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.conflict.update({
+        where: { id: conflictId },
+        data: { mitraId: mitra.id },
+      });
+
+      await tx.conflictTimeline.create({
+        data: {
+          conflictId,
+          updatedByType: "ADMIN",
+          updatedById: req.user?.id ? Number(req.user.id) : null,
+          oldStatus: conflict.status,
+          newStatus: conflict.status,
+          note: `Conflict manually assigned ${oldMitraId ? `from Mitra #${oldMitraId}` : "from Admin queue"} to ${mitra.name} (Mitra #${mitra.id}).`,
+        },
+      });
+    });
+
+    return res.redirect(`/admin/conflicts/${conflictId}`);
+  } catch (error) {
+    console.error("Assign Conflict Mitra Error:", error);
+    return res.status(500).send("Conflict could not be assigned to Mitra.");
+  }
+};
+
 module.exports = {
   getAllConflicts,
   getConflictDetails,
   updateConflictStatus,
+  assignConflictMitra,
 };

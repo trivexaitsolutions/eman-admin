@@ -50,6 +50,9 @@
       </div>
 
       <div class="flex items-center gap-2 md:gap-3">
+        <a href="/mitra/leaves" class="w-11 h-11 md:w-auto md:px-4 md:h-12 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-black flex items-center justify-center gap-2 active:bg-emerald-50" aria-label="My Leaves">
+          <span>📅</span><span class="hidden md:inline">Leaves</span>
+        </a>
         <a href="/mitra/nakas/add" class="hidden md:flex px-5 h-12 rounded-full bg-sky-600 text-white text-sm font-black items-center justify-center shadow-lg shadow-sky-200 active:bg-sky-700">+ Submit Naka</a>
         <a href="/mitra/clients/add" class="hidden md:flex px-5 h-12 rounded-full bg-blue-600 text-white text-sm font-black items-center justify-center shadow-lg shadow-blue-200 active:bg-blue-700">+ Add Client</a>
         <a href="/mitra/workers/add" class="hidden lg:flex px-5 h-12 rounded-full bg-emerald-500 text-white text-sm font-black items-center justify-center shadow-lg shadow-emerald-100 active:bg-emerald-600">+ Add Worker</a>
@@ -65,6 +68,7 @@
     <a href="/mitra/clients" class="<%= page === 'clients' ? desktopActiveClass : desktopInactiveClass %>">Clients</a>
     <a href="/mitra/nakas" class="<%= page === 'nakas' ? desktopActiveClass : desktopInactiveClass %>">My Nakas</a>
     <a href="/mitra/conflicts" class="<%= page === 'conflicts' ? desktopActiveClass : desktopInactiveClass %>">Conflicts</a>
+    <a href="/mitra/leaves" class="<%= page === 'leaves' ? desktopActiveClass : desktopInactiveClass %>">Leaves</a>
   </div>
 </nav>
 

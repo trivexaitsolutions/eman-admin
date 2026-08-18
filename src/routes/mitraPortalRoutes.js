@@ -9,6 +9,7 @@ const mitraNakaController = require('../controllers/mitraNakaController');
 const nakaVerificationUpload = require('../middlewares/nakaVerificationUpload');
 const workerController = require('../controllers/workerController');
 const mitraBouncer = require('../middlewares/mitraBouncer');
+const leaveController = require('../controllers/leaveController');
 
 // Multer Storage for Video Consents
 const storage = multer.diskStorage({
@@ -51,6 +52,11 @@ router.get('/conflicts', mitraBouncer, mitraPortalController.getMitraConflicts);
 router.get('/conflicts/:id', mitraBouncer, mitraPortalController.getMitraConflictDetails);
 
 router.post('/conflicts/:id/status', mitraBouncer, mitraPortalController.updateMitraConflictStatus);
+
+// Leave Management
+router.get('/leaves', mitraBouncer, leaveController.listMitraLeaves);
+router.post('/leaves/apply', mitraBouncer, leaveController.applyMitraLeave);
+router.post('/leaves/:id/cancel', mitraBouncer, leaveController.cancelMitraLeave);
 
 // 🚀 WORKER ROUTES UPDATE: upload.single('videoConsent') add kiya
 router.get(

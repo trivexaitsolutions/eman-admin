@@ -16,6 +16,7 @@ const workerRoutes = require('./workerRoutes');
 const bookingSettingRoutes = require('./bookingSettingRoutes');
 const adminBookingRoutes = require('./adminBookingRoutes');
 const adminDashboardController = require('../controllers/adminDashboardController');
+const leaveRoutes = require('./leaveRoutes');
 
 router.get('/login', authController.getLoginPage);
 router.post('/login', authController.login);
@@ -29,10 +30,6 @@ router.get('/logout', (req, res) => {
 router.get(
     '/dashboard',
     authBouncer(['superadmin', 'admin', 'employee']),
-    (req, res, next) => {
-        console.log('✅ DASHBOARD CONTROLLER ROUTE HIT');
-        next();
-    },
     adminDashboardController.showDashboard
 );
 router.use('/employees', authBouncer(['superadmin', 'admin']), employeeRoutes);
@@ -46,5 +43,6 @@ router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminB
 router.use('/workers', authBouncer(['superadmin', 'admin', 'employee']), workerRoutes);
 router.use('/mitras', authBouncer(['superadmin', 'admin']), mitraRoutes);
 router.use('/conflicts', authBouncer(['superadmin', 'admin', 'employee']), conflictRoutes);
+router.use('/leaves', authBouncer(['superadmin', 'admin', 'employee']), leaveRoutes);
 
 module.exports = router;

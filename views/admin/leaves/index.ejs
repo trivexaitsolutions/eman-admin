@@ -1,0 +1,395 @@
+<%
+    const stateClasses = {
+        PENDING: 'bg-amber-100 text-amber-700',
+        APPROVED: 'bg-emerald-100 text-emerald-700',
+        ON_LEAVE: 'bg-blue-100 text-blue-700',
+        UPCOMING: 'bg-violet-100 text-violet-700',
+        COMPLETED: 'bg-stone-100 text-stone-600',
+        REJECTED: 'bg-red-100 text-red-700',
+        CANCELLED: 'bg-stone-100 text-stone-500',
+    };
+    const leaveTypeLabels = {
+        CASUAL: 'Casual Leave',
+        SICK: 'Sick Leave',
+        EMERGENCY: 'Emergency Leave',
+        PAID: 'Paid Leave',
+        UNPAID: 'Unpaid Leave',
+        OTHER: 'Other',
+    };
+%>
+
+<%- include('../../partials/toast') %>
+
+<div class="space-y-4">
+    <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-black text-stone-900"><%= mode === 'manage' ? 'Leave Management' : 'My Leaves' %></h1>
+            <p class="mt-1 text-sm text-stone-500"><%= mode === 'manage' ? 'Requests, manual leave and staff availability.' : 'Apply and track your leave.' %></p>
+        </div>
+        <div class="flex gap-2">
+            <% if (mode === 'manage') { %>
+                <a href="/admin/leaves/my" class="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-stone-700">My Leaves</a>
+            <% } else if (['superadmin','admin'].includes(String(user?.role || '').toLowerCase())) { %>
+                <a href="/admin/leaves" class="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-stone-700">Manage Leaves</a>
+            <% } %>
+        </div>
+    </section>
+
+    <% if (mode === 'manage') { %>
+        <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <a href="/admin/leaves?status=PENDING" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-amber-300">
+                <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Pending</p>
+                <p class="mt-2 text-3xl font-black text-stone-900"><%= stats.pendingCount %></p>
+            </a>
+            <a href="/admin/leaves?status=ON_LEAVE" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-blue-300">
+                <p class="text-xs font-bold uppercase tracking-wide text-stone-500">On Leave</p>
+                <p class="mt-2 text-3xl font-black text-stone-900"><%= stats.onLeaveCount %></p>
+            </a>
+            <a href="/admin/leaves?status=OPEN_ENDED" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-rose-300">
+                <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Open-ended</p>
+                <p class="mt-2 text-3xl font-black text-stone-900"><%= stats.openEndedCount %></p>
+            </a>
+            <a href="/admin/leaves?status=UPCOMING" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-violet-300">
+                <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Upcoming</p>
+                <p class="mt-2 text-3xl font-black text-stone-900"><%= stats.upcomingCount %></p>
+            </a>
+        </section>
+
+        <details class="rounded-2xl border border-emerald-200 bg-emerald-50/40">
+            <summary class="cursor-pointer list-none px-4 py-3 text-sm font-black text-emerald-800">+ Add Leave Manually</summary>
+            <form method="POST" action="/admin/leaves/create" class="grid gap-3 border-t border-emerald-100 bg-white p-4 md:grid-cols-2 xl:grid-cols-4" id="manualLeaveForm">
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Staff Type</span>
+                    <select name="subjectType" id="manualSubjectType" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="MITRA">Mitra</option>
+                        <option value="EMPLOYEE">Employee</option>
+                    </select>
+                </label>
+
+                <label class="block" id="manualMitraWrap">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Mitra</span>
+                    <select name="mitraId" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="">Select Mitra</option>
+                        <% (staff?.mitras || []).forEach((item) => { %>
+                            <option value="<%= item.id %>"><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
+                        <% }) %>
+                    </select>
+                </label>
+
+                <label class="hidden" id="manualEmployeeWrap">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Employee</span>
+                    <select name="employeeId" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="">Select Employee</option>
+                        <% (staff?.employees || []).forEach((item) => { %>
+                            <option value="<%= item.id %>"><%= item.name %> · <%= item.role %></option>
+                        <% }) %>
+                    </select>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Leave Type</span>
+                    <select name="leaveType" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <% leaveTypes.forEach((type) => { %><option value="<%= type %>"><%= leaveTypeLabels[type] || type %></option><% }) %>
+                    </select>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Day Type</span>
+                    <select name="dayType" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="FULL_DAY">Full Day</option>
+                        <option value="HALF_DAY">Half Day</option>
+                    </select>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">From</span>
+                    <input type="date" name="fromDate" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                </label>
+
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">To <span class="font-medium text-stone-400">(optional)</span></span>
+                    <input type="date" name="toDate" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                </label>
+
+                <label class="block" id="manualWorkHandlingWrap">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Existing Conflict Work</span>
+                    <select name="workHandling" id="manualWorkHandling" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="KEEP">Keep with current Mitra</option>
+                        <option value="REASSIGN_SELECTED">Reassign to selected Mitra</option>
+                    </select>
+                </label>
+
+                <label class="hidden" id="manualReassignTargetWrap">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Assign Existing Conflicts To</span>
+                    <select name="reassignToMitraId" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="">Select Mitra</option>
+                        <% (staff?.mitras || []).forEach((item) => { %>
+                            <option value="<%= item.id %>"><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
+                        <% }) %>
+                    </select>
+                </label>
+
+                <label class="block md:col-span-2 xl:col-span-3">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Reason</span>
+                    <textarea name="reason" rows="2" required placeholder="Phone call / leave reason" class="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400"></textarea>
+                </label>
+
+                <div class="flex items-end">
+                    <button class="h-11 w-full rounded-xl bg-emerald-600 px-4 text-sm font-black text-white hover:bg-emerald-700">Save Leave</button>
+                </div>
+            </form>
+        </details>
+
+        <form method="GET" action="/admin/leaves" class="rounded-2xl border border-stone-200 bg-white p-4">
+            <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <input name="search" value="<%= filters.search %>" placeholder="Search staff" class="xl:col-span-2 h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                <select name="staffType" class="h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                    <option value="ALL" <%= filters.staffType === 'ALL' ? 'selected' : '' %>>All Staff</option>
+                    <option value="MITRA" <%= filters.staffType === 'MITRA' ? 'selected' : '' %>>Mitras</option>
+                    <option value="EMPLOYEE" <%= filters.staffType === 'EMPLOYEE' ? 'selected' : '' %>>Employees</option>
+                </select>
+                <select name="status" class="h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                    <% ['ALL','PENDING','ON_LEAVE','OPEN_ENDED','UPCOMING','COMPLETED','APPROVED','REJECTED','CANCELLED'].forEach((value) => { %>
+                        <option value="<%= value %>" <%= filters.status === value ? 'selected' : '' %>><%= value.replaceAll('_', ' ') %></option>
+                    <% }) %>
+                </select>
+                <input type="date" name="fromDate" value="<%= filters.fromDate %>" class="h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                <div class="flex gap-2">
+                    <input type="date" name="toDate" value="<%= filters.toDate %>" class="min-w-0 flex-1 h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                    <button class="h-11 rounded-xl bg-stone-900 px-4 text-sm font-bold text-white">Go</button>
+                </div>
+            </div>
+        </form>
+    <% } else { %>
+        <section class="rounded-2xl border border-stone-200 bg-white p-4 md:p-5">
+            <h2 class="font-black text-stone-900">Apply Leave</h2>
+            <form method="POST" action="/admin/leaves/apply" class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Leave Type</span>
+                    <select name="leaveType" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <% leaveTypes.forEach((type) => { %><option value="<%= type %>"><%= leaveTypeLabels[type] || type %></option><% }) %>
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Day Type</span>
+                    <select name="dayType" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
+                        <option value="FULL_DAY">Full Day</option>
+                        <option value="HALF_DAY">Half Day</option>
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">From</span>
+                    <input type="date" name="fromDate" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                </label>
+                <label class="block">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">To <span class="font-medium text-stone-400">(optional)</span></span>
+                    <input type="date" name="toDate" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
+                </label>
+                <label class="block md:col-span-2 xl:col-span-3">
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Reason</span>
+                    <textarea name="reason" rows="2" required placeholder="Short reason for leave" class="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400"></textarea>
+                </label>
+                <div class="flex items-end">
+                    <button class="h-11 w-full rounded-xl bg-emerald-600 px-4 text-sm font-black text-white hover:bg-emerald-700">Submit Request</button>
+                </div>
+            </form>
+        </section>
+    <% } %>
+
+    <section class="rounded-2xl border border-stone-200 bg-white overflow-hidden">
+        <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+            <h2 class="font-black text-stone-900"><%= mode === 'manage' ? 'Leave Records' : 'Request History' %></h2>
+            <span class="text-xs font-bold text-stone-400"><%= leaves.length %> records</span>
+        </div>
+
+        <% if (!leaves.length) { %>
+            <div class="px-4 py-10 text-center text-sm text-stone-500">No leave records found.</div>
+        <% } else { %>
+            <div class="divide-y divide-stone-100">
+                <% leaves.forEach((leave) => { %>
+                    <article class="p-4">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <% if (mode === 'manage') { %>
+                                        <h3 class="font-black text-stone-900"><%= leave.personName %></h3>
+                                        <span class="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-bold text-stone-600"><%= leave.subjectType %></span>
+                                        <% if (leave.entrySource === 'ADMIN') { %><span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">ADMIN ENTRY</span><% } %>
+                                    <% } else { %>
+                                        <h3 class="font-black text-stone-900"><%= leaveTypeLabels[leave.leaveType] || leave.leaveType %></h3>
+                                    <% } %>
+                                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black <%= stateClasses[leave.displayState] || 'bg-stone-100 text-stone-600' %>"><%= leave.displayState.replaceAll('_', ' ') %></span>
+                                    <% if (leave.isOpenEnded && leave.status === 'APPROVED') { %><span class="rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black text-rose-700">UNTIL RETURNED</span><% } %>
+                                </div>
+
+                                <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-stone-600">
+                                    <% if (mode === 'manage') { %><span class="font-semibold"><%= leaveTypeLabels[leave.leaveType] || leave.leaveType %></span><% } %>
+                                    <span><%= leave.fromDateLabel %> → <%= leave.toDate ? leave.toDateLabel : 'Until returned' %></span>
+                                    <% if (leave.days !== null) { %><span><%= leave.days %> day<%= leave.days === 1 ? '' : 's' %></span><% } else { %><span>Open-ended</span><% } %>
+                                    <% if (leave.dayType === 'HALF_DAY') { %><span>Half day</span><% } %>
+                                </div>
+
+                                <% if (mode === 'manage' && leave.subjectType === 'MITRA' && leave.status === 'APPROVED') { %>
+                                    <p class="mt-2 text-xs font-bold <%= leave.workHandling === 'REASSIGN_SELECTED' || leave.workReassignedAt ? 'text-violet-700' : 'text-stone-500' %>">
+                                        <% if (leave.workReassignedAt) { %>
+                                            Existing work: Reassigned<% if (leave.reassignToMitra?.name) { %> to <%= leave.reassignToMitra.name %><% } %>
+                                        <% } else if (leave.workHandling === 'REASSIGN_SELECTED') { %>
+                                            Existing work: Will reassign to <%= leave.reassignToMitra?.name || 'selected Mitra' %> when leave starts
+                                        <% } else { %>
+                                            Existing work: Kept with current Mitra
+                                        <% } %>
+                                    </p>
+                                <% } %>
+
+                                <p class="mt-2 text-sm text-stone-700"><%= leave.reason %></p>
+                                <% if (leave.decisionNote) { %>
+                                    <p class="mt-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-600"><span class="font-bold">Admin:</span> <%= leave.decisionNote %><% if (leave.decidedByEmployee?.name) { %> · <%= leave.decidedByEmployee.name %><% } %></p>
+                                <% } %>
+                                <% if (leave.returnedAt) { %>
+                                    <p class="mt-2 text-xs font-bold text-emerald-700">Returned: <%= leave.toDateLabel %><% if (leave.returnedByEmployee?.name) { %> · marked by <%= leave.returnedByEmployee.name %><% } %></p>
+                                <% } %>
+                            </div>
+
+                            <div class="shrink-0 lg:w-72 space-y-2">
+                                <% if (mode === 'manage' && leave.status === 'PENDING') { %>
+                                    <details class="rounded-xl border border-stone-200 bg-stone-50">
+                                        <summary class="cursor-pointer list-none px-3 py-2.5 text-sm font-black text-stone-700">Review Request</summary>
+                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/decision" class="space-y-2 border-t border-stone-200 p-3">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <label class="block">
+                                                    <span class="mb-1 block text-[10px] font-bold text-stone-500">FROM</span>
+                                                    <input type="date" name="fromDate" value="<%= leave.fromDateInput %>" required class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs" />
+                                                </label>
+                                                <label class="block">
+                                                    <span class="mb-1 block text-[10px] font-bold text-stone-500">TO (OPTIONAL)</span>
+                                                    <input type="date" name="toDate" value="<%= leave.toDateInput %>" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs" />
+                                                </label>
+                                            </div>
+                                            <% if (leave.subjectType === 'MITRA') { %>
+                                                <select name="workHandling" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs font-semibold">
+                                                    <option value="KEEP">Keep existing conflicts</option>
+                                                    <option value="REASSIGN_SELECTED">Reassign to selected Mitra</option>
+                                                </select>
+                                                <select name="reassignToMitraId" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs">
+                                                    <option value="">Select handover Mitra (required if reassign)</option>
+                                                    <% (staff?.mitras || []).filter((item) => item.id !== leave.mitraId).forEach((item) => { %>
+                                                        <option value="<%= item.id %>"><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
+                                                    <% }) %>
+                                                </select>
+                                            <% } %>
+                                            <textarea name="decisionNote" rows="2" required placeholder="Decision note" class="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-emerald-400"></textarea>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <button name="status" value="APPROVED" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white">Approve</button>
+                                                <button name="status" value="REJECTED" class="rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white">Reject</button>
+                                            </div>
+                                        </form>
+                                    </details>
+                                <% } else if (mode === 'manage' && leave.status === 'APPROVED' && ['ON_LEAVE','UPCOMING'].includes(leave.displayState)) { %>
+                                    <% if (leave.displayState === 'ON_LEAVE') { %>
+                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/return" class="flex gap-2" onsubmit="return confirm('Mark this staff member returned?')">
+                                            <input type="date" name="returnedDate" value="<%= todayInput %>" max="<%= todayInput %>" required class="min-w-0 flex-1 h-10 rounded-xl border border-emerald-200 px-2 text-xs" />
+                                            <button class="rounded-xl bg-emerald-600 px-3 text-xs font-black text-white">Mark Returned</button>
+                                        </form>
+                                    <% } %>
+
+                                    <% if (leave.subjectType === 'MITRA' && !leave.workReassignedAt) { %>
+                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/reassign" class="space-y-2" onsubmit="return confirm('Assign all currently open conflicts to the selected Mitra?')">
+                                            <select name="reassignToMitraId" required class="h-10 w-full rounded-xl border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-700">
+                                                <option value="">Select conflict handover Mitra</option>
+                                                <% (staff?.mitras || []).filter((item) => item.id !== leave.mitraId).forEach((item) => { %>
+                                                    <option value="<%= item.id %>" <%= Number(leave.reassignToMitraId) === Number(item.id) ? 'selected' : '' %>><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
+                                                <% }) %>
+                                            </select>
+                                            <button class="w-full rounded-xl border border-violet-200 px-3 py-2 text-xs font-black text-violet-700 hover:bg-violet-50">Reassign Existing Conflicts</button>
+                                        </form>
+                                    <% } %>
+
+                                    <details class="rounded-xl border border-stone-200 bg-white">
+                                        <summary class="cursor-pointer list-none px-3 py-2.5 text-xs font-bold text-stone-700">Update Leave</summary>
+                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/update" class="space-y-2 border-t border-stone-100 p-3">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <input type="date" name="fromDate" value="<%= leave.fromDateInput %>" required class="h-9 rounded-lg border border-stone-200 px-2 text-xs" />
+                                                <input type="date" name="toDate" value="<%= leave.toDateInput %>" class="h-9 rounded-lg border border-stone-200 px-2 text-xs" />
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <select name="leaveType" class="h-9 rounded-lg border border-stone-200 px-2 text-xs">
+                                                    <% leaveTypes.forEach((type) => { %><option value="<%= type %>" <%= leave.leaveType === type ? 'selected' : '' %>><%= leaveTypeLabels[type] || type %></option><% }) %>
+                                                </select>
+                                                <select name="dayType" class="h-9 rounded-lg border border-stone-200 px-2 text-xs">
+                                                    <option value="FULL_DAY" <%= leave.dayType === 'FULL_DAY' ? 'selected' : '' %>>Full Day</option>
+                                                    <option value="HALF_DAY" <%= leave.dayType === 'HALF_DAY' ? 'selected' : '' %>>Half Day</option>
+                                                </select>
+                                            </div>
+                                            <% if (leave.subjectType === 'MITRA') { %>
+                                                <% if (leave.workReassignedAt) { %>
+                                                    <input type="hidden" name="workHandling" value="<%= leave.workHandling %>" />
+                                                    <input type="hidden" name="reassignToMitraId" value="<%= leave.reassignToMitraId || '' %>" />
+                                                    <div class="rounded-lg bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">Existing conflicts already reassigned<% if (leave.reassignToMitra?.name) { %> to <%= leave.reassignToMitra.name %><% } %></div>
+                                                <% } else { %>
+                                                    <select name="workHandling" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs">
+                                                        <option value="KEEP" <%= leave.workHandling === 'KEEP' ? 'selected' : '' %>>Keep existing conflicts</option>
+                                                        <option value="REASSIGN_SELECTED" <%= leave.workHandling === 'REASSIGN_SELECTED' ? 'selected' : '' %>>Reassign to selected Mitra</option>
+                                                    </select>
+                                                    <select name="reassignToMitraId" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs">
+                                                        <option value="">Select handover Mitra (required if reassign)</option>
+                                                        <% (staff?.mitras || []).filter((item) => item.id !== leave.mitraId).forEach((item) => { %>
+                                                            <option value="<%= item.id %>" <%= Number(leave.reassignToMitraId) === Number(item.id) ? 'selected' : '' %>><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
+                                                        <% }) %>
+                                                    </select>
+                                                <% } %>
+                                            <% } %>
+                                            <textarea name="reason" rows="2" required class="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs"><%= leave.reason %></textarea>
+                                            <button class="w-full rounded-lg bg-stone-900 px-3 py-2 text-xs font-black text-white">Save Update</button>
+                                        </form>
+                                    </details>
+
+                                    <details class="rounded-xl border border-stone-200 bg-white">
+                                        <summary class="cursor-pointer list-none px-3 py-2.5 text-xs font-bold text-red-600">Cancel Leave</summary>
+                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/cancel" class="space-y-2 border-t border-stone-100 p-3">
+                                            <textarea name="decisionNote" rows="2" required placeholder="Cancellation reason" class="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-red-300"></textarea>
+                                            <button class="w-full rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white">Confirm Cancel</button>
+                                        </form>
+                                    </details>
+                                <% } else if (mode === 'my' && ['PENDING','APPROVED'].includes(leave.status) && ['PENDING','UPCOMING'].includes(leave.displayState)) { %>
+                                    <form method="POST" action="/admin/leaves/my/<%= leave.id %>/cancel" onsubmit="return confirm('Cancel this leave request?')">
+                                        <button class="w-full rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">Cancel Leave</button>
+                                    </form>
+                                <% } %>
+                            </div>
+                        </div>
+                    </article>
+                <% }) %>
+            </div>
+        <% } %>
+    </section>
+
+    <% if (mode === 'manage' && stats.unassignedConflicts > 0) { %>
+        <a href="/admin/conflicts" class="block rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><%= stats.unassignedConflicts %> conflict(s) currently need Admin assignment →</a>
+    <% } %>
+</div>
+
+<% if (mode === 'manage') { %>
+<script>
+(function () {
+    const type = document.getElementById('manualSubjectType');
+    const mitraWrap = document.getElementById('manualMitraWrap');
+    const employeeWrap = document.getElementById('manualEmployeeWrap');
+    const workWrap = document.getElementById('manualWorkHandlingWrap');
+    const workHandling = document.getElementById('manualWorkHandling');
+    const targetWrap = document.getElementById('manualReassignTargetWrap');
+    if (!type) return;
+
+    function syncStaffType() {
+        const isMitra = type.value === 'MITRA';
+        mitraWrap.classList.toggle('hidden', !isMitra);
+        employeeWrap.classList.toggle('hidden', isMitra);
+        workWrap.classList.toggle('hidden', !isMitra);
+        targetWrap.classList.toggle('hidden', !isMitra || workHandling.value !== 'REASSIGN_SELECTED');
+    }
+
+    type.addEventListener('change', syncStaffType);
+    workHandling.addEventListener('change', syncStaffType);
+    syncStaffType();
+})();
+</script>
+<% } %>

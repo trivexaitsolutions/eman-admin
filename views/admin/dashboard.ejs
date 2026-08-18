@@ -1,369 +1,145 @@
 <%
-    const metrics = dashboard.metrics;
-    const period = dashboard.period;
-    const canManageMasters = dashboard.permissions?.canManageMasters;
-    const canManageMitras = dashboard.permissions?.canManageMitras;
+    const m = dashboard.metrics || {};
+    const canManage = dashboard.permissions?.canManage;
 %>
 
-<div class="space-y-6 pb-8">
-    <!-- Header -->
-    <section class="rounded-3xl border border-stone-200 bg-white px-5 py-6 shadow-sm sm:px-7 sm:py-7">
-        <div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-                <div class="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Live operational overview
-                </div>
-                <h1 class="text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">Welcome back, <%= user?.name || 'Admin' %>!</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-stone-500 sm:text-base">
-                    Naka verification, workforce readiness aur current platform activity ek hi place par dekho.
-                </p>
-            </div>
+<% if (dashboard.loadError) { %>
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"><%= dashboard.loadError %></div>
+<% } %>
 
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <label class="sr-only" for="dashboardRange">Dashboard time range</label>
-                <select id="dashboardRange" class="rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm font-semibold text-stone-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
-                    <option value="7" <%= dashboard.rangeDays === 7 ? 'selected' : '' %>>Last 7 days</option>
-                    <option value="30" <%= dashboard.rangeDays === 30 ? 'selected' : '' %>>Last 30 days</option>
-                    <option value="90" <%= dashboard.rangeDays === 90 ? 'selected' : '' %>>Last 90 days</option>
-                </select>
-                <button type="button" id="refreshDashboard" class="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 014.58 15m15.42 0H15" /></svg>
-                    Refresh
-                </button>
-            </div>
+<div class="space-y-5">
+    <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-black text-stone-900">Dashboard</h1>
+            <p class="text-sm text-stone-500 mt-1">Today’s operational snapshot</p>
         </div>
-
-        <div class="mt-5 flex flex-col gap-1 border-t border-stone-100 pt-4 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
-            <span>Data range: <strong class="font-semibold text-stone-700"><%= dashboard.rangeLabel %></strong></span>
-            <span>Last refreshed: <strong class="font-semibold text-stone-700"><%= dashboard.generatedAt %></strong></span>
-        </div>
-    </section>
-
-    <% if (dashboard.loadError) { %>
-        <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"><%= dashboard.loadError %></div>
-    <% } %>
-
-    <!-- Primary statistics -->
-    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <a href="/admin/nakas?filter=pending" class="group relative overflow-hidden rounded-2xl border border-amber-200 bg-amber-50 p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-100">
-            <span class="absolute right-0 top-0 h-24 w-24 -translate-y-9 translate-x-9 rounded-full bg-amber-200/50"></span>
-            <div class="relative flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-sm font-semibold text-amber-900">Verification attention</p>
-                    <p class="mt-2 text-3xl font-bold tracking-tight text-stone-950"><%= metrics.attentionNakasCount %></p>
-                    <p class="mt-1 text-xs font-medium text-amber-800">Pending or re-verification due</p>
-                </div>
-                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.414-4.414a9 9 0 11-12.728 0 9 9 0 0112.728 0z" /></svg>
-                </div>
-            </div>
-            <div class="relative mt-4 inline-flex items-center gap-1 text-xs font-bold text-amber-800 group-hover:gap-2">Open queue <span>→</span></div>
-        </a>
-
-        <a href="/admin/nakas?filter=verified" class="group rounded-2xl border border-emerald-200 bg-emerald-50 p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-100">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-sm font-semibold text-emerald-900">Operational Nakas</p>
-                    <p class="mt-2 text-3xl font-bold tracking-tight text-stone-950"><%= metrics.verifiedNakas %></p>
-                    <p class="mt-1 text-xs font-medium text-emerald-800">Verified within the last 6 months</p>
-                </div>
-                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.686 7-13a7 7 0 10-14 0c0 7.314 7 13 7 13z"/><circle cx="12" cy="8" r="2.5"/></svg>
-                </div>
-            </div>
-            <div class="mt-4 text-xs font-bold text-emerald-800"><%= metrics.verificationHealthPercent %>% Naka verification health</div>
-        </a>
-
-        <a href="/admin/workers" class="group rounded-2xl border border-sky-200 bg-sky-50 p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-100">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-sm font-semibold text-sky-900">Total workers</p>
-                    <p class="mt-2 text-3xl font-bold tracking-tight text-stone-950"><%= metrics.totalWorkers %></p>
-                    <p class="mt-1 text-xs font-medium text-sky-800"><%= metrics.availableWorkers %> currently available</p>
-                </div>
-                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-4-4h-1m-4 6H3v-2a4 4 0 014-4h2m5-4a4 4 0 100-8 4 4 0 000 8zm-6 0a4 4 0 100-8 4 4 0 000 8z"/></svg>
-                </div>
-            </div>
-            <div class="mt-4 text-xs font-bold text-sky-800"><%= metrics.activeWorkers %> active worker profiles</div>
-        </a>
-
-        <a href="/admin/conflicts" class="group rounded-2xl border border-violet-200 bg-violet-50 p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-100">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-sm font-semibold text-violet-900">Open conflicts</p>
-                    <p class="mt-2 text-3xl font-bold tracking-tight text-stone-950"><%= metrics.openConflicts %></p>
-                    <p class="mt-1 text-xs font-medium text-violet-800"><%= metrics.activeBookings %> active jobs in progress</p>
-                </div>
-                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-                </div>
-            </div>
-            <div class="mt-4 text-xs font-bold text-violet-800">Review conflicts before they escalate</div>
-        </a>
-    </section>
-
-    <!-- Shortcuts -->
-    <section class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-                <h2 class="text-lg font-bold text-stone-950">Quick actions</h2>
-                <p class="mt-1 text-sm text-stone-500">Daily admin kaam fast access se complete karo.</p>
-            </div>
-            <span class="text-xs font-semibold text-stone-400">Role-based shortcuts</span>
-        </div>
-
-        <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <% if (canManageMasters) { %>
-                <a href="/admin/nakas?filter=pending" class="group flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:shadow-md">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.414-4.414a9 9 0 11-12.728 0 9 9 0 0112.728 0z" /></svg></span>
-                    <span class="min-w-0"><span class="block font-bold text-stone-900">Verify Nakas</span><span class="mt-0.5 block text-xs text-stone-500"><%= metrics.attentionNakasCount %> need attention</span></span>
-                    <span class="ml-auto text-amber-600 transition group-hover:translate-x-1">→</span>
+        <div class="flex items-center gap-2">
+            <% if (canManage) { %>
+                <a href="/admin/leaves" class="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-stone-700 hover:border-emerald-300 hover:text-emerald-700">
+                    Leave Requests
+                    <% if (m.pendingLeaves > 0) { %><span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700"><%= m.pendingLeaves %></span><% } %>
                 </a>
-                <a href="/admin/nakas/create" class="group flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition hover:border-emerald-300 hover:shadow-md">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg></span>
-                    <span class="min-w-0"><span class="block font-bold text-stone-900">Add Naka</span><span class="mt-0.5 block text-xs text-stone-500">Add or verify from admin</span></span>
-                    <span class="ml-auto text-emerald-600 transition group-hover:translate-x-1">→</span>
-                </a>
-            <% } %>
-
-            <a href="/admin/workers/create" class="group flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 transition hover:border-sky-300 hover:shadow-md">
-                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-white"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg></span>
-                <span class="min-w-0"><span class="block font-bold text-stone-900">Add Worker</span><span class="mt-0.5 block text-xs text-stone-500">Open worker onboarding</span></span>
-                <span class="ml-auto text-sky-600 transition group-hover:translate-x-1">→</span>
-            </a>
-
-            <% if (canManageMitras) { %>
-                <a href="/admin/mitras/create" class="group flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 transition hover:border-violet-300 hover:shadow-md">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg></span>
-                    <span class="min-w-0"><span class="block font-bold text-stone-900">Add Mitra</span><span class="mt-0.5 block text-xs text-stone-500">Create field agent profile</span></span>
-                    <span class="ml-auto text-violet-600 transition group-hover:translate-x-1">→</span>
-                </a>
-            <% } %>
-        </div>
-    </section>
-
-    <!-- Operating health + period summary -->
-    <section class="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        <div class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <p class="text-sm font-semibold text-stone-500">Naka verification health</p>
-                    <p class="mt-1 text-3xl font-bold tracking-tight text-stone-950"><%= metrics.verificationHealthPercent %>%</p>
-                </div>
-                <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700"><%= metrics.verifiedNakas %> operational</span>
-            </div>
-
-            <div class="mt-5 h-3 overflow-hidden rounded-full bg-stone-100">
-                <div class="h-full rounded-full bg-emerald-500 transition-all duration-700" style="width: <%= metrics.verificationHealthPercent %>%"></div>
-            </div>
-
-            <div class="mt-5 grid grid-cols-2 divide-x divide-stone-100 rounded-2xl border border-stone-100 bg-stone-50">
-                <div class="p-4">
-                    <p class="text-xs font-medium text-stone-500">All Nakas</p>
-                    <p class="mt-1 text-xl font-bold text-stone-900"><%= metrics.totalNakas %></p>
-                </div>
-                <div class="p-4">
-                    <p class="text-xs font-medium text-stone-500">Needs attention</p>
-                    <p class="mt-1 text-xl font-bold text-amber-600"><%= metrics.attentionNakasCount %></p>
-                </div>
-            </div>
-
-            <a href="/admin/nakas?filter=pending" class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-emerald-700 hover:text-emerald-800">Open Naka verification queue <span>→</span></a>
-        </div>
-
-        <div class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6 xl:col-span-3">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 class="text-lg font-bold text-stone-950">Growth snapshot</h2>
-                    <p class="mt-1 text-sm text-stone-500"><%= dashboard.rangeLabel %> actual additions and bookings.</p>
-                </div>
-                <span class="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">Live counts</span>
-            </div>
-
-            <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div class="rounded-2xl bg-sky-50 p-4"><p class="text-xs font-semibold text-sky-700">New workers</p><p class="mt-2 text-2xl font-bold text-stone-950"><%= period.workers %></p></div>
-                <div class="rounded-2xl bg-violet-50 p-4"><p class="text-xs font-semibold text-violet-700">New Mitras</p><p class="mt-2 text-2xl font-bold text-stone-950"><%= period.mitras %></p></div>
-                <div class="rounded-2xl bg-rose-50 p-4"><p class="text-xs font-semibold text-rose-700">New customers</p><p class="mt-2 text-2xl font-bold text-stone-950"><%= period.customers %></p></div>
-                <div class="rounded-2xl bg-amber-50 p-4"><p class="text-xs font-semibold text-amber-700">New bookings</p><p class="mt-2 text-2xl font-bold text-stone-950"><%= period.bookings %></p></div>
-            </div>
-
-            <div class="mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-5 sm:grid-cols-3">
-                <div><p class="text-xs font-medium text-stone-500">Active Mitras</p><p class="mt-1 text-lg font-bold text-stone-900"><%= metrics.activeMitras %></p></div>
-                <div><p class="text-xs font-medium text-stone-500">Customers</p><p class="mt-1 text-lg font-bold text-stone-900"><%= metrics.totalCustomers %></p></div>
-                <div><p class="text-xs font-medium text-stone-500">Active jobs</p><p class="mt-1 text-lg font-bold text-stone-900"><%= metrics.activeBookings %></p></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Attention queue and chart -->
-    <section class="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        <div class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6 xl:col-span-3">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 class="text-lg font-bold text-stone-950">Verification attention queue</h2>
-                    <p class="mt-1 text-sm text-stone-500">Oldest pending/re-verification-due Nakas first.</p>
-                </div>
-                <a href="/admin/nakas?filter=pending" class="text-sm font-bold text-emerald-700 hover:text-emerald-800">View all →</a>
-            </div>
-
-            <% if (dashboard.attentionQueue.length > 0) { %>
-                <div class="mt-5 divide-y divide-stone-100">
-                    <% dashboard.attentionQueue.forEach((naka) => { %>
-                        <a href="<%= naka.href %>" class="group flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between">
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <p class="truncate font-bold text-stone-900"><%= naka.name %></p>
-                                    <span class="rounded-full px-2.5 py-1 text-[11px] font-bold <%= naka.status === 'Re-verification due' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700' %>"><%= naka.status %></span>
-                                </div>
-                                <p class="mt-1 truncate text-xs text-stone-500"><%= naka.state ? `${naka.state} • ` : '' %><%= naka.city %> • PIN: <%= naka.pincode %></p>
-                                <p class="mt-1 text-xs text-stone-400"><%= naka.source %></p>
-                            </div>
-                            <div class="flex shrink-0 items-center gap-3 sm:text-right">
-                                <span class="text-xs font-medium text-stone-400" title="<%= naka.submittedExact %>"><%= naka.submittedAt %></span>
-                                <span class="font-bold text-emerald-700 transition group-hover:translate-x-1">Review →</span>
-                            </div>
-                        </a>
-                    <% }) %>
-                </div>
             <% } else { %>
-                <div class="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-6 text-center">
-                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm"><svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></div>
-                    <p class="mt-3 font-bold text-emerald-900">All Nakas are up to date</p>
-                    <p class="mt-1 text-sm text-emerald-700">Abhi koi pending ya overdue Naka verification nahi hai.</p>
-                </div>
+                <a href="/admin/leaves/my" class="inline-flex items-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-stone-700">My Leaves</a>
             <% } %>
-        </div>
-
-        <div class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h2 class="text-lg font-bold text-stone-950">Last 7 days</h2>
-                    <p id="activitySeriesTitle" class="mt-1 text-sm text-stone-500">New worker onboarding trend</p>
-                </div>
-                <div class="inline-flex rounded-xl bg-stone-100 p-1 text-xs font-bold">
-                    <button type="button" data-activity-series="workers" class="activity-toggle rounded-lg bg-white px-2.5 py-1.5 text-stone-900 shadow-sm">Workers</button>
-                    <button type="button" data-activity-series="bookings" class="activity-toggle rounded-lg px-2.5 py-1.5 text-stone-500">Bookings</button>
-                </div>
-            </div>
-
-            <div id="activityChart" class="mt-6 flex h-48 items-end gap-2 border-b border-l border-stone-100 px-3 pb-1 pt-4"></div>
-            <div id="activityLabels" class="mt-2 grid grid-cols-7 gap-2 px-3 text-center text-[10px] font-semibold text-stone-400"></div>
-            <p id="activityChartEmpty" class="mt-4 hidden rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">No activity recorded in the last 7 days.</p>
+            <a href="/admin/dashboard" class="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-stone-800">Refresh</a>
         </div>
     </section>
 
-    <!-- Recent activity -->
-    <section class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-lg font-bold text-stone-950">Recent platform activity</h2>
-                <p class="mt-1 text-sm text-stone-500">Latest onboarding, Naka, booking and conflict events.</p>
+    <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <a href="/admin/workers" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-sky-300 transition">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-bold uppercase tracking-wide text-stone-500">Workers</span>
+                <span class="h-2.5 w-2.5 rounded-full bg-sky-500"></span>
             </div>
-            <a href="/admin/workers" class="text-sm font-bold text-emerald-700 hover:text-emerald-800">Manage workers →</a>
-        </div>
+            <div class="mt-3 text-3xl font-black text-stone-900"><%= m.totalWorkers || 0 %></div>
+            <div class="mt-1 text-xs font-semibold text-sky-700"><%= m.availableWorkers || 0 %> available</div>
+        </a>
 
-        <% if (dashboard.recentActivity.length > 0) { %>
-            <div class="mt-5 grid grid-cols-1 divide-y divide-stone-100 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-                <% dashboard.recentActivity.forEach((event, index) => { %>
-                    <a href="<%= event.href %>" class="group flex items-center gap-3 py-3.5 <%= index % 2 === 0 ? 'lg:pr-5' : 'lg:pl-5' %>">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl <%= event.type === 'naka' ? 'bg-emerald-100 text-emerald-700' : event.type === 'worker' ? 'bg-sky-100 text-sky-700' : event.type === 'mitra' ? 'bg-violet-100 text-violet-700' : event.type === 'booking' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700' %>">
-                            <% if (event.type === 'naka') { %><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.686 7-13a7 7 0 10-14 0c0 7.314 7 13 7 13z"/><circle cx="12" cy="8" r="2.5"/></svg><% } %>
-                            <% if (event.type === 'worker') { %><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m7-10a4 4 0 11-8 0 4 4 0 018 0z"/></svg><% } %>
-                            <% if (event.type === 'mitra') { %><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m11-8a3 3 0 110-6 3 3 0 010 6z"/></svg><% } %>
-                            <% if (event.type === 'booking') { %><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2h-2a2 2 0 01-2-2v0z"/></svg><% } %>
-                            <% if (event.type === 'conflict') { %><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg><% } %>
-                        </span>
-                        <span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-stone-900 group-hover:text-emerald-700"><%= event.title %></span><span class="mt-0.5 block truncate text-xs text-stone-500"><%= event.description %></span></span>
-                        <span class="shrink-0 text-xs font-medium text-stone-400" title="<%= event.exactDateTime %>"><%= event.timeAgo %></span>
-                    </a>
-                <% }) %>
+        <a href="/admin/bookings" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-emerald-300 transition">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-bold uppercase tracking-wide text-stone-500">Active Jobs</span>
+                <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
             </div>
+            <div class="mt-3 text-3xl font-black text-stone-900"><%= m.activeBookings || 0 %></div>
+            <div class="mt-1 text-xs font-semibold text-stone-500">In progress / assigned</div>
+        </a>
+
+        <a href="/admin/conflicts" class="rounded-2xl border <%= m.unassignedConflicts > 0 ? 'border-red-300 bg-red-50' : 'border-stone-200 bg-white' %> p-4 hover:border-violet-300 transition">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-bold uppercase tracking-wide text-stone-500">Open Conflicts</span>
+                <span class="h-2.5 w-2.5 rounded-full bg-violet-500"></span>
+            </div>
+            <div class="mt-3 text-3xl font-black text-stone-900"><%= m.openConflicts || 0 %></div>
+            <div class="mt-1 text-xs font-semibold <%= m.unassignedConflicts > 0 ? 'text-red-700' : 'text-stone-500' %>"><%= m.unassignedConflicts || 0 %> unassigned</div>
+        </a>
+
+        <% if (canManage) { %>
+            <a href="/admin/leaves?status=ON_LEAVE" class="rounded-2xl border border-stone-200 bg-white p-4 hover:border-amber-300 transition">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="text-xs font-bold uppercase tracking-wide text-stone-500">On Leave</span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                </div>
+                <div class="mt-3 text-3xl font-black text-stone-900"><%= m.onLeaveToday || 0 %></div>
+                <div class="mt-1 text-xs font-semibold text-amber-700"><%= m.pendingLeaves || 0 %> pending requests</div>
+            </a>
         <% } else { %>
-            <div class="mt-5 rounded-2xl bg-stone-50 p-6 text-center text-sm text-stone-500">Recent activity yahan automatically dikhne lagegi.</div>
+            <div class="rounded-2xl border border-stone-200 bg-white p-4">
+                <div class="text-xs font-bold uppercase tracking-wide text-stone-500">Operational Nakas</div>
+                <div class="mt-3 text-3xl font-black text-stone-900"><%= m.verifiedNakas || 0 %></div>
+                <div class="mt-1 text-xs font-semibold text-stone-500"><%= m.verificationHealthPercent || 0 %>% verified</div>
+            </div>
         <% } %>
     </section>
+
+    <% if (canManage) { %>
+        <section class="rounded-2xl border border-stone-200 bg-white p-4">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <h2 class="font-black text-stone-900">Quick Actions</h2>
+            </div>
+            <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+                <a href="/admin/workers/create" class="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold text-stone-700 hover:bg-sky-50 hover:text-sky-700">+ Worker</a>
+                <a href="/admin/mitras/create" class="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold text-stone-700 hover:bg-emerald-50 hover:text-emerald-700">+ Mitra</a>
+                <a href="/admin/nakas/create" class="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold text-stone-700 hover:bg-amber-50 hover:text-amber-700">+ Naka</a>
+                <a href="/admin/leaves" class="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold text-stone-700 hover:bg-violet-50 hover:text-violet-700">Review Leaves</a>
+            </div>
+        </section>
+
+        <section class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl border border-stone-200 bg-white overflow-hidden">
+                <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+                    <div>
+                        <h2 class="font-black text-stone-900">Naka Verification</h2>
+                        <p class="text-xs text-stone-500"><%= m.attentionNakasCount || 0 %> need attention</p>
+                    </div>
+                    <a href="/admin/nakas?filter=pending" class="text-xs font-bold text-emerald-700">View all</a>
+                </div>
+                <% if (!dashboard.nakaQueue?.length) { %>
+                    <div class="px-4 py-6 text-sm text-stone-500">No verification pending.</div>
+                <% } else { %>
+                    <div class="divide-y divide-stone-100">
+                        <% dashboard.nakaQueue.forEach((item) => { %>
+                            <a href="/admin/nakas?filter=pending" class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-stone-50">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-stone-900 truncate"><%= item.name %></p>
+                                    <p class="text-xs text-stone-500 truncate"><%= item.location %></p>
+                                </div>
+                                <span class="text-stone-400">›</span>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } %>
+            </div>
+
+            <div class="rounded-2xl border border-stone-200 bg-white overflow-hidden">
+                <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+                    <div>
+                        <h2 class="font-black text-stone-900">Pending Leaves</h2>
+                        <p class="text-xs text-stone-500"><%= m.pendingLeaves || 0 %> waiting for decision</p>
+                    </div>
+                    <a href="/admin/leaves?status=PENDING" class="text-xs font-bold text-emerald-700">View all</a>
+                </div>
+                <% if (!dashboard.leaveQueue?.length) { %>
+                    <div class="px-4 py-6 text-sm text-stone-500">No leave request pending.</div>
+                <% } else { %>
+                    <div class="divide-y divide-stone-100">
+                        <% dashboard.leaveQueue.forEach((item) => { %>
+                            <a href="/admin/leaves?status=PENDING" class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-stone-50">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm font-bold text-stone-900 truncate"><%= item.name %></p>
+                                        <span class="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-bold text-stone-600"><%= item.subjectType %></span>
+                                    </div>
+                                    <p class="text-xs text-stone-500 truncate"><%= item.leaveType %> · <%= item.dates %></p>
+                                </div>
+                                <span class="text-stone-400">›</span>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } %>
+            </div>
+        </section>
+    <% } %>
+
+    <p class="text-[11px] text-stone-400 text-right">Updated <%= dashboard.generatedAt %></p>
 </div>
-
-<script>
-    (function () {
-        const rangeSelect = document.getElementById('dashboardRange');
-        const refreshButton = document.getElementById('refreshDashboard');
-
-        rangeSelect?.addEventListener('change', function () {
-            const url = new URL(window.location.href);
-            url.searchParams.set('range', this.value);
-            window.location.href = url.toString();
-        });
-
-        refreshButton?.addEventListener('click', function () {
-            this.disabled = true;
-            this.innerHTML = '<svg class="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 014.58 15m15.42 0H15" /></svg> Refreshing';
-            window.location.reload();
-        });
-
-        const seriesData = <%- JSON.stringify(dashboard.activitySeries) %>;
-        const chart = document.getElementById('activityChart');
-        const labels = document.getElementById('activityLabels');
-        const emptyState = document.getElementById('activityChartEmpty');
-        const title = document.getElementById('activitySeriesTitle');
-        const toggles = Array.from(document.querySelectorAll('[data-activity-series]'));
-        let activeSeries = 'workers';
-
-        function renderChart(seriesName) {
-            const data = Array.isArray(seriesData[seriesName]) ? seriesData[seriesName] : [];
-            const maxValue = Math.max(1, ...data.map((item) => Number(item.value) || 0));
-            const total = data.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
-
-            chart.innerHTML = '';
-            labels.innerHTML = '';
-            emptyState.classList.toggle('hidden', total > 0);
-            chart.classList.toggle('opacity-40', total === 0);
-            title.textContent = seriesName === 'workers' ? 'New worker onboarding trend' : 'New booking creation trend';
-
-            data.forEach((item) => {
-                const value = Number(item.value) || 0;
-                const height = value === 0 ? 5 : Math.max(11, Math.round((value / maxValue) * 100));
-                const wrapper = document.createElement('div');
-                wrapper.className = 'group relative flex h-full min-w-0 flex-1 items-end justify-center';
-
-                const tooltip = document.createElement('span');
-                tooltip.className = 'pointer-events-none absolute bottom-full z-10 mb-2 hidden whitespace-nowrap rounded-lg bg-stone-900 px-2 py-1 text-[10px] font-bold text-white shadow-lg group-hover:block';
-                tooltip.textContent = `${item.label}: ${value}`;
-
-                const bar = document.createElement('div');
-                bar.className = seriesName === 'workers'
-                    ? 'w-full max-w-8 rounded-t-md bg-sky-500 transition-all duration-500 hover:bg-sky-600'
-                    : 'w-full max-w-8 rounded-t-md bg-amber-500 transition-all duration-500 hover:bg-amber-600';
-                bar.style.height = `${height}%`;
-                bar.setAttribute('aria-label', `${item.label}: ${value}`);
-
-                wrapper.appendChild(tooltip);
-                wrapper.appendChild(bar);
-                chart.appendChild(wrapper);
-
-                const label = document.createElement('span');
-                label.textContent = item.label;
-                labels.appendChild(label);
-            });
-
-            toggles.forEach((button) => {
-                const selected = button.dataset.activitySeries === seriesName;
-                button.classList.toggle('bg-white', selected);
-                button.classList.toggle('text-stone-900', selected);
-                button.classList.toggle('shadow-sm', selected);
-                button.classList.toggle('text-stone-500', !selected);
-            });
-        }
-
-        toggles.forEach((button) => {
-            button.addEventListener('click', function () {
-                activeSeries = this.dataset.activitySeries || 'workers';
-                renderChart(activeSeries);
-            });
-        });
-
-        renderChart(activeSeries);
-    })();
-</script>

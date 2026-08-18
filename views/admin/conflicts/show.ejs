@@ -232,7 +232,34 @@
              RIGHT COLUMN (Smaller Side - 1/3 Width)
              Sticky Resolution Timeline
         =========================================== -->
-        <div class="lg:col-span-1">
+        <div class="lg:col-span-1 space-y-4">
+
+            <% if (['PENDING', 'IN_PROGRESS'].includes(conflict.status)) { %>
+                <div class="bg-white border <%= conflict.assignedMitra ? 'border-stone-200' : 'border-red-200' %> rounded-xl shadow-sm p-4">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-stone-400">Assigned Mitra</p>
+                            <p class="text-sm font-black <%= conflict.assignedMitra ? 'text-stone-900' : 'text-red-600' %>"><%= conflict.assignedMitra?.name || 'Admin Queue / Unassigned' %></p>
+                        </div>
+                        <% if (!conflict.assignedMitra) { %><span class="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black text-red-600">ACTION</span><% } %>
+                    </div>
+
+                    <% if (availableMitras && availableMitras.length > 0) { %>
+                        <form method="POST" action="/admin/conflicts/<%= conflict.id %>/assign-mitra" class="flex gap-2">
+                            <select name="mitraId" required class="min-w-0 flex-1 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 outline-none focus:border-emerald-400">
+                                <option value="">Select Mitra</option>
+                                <% availableMitras.forEach((mitra) => { %>
+                                    <option value="<%= mitra.id %>" <%= Number(conflict.mitraId) === Number(mitra.id) ? 'selected' : '' %>><%= mitra.name %><%= mitra.phone ? ` · ${mitra.phone}` : '' %></option>
+                                <% }) %>
+                            </select>
+                            <button class="rounded-lg bg-stone-900 px-3 py-2 text-xs font-black text-white">Assign</button>
+                        </form>
+                        <p class="mt-2 text-[10px] font-semibold text-stone-400">Only active, available Mitras assigned to this Naka are shown.</p>
+                    <% } else { %>
+                        <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">No available Mitra for this Naka right now.</p>
+                    <% } %>
+                </div>
+            <% } %>
             
             <div class="bg-white border border-stone-200 rounded-xl shadow-sm sticky top-6 max-h-[calc(100vh-2rem)] overflow-y-auto">
                 <div class="px-5 py-4 border-b border-stone-200 bg-stone-50/80 sticky top-0 z-10 flex justify-between items-center">

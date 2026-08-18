@@ -7,6 +7,7 @@ const cors = require('cors');
 const session = require('express-session');
 const flash = require('connect-flash');
 require('dotenv').config();
+const { startLeaveReassignmentWatcher } = require('./src/services/leaveService');
 
 
 const app = express();
@@ -55,6 +56,9 @@ app.get('/', (req, res) => {
 // Add these right above your Admin routes in server.js
 app.use('/api/worker', require('./src/routes/api/workerRoutes'));
 app.use('/api/user', require('./src/routes/api/userRoutes'));
+
+// Keep approved Mitra leaves in sync with conflict assignment/reassignment.
+startLeaveReassignmentWatcher();
 
 // --- 4. START SERVER ---
 app.listen(PORT,"0.0.0.0", () => {

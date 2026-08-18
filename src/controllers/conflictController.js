@@ -3,89 +3,13 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const { sendPushNotification } = require("../utils/sendNotification");
-
-/**
- * Booking ke naka ke basis par best Mitra find karta hai.
- * Logic:
- * 1. Booking ka nakaId nikalo
- * 2. Us naka par assigned active Mitra find karo
- * 3. Un Mitra ke active conflicts count karo
- * 4. Jiske paas sabse kam PENDING/IN_PROGRESS conflicts hain, usko assign karo
- */
-const findBestMitraForBooking = async (bookingId) => {
-  const booking = await prisma.booking.findUnique({
-    where: { id: parseInt(bookingId) },
-    select: {
-      id: true,
-      nakaId: true,
-    },
-  });
-
-  if (!booking || !booking.nakaId) {
-    return null;
-  }
-
-  const mitras = await prisma.mitra.findMany({
-    where: {
-      isActive: true,
-      nakas: {
-        some: {
-          id: Number(booking.nakaId),
-        },
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-    },
-    orderBy: {
-      id: "asc",
-    },
-  });
-
-  if (!mitras || mitras.length === 0) {
-    return null;
-  }
-
-  const mitraIds = mitras.map((m) => m.id);
-
-  const conflictCounts = await prisma.conflict.groupBy({
-    by: ["mitraId"],
-    where: {
-      mitraId: {
-        in: mitraIds,
-      },
-      status: {
-        in: ["PENDING", "IN_PROGRESS"],
-      },
-    },
-    _count: {
-      id: true,
-    },
-  });
-
-  const mitrasWithCount = mitras.map((mitra) => {
-    const found = conflictCounts.find(
-      (item) => Number(item.mitraId) === Number(mitra.id)
-    );
-
-    return {
-      ...mitra,
-      activeConflictCount: found?._count?.id || 0,
-    };
-  });
-
-  mitrasWithCount.sort((a, b) => {
-    if (a.activeConflictCount === b.activeConflictCount) {
-      return a.id - b.id;
-    }
-
-    return a.activeConflictCount - b.activeConflictCount;
-  });
-
-  return mitrasWithCount[0].id;
-};
+const {
+  findBestMitraForBooking,
+  findFirstAvailableMitraByIds,
+} = require("../services/conflictAssignmentService");
+const {
+  processCurrentMitraLeaveReassignments,
+} = require("../services/leaveService");
 
 const createConflict = async (req, res) => {
   try {
@@ -112,6 +36,9 @@ const createConflict = async (req, res) => {
         message: "Invalid raisedBy value.",
       });
     }
+
+    // Keep future approved leaves effective even if no Admin page was opened.
+    await processCurrentMitraLeaveReassignments();
 
     const shouldContinueWork =
       continueWork === false || continueWork === "false" ? false : true;
@@ -158,7 +85,9 @@ const createConflict = async (req, res) => {
 
       // Main assignment: booking ke naka ke best Mitra ko conflict assign karo
       // Fallback: customer ka mitra
-      mitraId = assignedMitraId || booking.customer?.mitraId || null;
+      mitraId = assignedMitraId || await findFirstAvailableMitraByIds([
+        booking.customer?.mitraId,
+      ]);
       finalPenaltyAmount = null;
 
       // Case 1: Client specific worker ko cancel kar raha hai
@@ -180,11 +109,10 @@ const createConflict = async (req, res) => {
           (w) => Number(w.id) === Number(workerId)
         );
 
-        mitraId =
-          assignedMitraId ||
-          selectedWorker?.mitraId ||
-          booking.customer?.mitraId ||
-          null;
+        mitraId = assignedMitraId || await findFirstAvailableMitraByIds([
+          selectedWorker?.mitraId,
+          booking.customer?.mitraId,
+        ]);
 
         if (finalRequestedAction === "CANCEL_WORKER" && selectedWorker) {
           workersToNotify.push(selectedWorker);
@@ -232,7 +160,7 @@ const createConflict = async (req, res) => {
 
       // Main assignment: booking ke naka ka best Mitra
       // Fallback: worker ka onboarding Mitra
-      mitraId = assignedMitraId || worker.mitraId || null;
+      mitraId = assignedMitraId || await findFirstAvailableMitraByIds([worker.mitraId]);
 
       // Worker penalty is decided by the assigned Mitra after reviewing the conflict.
       // Do not apply any automatic/client-supplied penalty when the issue is raised.

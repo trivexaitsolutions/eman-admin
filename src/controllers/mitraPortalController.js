@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { processCurrentMitraLeaveReassignments } = require('../services/leaveService');
 
 const login = async (req, res) => {
     const { email, password } = req.body;
@@ -951,6 +952,8 @@ const formatMitraConflict = (conflict) => {
 
 const getMitraConflicts = async (req, res) => {
     try {
+        await processCurrentMitraLeaveReassignments();
+
         const mitraId = req.user ? req.user.id : 1;
 
         const { status, fromDate, toDate } = req.query;
@@ -1025,6 +1028,8 @@ const getMitraConflicts = async (req, res) => {
 
 const getMitraConflictDetails = async (req, res) => {
     try {
+        await processCurrentMitraLeaveReassignments();
+
         const mitraId = req.user ? req.user.id : 1;
         const { id } = req.params;
 
@@ -1067,6 +1072,8 @@ const getMitraConflictDetails = async (req, res) => {
 
 const updateMitraConflictStatus = async (req, res) => {
     try {
+        await processCurrentMitraLeaveReassignments();
+
         const mitraId = req.user ? req.user.id : 1;
         const { id } = req.params;
         const { status, note, penaltyAmount } = req.body;
