@@ -95,7 +95,6 @@ const createConflict = async (req, res) => {
       reason,
       description,
       workerId,
-      penaltyAmount,
       continueWork,
       requestedAction,
     } = req.body;
@@ -235,12 +234,9 @@ const createConflict = async (req, res) => {
       // Fallback: worker ka onboarding Mitra
       mitraId = assignedMitraId || worker.mitraId || null;
 
-      finalPenaltyAmount =
-        penaltyAmount !== undefined && penaltyAmount !== null
-          ? parseInt(penaltyAmount)
-          : shouldContinueWork
-            ? 0
-            : 100;
+      // Worker penalty is decided by the assigned Mitra after reviewing the conflict.
+      // Do not apply any automatic/client-supplied penalty when the issue is raised.
+      finalPenaltyAmount = 0;
 
       const workerAmount =
         booking.amount && booking.workerCount

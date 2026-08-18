@@ -568,6 +568,36 @@ const getWorkerDashboard = async (req, res) => {
         // Note: Asli system me hum isko weekly basis par filter karenge
         const totalEarned = worker.bookings.reduce((sum, job) => sum + (job.amount || 600), 0);
 
+        // Wallet balance is derived from the worker's completed-job share minus
+        // penalties that a Mitra has FINALIZED by marking the conflict SOLVED.
+        // This keeps old booking/earning logic untouched and avoids deducting
+        // PENDING / IN_PROGRESS / UNRESOLVED conflict amounts.
+        const grossWalletEarning = worker.bookings.reduce((sum, job) => {
+            const bookingAmount = Number(job.amount || 0);
+            const workerCount = Number(job.workerCount || 1);
+            const workerShare =
+                workerCount > 0
+                    ? Math.round(bookingAmount / workerCount)
+                    : bookingAmount;
+
+            return sum + workerShare;
+        }, 0);
+
+        const penaltySummary = await prisma.conflict.aggregate({
+            where: {
+                workerId: worker.id,
+                raisedByType: "WORKER",
+                requestedAction: "CANCEL_DUTY",
+                status: "SOLVED",
+            },
+            _sum: {
+                penaltyAmount: true,
+            },
+        });
+
+        const totalPenalty = Number(penaltySummary._sum.penaltyAmount || 0);
+        const walletBalance = grossWalletEarning - totalPenalty;
+
         // Dummy calculations for E-MAN Score & Level (Jab tak Rating engine poora nahi hota)
         const emanScore = 4.2; 
         const level = "Silver Imaandar";
@@ -580,7 +610,9 @@ const getWorkerDashboard = async (req, res) => {
                 emanId: `EMN-MUM-00${worker.id}`,
                 score: emanScore,
                 level: level,
-                weeklyEarning: totalEarned > 0 ? totalEarned : 2400 // Default for demo
+                weeklyEarning: totalEarned > 0 ? walletBalance : 2400, // Net earning after finalized Mitra penalties
+                walletBalance,
+                totalPenalty
             }
         });
 

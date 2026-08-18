@@ -1601,6 +1601,23 @@ const getWorkerBookingHistory = async (req, res) => {
             (booking) => !booking.workerClientRatings?.length
         ).length;
 
+        // Only Mitra-finalized worker cancellation penalties reduce the worker's
+        // displayed earning/wallet amount. Pending or unresolved conflicts do not.
+        const penaltySummary = await prisma.conflict.aggregate({
+            where: {
+                workerId: workerIdNumber,
+                raisedByType: "WORKER",
+                requestedAction: "CANCEL_DUTY",
+                status: "SOLVED",
+            },
+            _sum: {
+                penaltyAmount: true,
+            },
+        });
+
+        const totalPenalty = Number(penaltySummary._sum.penaltyAmount || 0);
+        const netTotalEarning = totalEarning - totalPenalty;
+
         const history = bookings.map((booking) => {
             const workerCount = Number(booking.workerCount || 1);
             const amount = Number(booking.amount || 0);
@@ -1630,7 +1647,9 @@ const getWorkerBookingHistory = async (req, res) => {
             summary: {
                 totalJobs,
                 completedJobs: completedJobs.length,
-                totalEarning,
+                totalEarning: netTotalEarning,
+                grossEarning: totalEarning,
+                totalPenalty,
                 pendingRatings,
             },
             history,

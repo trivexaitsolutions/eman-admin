@@ -205,16 +205,35 @@
               <p class="text-sm text-gray-500 font-semibold mt-1">Admin ko follow-up clear dikhega.</p>
             </div>
 
-            <form method="POST" action="/mitra/conflicts/<%= conflict.id %>/status" class="p-5 space-y-4">
+            <form id="conflictStatusForm" method="POST" action="/mitra/conflicts/<%= conflict.id %>/status" class="p-5 space-y-4">
               <div>
                 <label class="text-xs font-black text-gray-500 uppercase">Status</label>
-                <select name="status" required class="mt-1 w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold bg-gray-50">
+                <select id="conflictStatus" name="status" required class="mt-1 w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold bg-gray-50">
                   <option value="PENDING" <%= conflict.status === 'PENDING' ? 'selected' : '' %>>Pending</option>
                   <option value="IN_PROGRESS" <%= conflict.status === 'IN_PROGRESS' ? 'selected' : '' %>>In Progress</option>
                   <option value="SOLVED" <%= conflict.status === 'SOLVED' ? 'selected' : '' %>>Solved</option>
                   <option value="UNRESOLVED" <%= conflict.status === 'UNRESOLVED' ? 'selected' : '' %>>Unresolved</option>
                 </select>
               </div>
+
+              <% if (conflict.raisedByType === 'WORKER' && conflict.requestedAction === 'CANCEL_DUTY') { %>
+                <div id="workerPenaltyField">
+                  <label class="text-xs font-black text-gray-500 uppercase">Worker Penalty Amount (₹)</label>
+                  <input
+                    id="penaltyAmount"
+                    name="penaltyAmount"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value="<%= conflict.penaltyAmount || 0 %>"
+                    inputmode="numeric"
+                    class="mt-1 w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold bg-gray-50"
+                  />
+                  <p class="mt-2 text-xs text-gray-500 font-semibold">
+                    Situation check karke ₹0 ya required penalty enter karein. Penalty <strong>Solved</strong> karte waqt final hogi.
+                  </p>
+                </div>
+              <% } %>
 
               <div>
                 <label class="text-xs font-black text-gray-500 uppercase">Mitra Note</label>
@@ -301,5 +320,20 @@
   </footer>
 
 </div>
+<script>
+  (() => {
+    const statusSelect = document.getElementById('conflictStatus');
+    const penaltyInput = document.getElementById('penaltyAmount');
+
+    if (!statusSelect || !penaltyInput) return;
+
+    const syncPenaltyRequirement = () => {
+      penaltyInput.required = statusSelect.value === 'SOLVED';
+    };
+
+    statusSelect.addEventListener('change', syncPenaltyRequirement);
+    syncPenaltyRequirement();
+  })();
+</script>
 </body>
 </html>

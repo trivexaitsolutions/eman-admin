@@ -913,7 +913,12 @@ const formatMitraConflict = (conflict) => {
         requestedAction: conflict.requestedAction,
         continueWork: conflict.continueWork,
 
-        penaltyAmount: conflict.penaltyAmount || 0,
+        penaltyAmount:
+            conflict.raisedByType === "WORKER" &&
+            conflict.requestedAction === "CANCEL_DUTY" &&
+            conflict.status !== "SOLVED"
+                ? 0
+                : conflict.penaltyAmount || 0,
 
         totalBookingAmount: amountData.totalBookingAmount,
         perWorkerAmount: amountData.perWorkerAmount,
@@ -1064,7 +1069,7 @@ const updateMitraConflictStatus = async (req, res) => {
     try {
         const mitraId = req.user ? req.user.id : 1;
         const { id } = req.params;
-        const { status, note } = req.body;
+        const { status, note, penaltyAmount } = req.body;
 
         if (!status || !["PENDING", "IN_PROGRESS", "SOLVED", "UNRESOLVED"].includes(status)) {
             return res.status(400).send("Invalid status");
@@ -1085,14 +1090,44 @@ const updateMitraConflictStatus = async (req, res) => {
             return res.status(404).send("Conflict not found or not assigned to you");
         }
 
+        const isWorkerCancellation =
+            conflict.raisedByType === "WORKER" &&
+            conflict.requestedAction === "CANCEL_DUTY";
+
+        let finalPenaltyAmount = conflict.penaltyAmount || 0;
+
+        // Penalty is a Mitra decision and becomes final only when the
+        // worker cancellation conflict is marked SOLVED.
+        if (isWorkerCancellation && status === "SOLVED") {
+            const rawPenalty = String(penaltyAmount ?? "").trim();
+
+            if (!/^\d+$/.test(rawPenalty)) {
+                return res.status(400).send("Penalty amount must be 0 or a positive whole number");
+            }
+
+            finalPenaltyAmount = Number(rawPenalty);
+
+            if (!Number.isSafeInteger(finalPenaltyAmount)) {
+                return res.status(400).send("Invalid penalty amount");
+            }
+        }
+
+        const updateData = { status };
+        let timelineNote = note.trim();
+
+        if (isWorkerCancellation && status === "SOLVED") {
+            updateData.penaltyAmount = finalPenaltyAmount;
+            timelineNote = `Worker penalty finalized by Mitra: ₹${finalPenaltyAmount}. ${timelineNote}`;
+        } else if (isWorkerCancellation) {
+            updateData.penaltyAmount = 0;
+        }
+
         await prisma.$transaction(async (tx) => {
             await tx.conflict.update({
                 where: {
                     id: parseInt(id),
                 },
-                data: {
-                    status,
-                },
+                data: updateData,
             });
 
             await tx.conflictTimeline.create({
@@ -1102,7 +1137,7 @@ const updateMitraConflictStatus = async (req, res) => {
                     updatedById: Number(mitraId),
                     oldStatus: conflict.status,
                     newStatus: status,
-                    note: note.trim(),
+                    note: timelineNote,
                 },
             });
         });

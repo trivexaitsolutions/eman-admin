@@ -105,7 +105,12 @@ const formatConflict = (conflict, mitraMap = {}) => {
     requestedAction: conflict.requestedAction,
     continueWork: conflict.continueWork,
 
-    penaltyAmount: conflict.penaltyAmount || 0,
+    penaltyAmount:
+      conflict.raisedByType === "WORKER" &&
+      conflict.requestedAction === "CANCEL_DUTY" &&
+      conflict.status !== "SOLVED"
+        ? 0
+        : conflict.penaltyAmount || 0,
 
     totalBookingAmount: refundData.totalBookingAmount,
     perWorkerAmount: refundData.perWorkerAmount,
