@@ -1558,16 +1558,23 @@ const submitClientRatingByWorker = async (req, res) => {
 const getWorkerBookingHistory = async (req, res) => {
     try {
         const { workerId } = req.params;
-
         const workerIdNumber = parseInt(workerId);
 
-        const bookings = await prisma.booking.findMany({
+        if (!Number.isInteger(workerIdNumber)) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid worker ID required hai.",
+            });
+        }
+
+        // Booking ka global status worker-specific cancellation ko represent nahi karta.
+        // Example: ek worker cancel kare aur doosre workers job continue karein to booking
+        // ASSIGNED/IN_PROGRESS reh sakti hai. Isliye worker ki assigned bookings laakar
+        // cancelledWorkerIds se us worker ka actual history status derive karte hain.
+        const assignedBookings = await prisma.booking.findMany({
             where: {
                 workers: {
                     some: { id: workerIdNumber },
-                },
-                status: {
-                    in: ["COMPLETED", "CANCELLED"],
                 },
             },
             include: {
@@ -1577,32 +1584,112 @@ const getWorkerBookingHistory = async (req, res) => {
                         workerId: workerIdNumber,
                     },
                 },
+                conflicts: {
+                    where: {
+                        workerId: workerIdNumber,
+                        requestedAction: "CANCEL_DUTY",
+                    },
+                    orderBy: {
+                        updatedAt: "desc",
+                    },
+                },
             },
             orderBy: {
                 createdAt: "desc",
             },
         });
 
-        const totalJobs = bookings.length;
+        const normalizedHistory = assignedBookings
+            .map((booking) => {
+                let cancelledWorkerIds = [];
 
-        const completedJobs = bookings.filter(
+                try {
+                    cancelledWorkerIds = JSON.parse(
+                        booking.cancelledWorkerIds || "[]"
+                    ).map(Number);
+                } catch (error) {
+                    cancelledWorkerIds = [];
+                }
+
+                const workerCancelled = cancelledWorkerIds.includes(workerIdNumber);
+                const globallyCancelled = booking.status === "CANCELLED";
+                const workerCompleted = booking.status === "COMPLETED" && !workerCancelled;
+
+                // History me sirf completed ya is worker ke liye cancelled jobs dikhani hain.
+                if (!workerCancelled && !globallyCancelled && !workerCompleted) {
+                    return null;
+                }
+
+                const workerStatus =
+                    workerCancelled || globallyCancelled ? "CANCELLED" : "COMPLETED";
+
+                const finalPenaltyConflict = booking.conflicts?.find(
+                    (conflict) => conflict.status === "SOLVED"
+                );
+                const openPenaltyConflict = booking.conflicts?.find(
+                    (conflict) =>
+                        conflict.status === "PENDING" ||
+                        conflict.status === "IN_PROGRESS"
+                );
+                const relevantConflict =
+                    finalPenaltyConflict || openPenaltyConflict || booking.conflicts?.[0] || null;
+
+                const fineAmount = finalPenaltyConflict
+                    ? Number(finalPenaltyConflict.penaltyAmount || 0)
+                    : 0;
+
+                const fineStatus = finalPenaltyConflict
+                    ? "FINALIZED"
+                    : openPenaltyConflict
+                      ? "PENDING"
+                      : "NONE";
+
+                const workerCount = Number(booking.workerCount || 1);
+                const amount = Number(booking.amount || 0);
+                const workerShare =
+                    workerCount > 0 ? Math.round(amount / workerCount) : amount;
+                const clientRating = booking.workerClientRatings?.[0] || null;
+
+                return {
+                    id: booking.id,
+                    status: workerStatus,
+                    bookingStatus: booking.status,
+                    amount: booking.amount,
+                    workerShare,
+                    workerCount: booking.workerCount,
+                    customerId: booking.customerId,
+                    customerName: booking.customer?.name || "Client",
+                    customerPhone: booking.customer?.phone || "",
+                    nakaId: booking.nakaId,
+                    skillId: booking.skillId,
+                    createdAt: booking.createdAt,
+                    updatedAt: booking.updatedAt,
+                    isClientRated: workerStatus === "COMPLETED" && !!clientRating,
+                    clientRating: workerStatus === "COMPLETED" ? clientRating : null,
+                    workerCancelled,
+                    fineAmount,
+                    fineStatus,
+                    conflictId: relevantConflict?.id || null,
+                    conflictStatus: relevantConflict?.status || null,
+                    cancellationReason: relevantConflict?.reason || null,
+                };
+            })
+            .filter(Boolean);
+
+        const completedJobs = normalizedHistory.filter(
             (booking) => booking.status === "COMPLETED"
         );
 
-        const totalEarning = completedJobs.reduce((sum, booking) => {
-            const workerCount = Number(booking.workerCount || 1);
-            const amount = Number(booking.amount || 0);
-            const workerShare = workerCount > 0 ? Math.round(amount / workerCount) : amount;
-
-            return sum + workerShare;
-        }, 0);
+        const grossEarning = completedJobs.reduce(
+            (sum, booking) => sum + Number(booking.workerShare || 0),
+            0
+        );
 
         const pendingRatings = completedJobs.filter(
-            (booking) => !booking.workerClientRatings?.length
+            (booking) => !booking.isClientRated
         ).length;
 
-        // Only Mitra-finalized worker cancellation penalties reduce the worker's
-        // displayed earning/wallet amount. Pending or unresolved conflicts do not.
+        // Wallet/history total me sirf Mitra-finalized worker cancellation penalties deduct hongi.
         const penaltySummary = await prisma.conflict.aggregate({
             where: {
                 workerId: workerIdNumber,
@@ -1616,43 +1703,22 @@ const getWorkerBookingHistory = async (req, res) => {
         });
 
         const totalPenalty = Number(penaltySummary._sum.penaltyAmount || 0);
-        const netTotalEarning = totalEarning - totalPenalty;
-
-        const history = bookings.map((booking) => {
-            const workerCount = Number(booking.workerCount || 1);
-            const amount = Number(booking.amount || 0);
-            const workerShare = workerCount > 0 ? Math.round(amount / workerCount) : amount;
-            const clientRating = booking.workerClientRatings?.[0] || null;
-
-            return {
-                id: booking.id,
-                status: booking.status,
-                amount: booking.amount,
-                workerShare,
-                workerCount: booking.workerCount,
-                customerId: booking.customerId,
-                customerName: booking.customer?.name || "Client",
-                customerPhone: booking.customer?.phone || "",
-                nakaId: booking.nakaId,
-                skillId: booking.skillId,
-                createdAt: booking.createdAt,
-                updatedAt: booking.updatedAt,
-                isClientRated: !!clientRating,
-                clientRating,
-            };
-        });
+        const netTotalEarning = grossEarning - totalPenalty;
 
         return res.json({
             success: true,
             summary: {
-                totalJobs,
+                totalJobs: normalizedHistory.length,
                 completedJobs: completedJobs.length,
+                cancelledJobs: normalizedHistory.filter(
+                    (booking) => booking.status === "CANCELLED"
+                ).length,
                 totalEarning: netTotalEarning,
-                grossEarning: totalEarning,
+                grossEarning,
                 totalPenalty,
                 pendingRatings,
             },
-            history,
+            history: normalizedHistory,
         });
     } catch (error) {
         console.error("Worker Booking History Error:", error);
@@ -1685,6 +1751,15 @@ const getWorkerBookingDetails = async (req, res) => {
                         workerId: workerIdNumber,
                     },
                 },
+                conflicts: {
+                    where: {
+                        workerId: workerIdNumber,
+                        requestedAction: "CANCEL_DUTY",
+                    },
+                    orderBy: {
+                        updatedAt: "desc",
+                    },
+                },
             },
         });
 
@@ -1695,18 +1770,61 @@ const getWorkerBookingDetails = async (req, res) => {
             });
         }
 
+        let cancelledWorkerIds = [];
+        try {
+            cancelledWorkerIds = JSON.parse(
+                booking.cancelledWorkerIds || "[]"
+            ).map(Number);
+        } catch (error) {
+            cancelledWorkerIds = [];
+        }
+
+        const workerCancelled = cancelledWorkerIds.includes(workerIdNumber);
+        const workerStatus =
+            workerCancelled || booking.status === "CANCELLED"
+                ? "CANCELLED"
+                : booking.status;
+
+        const finalPenaltyConflict = booking.conflicts?.find(
+            (conflict) => conflict.status === "SOLVED"
+        );
+        const openPenaltyConflict = booking.conflicts?.find(
+            (conflict) =>
+                conflict.status === "PENDING" || conflict.status === "IN_PROGRESS"
+        );
+        const relevantConflict =
+            finalPenaltyConflict || openPenaltyConflict || booking.conflicts?.[0] || null;
+
+        const fineAmount = finalPenaltyConflict
+            ? Number(finalPenaltyConflict.penaltyAmount || 0)
+            : 0;
+        const fineStatus = finalPenaltyConflict
+            ? "FINALIZED"
+            : openPenaltyConflict
+              ? "PENDING"
+              : "NONE";
+
         const workerCount = Number(booking.workerCount || 1);
         const amount = Number(booking.amount || 0);
-        const workerShare = workerCount > 0 ? Math.round(amount / workerCount) : amount;
+        const workerShare =
+            workerCount > 0 ? Math.round(amount / workerCount) : amount;
         const clientRating = booking.workerClientRatings?.[0] || null;
 
         return res.json({
             success: true,
             booking: {
                 ...booking,
+                status: workerStatus,
+                bookingStatus: booking.status,
                 workerShare,
-                isClientRated: !!clientRating,
-                clientRating,
+                isClientRated: workerStatus === "COMPLETED" && !!clientRating,
+                clientRating: workerStatus === "COMPLETED" ? clientRating : null,
+                workerCancelled,
+                fineAmount,
+                fineStatus,
+                conflictId: relevantConflict?.id || null,
+                conflictStatus: relevantConflict?.status || null,
+                cancellationReason: relevantConflict?.reason || null,
             },
         });
     } catch (error) {

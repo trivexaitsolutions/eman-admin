@@ -211,19 +211,70 @@ const loginWorker = async (req, res) => {
 
 const getWorkerProfile = async (req, res) => {
     try {
+        const workerId = parseInt(req.params.id, 10);
+
+        if (!Number.isInteger(workerId) || workerId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid worker ID required",
+            });
+        }
+
+        // Mobile profile ko sirf display-safe fields return karo. Password aur
+        // authentication-sensitive values API response me expose nahi hote.
         const worker = await prisma.worker.findUnique({
-            where: { id: parseInt(req.params.id) },
-            include: { nakas: true, skills: true }
+            where: { id: workerId },
+            select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+                photoUrl: true,
+                dob: true,
+                age: true,
+                qualification: true,
+                address: true,
+                pincode: true,
+                gender: true,
+                idProofType: true,
+                idNumber: true,
+                isActive: true,
+                baseRating: true,
+                nakas: {
+                    select: {
+                        id: true,
+                        name: true,
+                        pincode: true,
+                    },
+                    orderBy: { name: "asc" },
+                },
+                skills: {
+                    select: {
+                        id: true,
+                        name: true,
+                        imageUrl: true,
+                    },
+                    orderBy: { name: "asc" },
+                },
+                mitra: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        email: true,
+                    },
+                },
+            },
         });
 
         if (!worker) {
             return res.status(404).json({ success: false, message: "Worker not found" });
         }
 
-        res.json({ success: true, worker });
+        return res.json({ success: true, worker });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        console.error("Worker Profile Error:", error);
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -547,81 +598,380 @@ const savePushToken = async (req, res) => {
 };
 
 
+const IST_OFFSET_MS = 330 * 60 * 1000;
+
+const getCurrentWeekRange = () => {
+    const now = new Date();
+    const istNow = new Date(now.getTime() + IST_OFFSET_MS);
+    const weekday = istNow.getUTCDay();
+    const daysFromMonday = (weekday + 6) % 7;
+
+    const startUtcMs = Date.UTC(
+        istNow.getUTCFullYear(),
+        istNow.getUTCMonth(),
+        istNow.getUTCDate() - daysFromMonday,
+        0,
+        0,
+        0,
+        0
+    ) - IST_OFFSET_MS;
+
+    const start = new Date(startUtcMs);
+    const end = new Date(startUtcMs + 7 * 24 * 60 * 60 * 1000);
+
+    return { start, end };
+};
+
+const getWalletDateRange = (fromValue = null, toValue = null) => {
+    if (!fromValue && !toValue) {
+        return getCurrentWeekRange();
+    }
+
+    const defaultRange = getCurrentWeekRange();
+    const start = fromValue ? new Date(fromValue) : defaultRange.start;
+    const end = toValue ? new Date(toValue) : new Date();
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        const error = new Error("Invalid wallet date range");
+        error.code = "INVALID_WALLET_DATE_RANGE";
+        throw error;
+    }
+
+    if (start >= end) {
+        const error = new Error("Wallet 'from' date must be before 'to' date");
+        error.code = "INVALID_WALLET_DATE_RANGE";
+        throw error;
+    }
+
+    return { start, end };
+};
+
+const parseCancelledWorkerIds = (value) => {
+    try {
+        return JSON.parse(value || "[]").map(Number);
+    } catch (error) {
+        return [];
+    }
+};
+
+const buildWorkerWalletSummary = async (workerId, start, end) => {
+    const [completedBookings, finalizedPenalties] = await Promise.all([
+        prisma.booking.findMany({
+            where: {
+                status: "COMPLETED",
+                updatedAt: { gte: start, lt: end },
+                workers: { some: { id: workerId } },
+            },
+            select: {
+                id: true,
+                amount: true,
+                workerCount: true,
+                cancelledWorkerIds: true,
+                updatedAt: true,
+                customer: {
+                    select: { name: true },
+                },
+            },
+            orderBy: { updatedAt: "desc" },
+        }),
+        prisma.conflict.findMany({
+            where: {
+                workerId,
+                raisedByType: "WORKER",
+                requestedAction: "CANCEL_DUTY",
+                status: "SOLVED",
+                updatedAt: { gte: start, lt: end },
+            },
+            select: {
+                id: true,
+                bookingId: true,
+                penaltyAmount: true,
+                reason: true,
+                updatedAt: true,
+            },
+            orderBy: { updatedAt: "desc" },
+        }),
+    ]);
+
+    const earningTransactions = completedBookings
+        .filter(
+            (booking) =>
+                !parseCancelledWorkerIds(booking.cancelledWorkerIds).includes(workerId)
+        )
+        .map((booking) => {
+            const bookingAmount = Number(booking.amount || 0);
+            const workerCount = Number(booking.workerCount || 1);
+            const workerShare =
+                workerCount > 0
+                    ? Math.round(bookingAmount / workerCount)
+                    : bookingAmount;
+
+            return {
+                id: `booking-${booking.id}`,
+                sourceId: booking.id,
+                type: "EARNING",
+                amount: workerShare,
+                title: `Booking #${booking.id}`,
+                description: booking.customer?.name
+                    ? `Completed job · ${booking.customer.name}`
+                    : "Completed job",
+                occurredAt: booking.updatedAt,
+                bookingId: booking.id,
+                conflictId: null,
+            };
+        });
+
+    const deductionTransactions = finalizedPenalties.map((conflict) => ({
+        id: `conflict-${conflict.id}`,
+        sourceId: conflict.id,
+        type: "DEDUCTION",
+        amount: Number(conflict.penaltyAmount || 0),
+        title: `Penalty · Booking #${conflict.bookingId}`,
+        description: conflict.reason || "Mitra finalized cancellation penalty",
+        occurredAt: conflict.updatedAt,
+        bookingId: conflict.bookingId,
+        conflictId: conflict.id,
+    }));
+
+    const grossEarning = earningTransactions.reduce(
+        (sum, item) => sum + Number(item.amount || 0),
+        0
+    );
+    const totalDeductions = deductionTransactions.reduce(
+        (sum, item) => sum + Number(item.amount || 0),
+        0
+    );
+
+    return {
+        grossEarning,
+        totalDeductions,
+        balance: grossEarning - totalDeductions,
+        transactions: [...earningTransactions, ...deductionTransactions].sort(
+            (a, b) => new Date(b.occurredAt) - new Date(a.occurredAt)
+        ),
+    };
+};
+
+const getWorkerWallet = async (req, res) => {
+    try {
+        const workerId = parseInt(req.params.workerId, 10);
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const requestedLimit = parseInt(req.query.limit, 10) || 5;
+        const limit = Math.min(25, Math.max(1, requestedLimit));
+
+        if (!Number.isInteger(workerId) || workerId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid worker ID required",
+            });
+        }
+
+        const workerExists = await prisma.worker.findUnique({
+            where: { id: workerId },
+            select: { id: true },
+        });
+
+        if (!workerExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Worker not found",
+            });
+        }
+
+        const { start, end } = getWalletDateRange(req.query.from, req.query.to);
+        const wallet = await buildWorkerWalletSummary(workerId, start, end);
+
+        const totalTransactions = wallet.transactions.length;
+        const offset = (page - 1) * limit;
+        const transactions = wallet.transactions.slice(offset, offset + limit);
+        const hasMore = offset + transactions.length < totalTransactions;
+
+        return res.json({
+            success: true,
+            summary: {
+                balance: wallet.balance,
+                grossEarning: wallet.grossEarning,
+                totalDeductions: wallet.totalDeductions,
+                from: start.toISOString(),
+                to: end.toISOString(),
+            },
+            transactions,
+            pagination: {
+                page,
+                limit,
+                totalTransactions,
+                hasMore,
+                nextPage: hasMore ? page + 1 : null,
+            },
+        });
+    } catch (error) {
+        if (error.code === "INVALID_WALLET_DATE_RANGE") {
+            return res.status(400).json({
+                success: false,
+                message: error.message,
+            });
+        }
+
+        console.error("Worker Wallet Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Wallet load nahi ho paya",
+        });
+    }
+};
+
 const getWorkerDashboard = async (req, res) => {
     try {
-        const { workerId } = req.params;
+        const workerId = parseInt(req.params.workerId, 10);
+
+        if (!Number.isInteger(workerId) || workerId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid worker ID required",
+            });
+        }
 
         const worker = await prisma.worker.findUnique({
-            where: { id: parseInt(workerId) },
-            include: {
-                bookings: {
-                    where: { status: 'COMPLETED' }
-                }
-            }
+            where: { id: workerId },
+            select: {
+                id: true,
+                name: true,
+                isAvailable: true,
+                availabilityType: true,
+                availabilityStart: true,
+                availabilityHours: true,
+                availabilityUntil: true,
+            },
         });
 
         if (!worker) {
             return res.status(404).json({ success: false, message: "Worker nahi mila" });
         }
 
-        // Calculate Total Earnings from completed jobs (Basic logic for now)
-        // Note: Asli system me hum isko weekly basis par filter karenge
-        const totalEarned = worker.bookings.reduce((sum, job) => sum + (job.amount || 600), 0);
+        const now = new Date();
+        let poolIsActive = Boolean(
+            worker.isAvailable &&
+            worker.availabilityUntil &&
+            new Date(worker.availabilityUntil) > now
+        );
 
-        // Wallet balance is derived from the worker's completed-job share minus
-        // penalties that a Mitra has FINALIZED by marking the conflict SOLVED.
-        // This keeps old booking/earning logic untouched and avoids deducting
-        // PENDING / IN_PROGRESS / UNRESOLVED conflict amounts.
-        const grossWalletEarning = worker.bookings.reduce((sum, job) => {
-            const bookingAmount = Number(job.amount || 0);
-            const workerCount = Number(job.workerCount || 1);
-            const workerShare =
-                workerCount > 0
-                    ? Math.round(bookingAmount / workerCount)
-                    : bookingAmount;
+        if (worker.isAvailable && worker.availabilityUntil && !poolIsActive) {
+            await prisma.worker.update({
+                where: { id: workerId },
+                data: {
+                    isAvailable: false,
+                    availabilityType: null,
+                    availabilityStart: null,
+                    availabilityHours: null,
+                    availabilityUntil: null,
+                    lastActive: now,
+                },
+            });
+            poolIsActive = false;
+        }
 
-            return sum + workerShare;
-        }, 0);
+        const activeDutyWhere = {
+            status: { in: ["ASSIGNED", "IN_PROGRESS"] },
+            workers: { some: { id: workerId } },
+        };
 
-        const penaltySummary = await prisma.conflict.aggregate({
-            where: {
-                workerId: worker.id,
-                raisedByType: "WORKER",
-                requestedAction: "CANCEL_DUTY",
-                status: "SOLVED",
+        if (worker.availabilityStart) {
+            activeDutyWhere.createdAt = { gte: worker.availabilityStart };
+        }
+
+        const activeCandidates = await prisma.booking.findMany({
+            where: activeDutyWhere,
+            select: {
+                id: true,
+                status: true,
+                arrivedWorkerIds: true,
+                cancelledWorkerIds: true,
+                createdAt: true,
             },
-            _sum: {
-                penaltyAmount: true,
-            },
+            orderBy: { createdAt: "desc" },
+            take: 5,
         });
 
-        const totalPenalty = Number(penaltySummary._sum.penaltyAmount || 0);
-        const walletBalance = grossWalletEarning - totalPenalty;
+        const activeDuty = activeCandidates.find((booking) => {
+            const cancelledIds = parseCancelledWorkerIds(booking.cancelledWorkerIds);
+            return !cancelledIds.includes(workerId);
+        }) || null;
 
-        // Dummy calculations for E-MAN Score & Level (Jab tak Rating engine poora nahi hota)
-        const emanScore = 4.2; 
+        let operationalStatus = {
+            type: "IDLE",
+            label: "Not in pool",
+            actionLabel: "Join Full Day Pool",
+            bookingId: null,
+            bookingStatus: null,
+            returnScreen: null,
+            availabilityType: null,
+        };
+
+        if (activeDuty) {
+            let arrivedWorkerIds = [];
+            try {
+                arrivedWorkerIds = JSON.parse(activeDuty.arrivedWorkerIds || "[]").map(Number);
+            } catch (error) {
+                arrivedWorkerIds = [];
+            }
+
+            const workerArrived = arrivedWorkerIds.includes(workerId);
+            const inProgress = activeDuty.status === "IN_PROGRESS" || workerArrived;
+
+            operationalStatus = {
+                type: "BOOKING",
+                label: inProgress ? "Work in progress" : "Booking assigned",
+                actionLabel: "Return to Booking",
+                bookingId: activeDuty.id,
+                bookingStatus: activeDuty.status,
+                returnScreen: inProgress ? "duty-in-progress" : "active-duty",
+                availabilityType: null,
+            };
+        } else if (poolIsActive) {
+            operationalStatus = {
+                type: "POOL",
+                label:
+                    worker.availabilityType === "SHORT_PERIOD"
+                        ? `In pool · ${worker.availabilityHours || "Short"} hour slot`
+                        : "In pool",
+                actionLabel: "Return to Pool",
+                bookingId: null,
+                bookingStatus: null,
+                returnScreen: "available",
+                availabilityType: worker.availabilityType,
+            };
+        }
+
+        const { start, end } = getWalletDateRange();
+        const walletSummary = await buildWorkerWalletSummary(workerId, start, end);
+
+        const emanScore = 4.2;
         const level = "Silver Imaandar";
 
-        res.json({ 
-            success: true, 
+        return res.json({
+            success: true,
             data: {
                 id: worker.id,
                 name: worker.name,
                 emanId: `EMN-MUM-00${worker.id}`,
                 score: emanScore,
-                level: level,
-                weeklyEarning: totalEarned > 0 ? walletBalance : 2400, // Net earning after finalized Mitra penalties
-                walletBalance,
-                totalPenalty
-            }
+                level,
+                weeklyEarning: walletSummary.balance,
+                walletBalance: walletSummary.balance,
+                grossEarning: walletSummary.grossEarning,
+                totalPenalty: walletSummary.totalDeductions,
+                walletPeriod: {
+                    from: start.toISOString(),
+                    to: end.toISOString(),
+                },
+                operationalStatus,
+            },
         });
-
     } catch (error) {
         console.error("Worker Dashboard Error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+        return res.status(500).json({ success: false, message: "Server error" });
     }
 };
-
 
 // --------------------------------------------------
 // Mitra Worker Onboarding: Shared Create + Edit helpers
@@ -1500,6 +1850,7 @@ const listMitraWorkers = async (req, res) => {
 
 module.exports = {
     getWorkerDashboard,
+    getWorkerWallet,
     listWorkers,
     showForm,
     saveWorker,

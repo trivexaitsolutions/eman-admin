@@ -10,6 +10,7 @@ router.get('/profile/:id', workerController.getWorkerProfile);
 router.post('/update-status', workerController.updateStatus);
 router.post('/save-push-token', savePushToken);
 router.get('/dashboard/:workerId', getWorkerDashboard);
+router.get('/wallet/:workerId', workerController.getWorkerWallet);
 
 router.post('/login', workerController.loginWorker);
 router.get('/profile/:id', workerController.getWorkerProfile);
