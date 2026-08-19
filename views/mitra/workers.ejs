@@ -2,469 +2,87 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  />
-
-  <title>My Workers | E-MAN Mitra</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Workers | E-MAN Mitra</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
+  <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
-    html,
-    body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      overscroll-behavior: none;
-      background: #e5e7eb;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    .app {
-      width: 100%;
-      height: 100dvh;
-      background: #f8fafc;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      margin: 0 auto;
-    }
-
-    .scroll-area {
-      flex: 1;
-      overflow-y: auto;
-      padding-bottom: 112px;
-    }
-
-    .scroll-area::-webkit-scrollbar {
-      display: none;
-    }
-
-    .bottom-safe {
-      padding-bottom: max(16px, env(safe-area-inset-bottom));
-    }
-
-    .hero-gradient {
-      background:
-        radial-gradient(circle at top right, rgba(255,255,255,0.25), transparent 35%),
-        linear-gradient(135deg, #10b981, #059669);
-    }
-
-    .app-input {
-      width: 100%;
-      border: 1.5px solid #e5e7eb;
-      background: #ffffff;
-      border-radius: 18px;
-      padding: 13px 15px;
-      outline: none;
-      font-size: 14px;
-      font-weight: 700;
-      color: #111827;
-      transition: 0.2s ease;
-    }
-
-    .app-input:focus {
-      border-color: #10b981;
-      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.10);
-    }
-
-    .section-card {
-      background: #ffffff;
-      border: 1px solid #f1f5f9;
-      border-radius: 28px;
-      padding: 18px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-    }
-
-    .worker-card {
-      background: #ffffff;
-      border: 1px solid #eef2f7;
-      border-radius: 28px;
-      padding: 16px;
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 11px;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    @media (max-width: 767px) {
-      .app {
-        max-width: 430px;
-      }
-
-      .tablet-container {
-        width: 100%;
-      }
-    }
-
-    @media (min-width: 768px) {
-      .app {
-        max-width: 100%;
-        background: #eef2f7;
-      }
-
-      .tablet-container {
-        max-width: 1120px;
-        margin: 0 auto;
-      }
-
-      .workers-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
-      }
-
-      .scroll-area {
-        padding-bottom: 40px;
-      }
-    }
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .app{width:100%;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+    .scroll-area{flex:1;overflow-y:auto}
   </style>
 </head>
-
 <body>
-
 <%- include('../partials/toast') %>
-
 <div class="app">
-
   <%- include('./partials/navbar', { activePage: 'workers' }) %>
 
   <main class="scroll-area">
-    <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
-
-      <section class="hero-gradient rounded-[30px] md:rounded-[34px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-sm font-bold text-emerald-50">
-              Worker Management
-            </p>
-
-            <h2 class="text-3xl md:text-4xl font-black mt-1">
-              <%= workers.length %>
-              <span class="text-xl md:text-2xl font-bold text-emerald-100">
-                Records
-              </span>
-            </h2>
-
-            <p class="text-sm font-semibold text-emerald-50 mt-2 leading-5">
-              Sirf aapke onboard kiye hue workers yahan dikhte hain.
-            </p>
-          </div>
-
-          <div class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl">
-            👷
-          </div>
+    <div class="mitra-page">
+      <div class="mitra-page-head">
+        <div style="display:flex;align-items:center;gap:8px">
+          <h1 class="mitra-page-title">Workers</h1>
+          <span class="mitra-page-count"><%= workers.length %></span>
         </div>
-      </section>
+        <a href="/mitra/workers/add" class="mitra-primary-btn">+ Add</a>
+      </div>
 
-      <section class="section-card mb-5">
-        <form method="GET" action="/mitra/workers">
-          <div class="grid grid-cols-1 md:grid-cols-[1fr_200px_auto] gap-3">
+      <form method="GET" action="/mitra/workers" class="mitra-filter two">
+        <input class="mitra-input" type="text" name="search" value="<%= filters.search %>" placeholder="Search worker" />
+        <select class="mitra-input" name="status">
+          <option value="ALL" <%= filters.status === 'ALL' ? 'selected' : '' %>>All</option>
+          <option value="ACTIVE" <%= filters.status === 'ACTIVE' ? 'selected' : '' %>>Active</option>
+          <option value="INACTIVE" <%= filters.status === 'INACTIVE' ? 'selected' : '' %>>Inactive</option>
+        </select>
+        <div class="filter-actions" style="display:flex;gap:6px">
+          <button class="mitra-primary-btn" type="submit">Search</button>
+          <% if (filters.search || filters.status !== 'ALL') { %>
+            <a href="/mitra/workers" class="mitra-secondary-btn">Clear</a>
+          <% } %>
+        </div>
+      </form>
 
-            <div class="relative">
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg">
-                🔍
-              </span>
-
-              <input
-                type="text"
-                name="search"
-                value="<%= filters.search %>"
-                placeholder="Search name, mobile or proof number"
-                class="app-input pl-11"
-              />
-            </div>
-
-            <select name="status" class="app-input bg-white">
-              <option
-                value="ALL"
-                <%= filters.status === "ALL" ? "selected" : "" %>
-              >
-                All Workers
-              </option>
-
-              <option
-                value="ACTIVE"
-                <%= filters.status === "ACTIVE" ? "selected" : "" %>
-              >
-                Active Workers
-              </option>
-
-              <option
-                value="INACTIVE"
-                <%= filters.status === "INACTIVE" ? "selected" : "" %>
-              >
-                Inactive Workers
-              </option>
-            </select>
-
-            <div class="flex gap-2">
-              <button
-                type="submit"
-                class="flex-1 md:flex-none h-[50px] px-5 rounded-2xl bg-gray-900 text-white text-sm font-black active:bg-black"
-              >
-                Search
-              </button>
-
-              <% if (filters.search || filters.status !== "ALL") { %>
-                <a
-                  href="/mitra/workers"
-                  class="h-[50px] px-4 rounded-2xl bg-gray-100 text-gray-700 text-sm font-black flex items-center justify-center active:bg-gray-200"
-                >
-                  Clear
-                </a>
-              <% } %>
-            </div>
-
-          </div>
-        </form>
-      </section>
-
-      <% if (workers.length === 0) { %>
-
-        <section class="section-card text-center py-10">
-          <div class="w-16 h-16 mx-auto rounded-[22px] bg-emerald-50 flex items-center justify-center text-3xl">
-            👷
-          </div>
-
-          <h2 class="text-xl font-black text-gray-900 mt-5">
-            No Workers Found
-          </h2>
-
-          <p class="text-sm font-semibold text-gray-500 leading-6 mt-2 max-w-sm mx-auto">
-            Aapke search/filter ke hisaab se koi worker nahi mila.
-          </p>
-
-          <a
-            href="/mitra/workers/add"
-            class="inline-flex mt-5 h-[52px] px-5 rounded-2xl bg-emerald-500 text-white font-black items-center justify-center shadow-lg shadow-emerald-100"
-          >
-            + Add First Worker
-          </a>
-        </section>
-
+      <% if (!workers.length) { %>
+        <div class="mitra-empty">No workers found.</div>
       <% } else { %>
-
-        <section class="workers-grid space-y-4 md:space-y-0">
-
+        <section class="mitra-list-grid">
           <% workers.forEach(worker => { %>
-
             <%
-              const workerProofType = String(worker.idProofType || "").toUpperCase();
-
-              const proofLabels = {
-                AADHAR: "Aadhaar",
-                AADHAAR: "Aadhaar",
-                PAN: "PAN",
-                VOTING: "Voter ID",
-                DRIVING: "Driving License",
-              };
-
-              const proofLabel = proofLabels[workerProofType] || "ID Proof";
-
-              const fullProofNumber =
-                worker.aadhaarNumber ||
-                worker.panNumber ||
-                worker.otherIdNumber ||
-                worker.idNumber ||
-                "";
-
-              const maskedProofNumber =
-                fullProofNumber.length > 4
-                  ? `•••• ${fullProofNumber.slice(-4)}`
-                  : "Not available";
-
-              const workerInitial =
-                String(worker.name || "W")
-                  .trim()
-                  .charAt(0)
-                  .toUpperCase() || "W";
-
-              const genderText =
-                worker.gender
-                  ? String(worker.gender)
-                      .charAt(0)
-                      .toUpperCase() +
-                    String(worker.gender)
-                      .slice(1)
-                      .toLowerCase()
-                  : null;
-
-              const addedOn = new Date(worker.createdAt).toLocaleDateString(
-                "en-IN",
-                {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                }
-              );
+              const initial = String(worker.name || 'W').trim().charAt(0).toUpperCase() || 'W';
+              const skills = Array.isArray(worker.skills) ? worker.skills : [];
+              const nakas = Array.isArray(worker.nakas) ? worker.nakas : [];
             %>
-
-            <article class="worker-card">
-
-              <div class="flex items-start gap-3">
-
-                <% if (worker.photoUrl) { %>
-                  <img
-                    src="<%= worker.photoUrl %>"
-                    alt="<%= worker.name %>"
-                    class="w-14 h-14 rounded-[20px] object-cover border border-gray-100 shrink-0"
-                  />
-                <% } else { %>
-                  <div class="w-14 h-14 rounded-[20px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl font-black shrink-0">
-                    <%= workerInitial %>
-                  </div>
-                <% } %>
-
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-2">
-
-                    <div class="min-w-0">
-                      <h2 class="text-base md:text-lg font-black text-gray-900 truncate">
-                        <%= worker.name %>
-                      </h2>
-
-                      <p class="text-xs font-bold text-gray-500 mt-0.5">
-                        Worker ID: #<%= worker.id %>
-                      </p>
+            <article class="mitra-list-card">
+              <div class="mitra-person-row">
+                <div class="mitra-avatar">
+                  <% if (worker.photoUrl) { %><img src="<%= worker.photoUrl %>" alt="" /><% } else { %><%= initial %><% } %>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                    <div style="min-width:0">
+                      <div class="mitra-card-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= worker.name %></div>
+                      <div class="mitra-card-sub"><%= worker.phone %> · #<%= worker.id %></div>
                     </div>
-
-                    <% if (worker.isActive) { %>
-                      <span class="chip bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                        Active
-                      </span>
-                    <% } else { %>
-                      <span class="chip bg-gray-100 text-gray-600 border border-gray-200 shrink-0">
-                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400 mr-1.5"></span>
-                        Inactive
-                      </span>
-                    <% } %>
-
+                    <span class="mitra-status-badge <%= worker.isActive ? 'mitra-chip green' : 'mitra-chip' %>"><%= worker.isActive ? 'Active' : 'Inactive' %></span>
                   </div>
 
-                  <p class="text-sm font-black text-gray-800 mt-2">
-                    📞 <%= worker.phone %>
-                  </p>
-
-                  <p class="text-xs font-bold text-gray-500 mt-1">
-                    🪪 <%= proofLabel %>: <%= maskedProofNumber %>
-                  </p>
-                </div>
-
-              </div>
-
-              <% if (genderText || worker.age || worker.bmi) { %>
-                <div class="flex flex-wrap gap-2 mt-4">
-                  <% if (genderText) { %>
-                    <span class="chip bg-purple-50 text-purple-700 border border-purple-100">
-                      <%= genderText %>
-                    </span>
-                  <% } %>
-
-                  <% if (worker.age) { %>
-                    <span class="chip bg-blue-50 text-blue-700 border border-blue-100">
-                      <%= worker.age %> years
-                    </span>
-                  <% } %>
-
-                  <% if (worker.bmi) { %>
-                    <span class="chip bg-orange-50 text-orange-700 border border-orange-100">
-                      BMI <%= worker.bmi %>
-                    </span>
-                  <% } %>
-                </div>
-              <% } %>
-
-              <div class="mt-4">
-                <p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">
-                  Skills
-                </p>
-
-                <div class="flex flex-wrap gap-2 mt-2">
-                  <% if (worker.skills && worker.skills.length > 0) { %>
-                    <% worker.skills.slice(0, 3).forEach(skill => { %>
-                      <span class="chip bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        <%= skill.name %>
-                      </span>
-                    <% }) %>
-
-                    <% if (worker.skills.length > 3) { %>
-                      <span class="chip bg-gray-100 text-gray-600 border border-gray-200">
-                        +<%= worker.skills.length - 3 %> more
-                      </span>
-                    <% } %>
-                  <% } else { %>
-                    <span class="text-xs font-bold text-gray-400">
-                      No skills assigned
-                    </span>
-                  <% } %>
+                  <div class="mitra-chip-row">
+                    <% skills.slice(0,2).forEach(skill => { %><span class="mitra-chip green"><%= skill.name %></span><% }) %>
+                    <% if (skills.length > 2) { %><span class="mitra-chip">+<%= skills.length - 2 %></span><% } %>
+                    <% if (nakas.length) { %><span class="mitra-chip blue"><%= nakas[0].name %><%= nakas.length > 1 ? ` +${nakas.length - 1}` : '' %></span><% } %>
+                  </div>
                 </div>
               </div>
-
-              <div class="mt-4 pt-4 border-t border-gray-100">
-                <p class="text-[10px] font-black text-gray-400 uppercase tracking-wide">
-                  Assigned Nakas
-                </p>
-
-                <div class="flex flex-wrap gap-2 mt-2">
-                  <% if (worker.nakas && worker.nakas.length > 0) { %>
-                    <% worker.nakas.slice(0, 2).forEach(naka => { %>
-                      <span class="chip bg-blue-50 text-blue-700 border border-blue-100">
-                        📍 <%= naka.name %>
-                      </span>
-                    <% }) %>
-
-                    <% if (worker.nakas.length > 2) { %>
-                      <span class="chip bg-gray-100 text-gray-600 border border-gray-200">
-                        +<%= worker.nakas.length - 2 %> more
-                      </span>
-                    <% } %>
-                  <% } else { %>
-                    <span class="text-xs font-bold text-gray-400">
-                      No Naka assigned
-                    </span>
-                  <% } %>
-                </div>
+              <div class="mitra-card-foot">
+                <span class="mitra-card-sub"><%= skills.length %> skill<%= skills.length === 1 ? '' : 's' %> · <%= nakas.length %> naka<%= nakas.length === 1 ? '' : 's' %></span>
+                <a class="mitra-link" href="/mitra/workers/edit/<%= worker.id %>">Edit ›</a>
               </div>
-
-              <div class="mt-4 flex items-center justify-between gap-3">
-                <p class="text-xs font-bold text-gray-400">
-                  Added: <%= addedOn %>
-                </p>
-
-                <a
-                  href="/mitra/workers/edit/<%= worker.id %>"
-                  class="h-10 px-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-black flex items-center justify-center active:bg-emerald-100"
-                >
-                  Edit Worker →
-                </a>
-              </div>
-
             </article>
-
           <% }) %>
-
         </section>
-
       <% } %>
-
     </div>
   </main>
-
 </div>
-
 </body>
 </html>

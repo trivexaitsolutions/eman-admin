@@ -45,6 +45,7 @@
   <title><%= editMode ? "Edit Worker" : "Add Worker" %> | E-MAN Mitra</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/mitra-ui.css" />
 
   <style>
     html,
@@ -228,89 +229,26 @@
 
 <body>
     <%- include('../partials/toast') %>
-<div class="app">
+<div class="app mitra-compact-form">
 
   <!-- Header -->
-  <header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
-    <div class="tablet-container">
-
-      <div class="flex items-center justify-between gap-4 mb-5">
-
-        <div class="flex items-center gap-3 min-w-0">
-          <a
-            href="/mitra/dashboard"
-            class="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-50 flex items-center justify-center active:bg-gray-100 shrink-0"
-          >
-            <span class="text-2xl font-black text-gray-900">←</span>
-          </a>
-
-          <div class="min-w-0">
-            <p class="text-xs font-black text-emerald-600 uppercase tracking-wide">
-              <%= editMode ? "Worker Management" : "Worker Onboarding" %>
-            </p>
-
-            <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
-              <%= editMode ? "Edit Worker" : "Add New Worker" %>
-            </h1>
-
-            <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
-              <%= editMode ? "Update worker details safely" : "Complete KYC in simple steps" %>
-            </p>
-          </div>
-        </div>
-
-        <div class="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span class="text-sm font-black">Mitra Portal</span>
-        </div>
-
+  <header class="mitra-task-header">
+    <div class="mitra-task-header-inner" style="display:block">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="/mitra/workers" class="mitra-back">←</a>
+        <div class="mitra-task-title"><h1><%= editMode ? "Edit Worker" : "Add Worker" %></h1></div>
       </div>
-
-      <!-- Step Progress -->
-      <div class="relative">
-        <div class="absolute left-6 right-6 top-4 h-1 bg-gray-100 rounded-full"></div>
-        <div id="progressLine" class="absolute left-6 top-4 h-1 bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%;"></div>
-
+      <div class="relative" style="margin:9px 4px 0">
+        <div class="absolute left-3 right-3 top-3 h-[2px] bg-gray-100 rounded-full"></div>
+        <div id="progressLine" class="absolute left-3 top-3 h-[2px] bg-emerald-500 rounded-full transition-all duration-300" style="width:0%"></div>
         <div class="relative z-10 grid grid-cols-5 gap-1">
-
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="indicator-1" class="step-indicator w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-sm shadow-md shadow-emerald-100">
-              1
+          <% for (let stepNo = 1; stepNo <= 5; stepNo++) { %>
+            <div class="flex <%= stepNo === 1 ? 'justify-start' : stepNo === 5 ? 'justify-end' : 'justify-center' %>">
+              <div id="indicator-<%= stepNo %>" class="step-indicator w-6 h-6 rounded-full <%= stepNo === 1 ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400' %> flex items-center justify-center font-black text-[11px]"><%= stepNo %></div>
             </div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">BASIC</span>
-          </div>
-
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="indicator-2" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
-              2
-            </div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">ID</span>
-          </div>
-
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="indicator-3" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
-              3
-            </div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">WORK</span>
-          </div>
-
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="indicator-4" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
-              4
-            </div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">PAY</span>
-          </div>
-
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="indicator-5" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">
-              5
-            </div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">CONSENT</span>
-          </div>
-
+          <% } %>
         </div>
       </div>
-
     </div>
   </header>
 
@@ -345,16 +283,7 @@
             <!-- Step 1 -->
             <section id="step-1" class="step-section active">
 
-              <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
-                <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
-                <div class="relative z-10">
-                  <p class="text-sm font-bold text-emerald-50">Step 1 of 5</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1">Basic Details</h2>
-                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-                    Worker ka login aur personal information add karein.
-                  </p>
-                </div>
-              </div>
+              <div class="mitra-step-heading"><h2>Basic Details</h2></div>
 
               <div class="section-card">
                 <div class="flex items-center gap-3 mb-5">
@@ -563,16 +492,7 @@
             <!-- Step 2 -->
             <section id="step-2" class="step-section">
 
-              <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
-                <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
-                <div class="relative z-10">
-                  <p class="text-sm font-bold text-emerald-50">Step 2 of 5</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1">Aadhaar / ID Verification</h2>
-                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-                    Worker ka identity proof verify karein.
-                  </p>
-                </div>
-              </div>
+              <div class="mitra-step-heading"><h2>ID Verification</h2></div>
 
               <div class="section-card">
                 <div class="flex items-center gap-3 mb-5">
@@ -619,19 +539,6 @@
   </p>
 </div>
 
-                  <div class="rounded-[24px] bg-emerald-50 border border-emerald-100 p-4">
-                    <div class="flex gap-3">
-                      <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black">
-                        ✓
-                      </div>
-                      <div>
-                        <h4 class="text-sm font-black text-gray-900">Verification Note</h4>
-                        <p class="text-xs font-bold text-gray-600 leading-5 mt-1">
-                          ID number carefully check karein. Duplicate ID submit hone par worker save nahi hoga.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -639,152 +546,64 @@
 
             <!-- Step 3 -->
             <section id="step-3" class="step-section">
+              <div class="mitra-step-heading"><h2>Work Profile</h2></div>
 
-              <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
-                <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
-                <div class="relative z-10">
-                  <p class="text-sm font-bold text-emerald-50">Step 3 of 5</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1">Work Profile</h2>
-                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-                    Worker ke skills aur naka assign karein.
-                  </p>
-                </div>
-              </div>
+              <div class="section-card mitra-work-profile-card">
+                <div class="mitra-compact-block">
+                  <div class="mitra-compact-label-row">
+                    <h3>Select Skills</h3>
+                  </div>
 
-              <div class="section-card mb-5">
-                <div class="flex items-center gap-3 mb-5">
-                  <div class="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl">🛠️</div>
-                  <div>
-                    <h3 class="text-lg font-black text-gray-900">Select Skills</h3>
-                    <p class="text-xs font-bold text-gray-500">Multiple skills select kar sakte ho</p>
+                  <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <% skills.forEach(skill => { %>
+                      <label class="custom-checkbox cursor-pointer">
+                        <input type="checkbox" name="skillIds[]" value="<%= skill.id %>" <%= selectedSkillIds.has(Number(skill.id)) ? "checked" : "" %> class="hidden skill-check" />
+                        <div class="px-3 py-2.5 border-2 border-gray-100 rounded-xl text-center text-xs font-black text-gray-500 transition">
+                          <%= skill.name %>
+                        </div>
+                      </label>
+                    <% }) %>
                   </div>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <% skills.forEach(skill => { %>
-                    <label class="custom-checkbox cursor-pointer">
-                      <input type="checkbox" name="skillIds[]" value="<%= skill.id %>" <%= selectedSkillIds.has(Number(skill.id)) ? "checked" : "" %> class="hidden skill-check" />
-                      <div class="px-3 py-3 border-2 border-gray-100 rounded-2xl text-center text-sm font-black text-gray-500 transition">
-                        <%= skill.name %>
-                      </div>
-                    </label>
-                  <% }) %>
+                <div class="mitra-block-divider"></div>
+
+                <div class="mitra-compact-block">
+                  <div class="mitra-compact-label-row">
+                    <h3>Assign Nakas</h3>
+                    <span id="selectedNakaCount" class="mitra-count-pill">0</span>
+                  </div>
+
+                  <input
+                    type="text"
+                    id="nakaSearchPincode"
+                    inputmode="numeric"
+                    maxlength="6"
+                    placeholder="Search by 6-digit pincode"
+                    class="app-input"
+                  />
+
+                  <p id="selectedNakaEmpty" class="mitra-inline-note">No Naka selected</p>
+                  <div id="selectedNakaList" class="flex flex-wrap gap-2 mt-3"></div>
+                  <div id="selectedNakaInputs"></div>
+
+                  <div id="nakaSearchHint" class="mitra-search-message">
+                    <p class="text-xs font-bold text-gray-500">Enter pincode to find Nakas.</p>
+                  </div>
+
+                  <div id="nakaNoMatch" class="hidden mitra-search-message is-error">
+                    <p class="text-xs font-black text-red-600">No Naka found for this pincode.</p>
+                  </div>
+
+                  <div id="nakaList" class="space-y-2 mt-3" aria-live="polite"></div>
                 </div>
               </div>
-
-              <div class="section-card">
-  <div class="flex items-center gap-3 mb-5">
-    <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">📍</div>
-
-    <div>
-      <h3 class="text-lg font-black text-gray-900">Assign Nakas</h3>
-
-      <p class="text-xs font-bold text-gray-500">
-        Pincode se Naka / Chouk search karke select karein
-      </p>
-    </div>
-  </div>
-
-  <!-- Search by Naka Area Pincode -->
-  <div class="rounded-[24px] bg-blue-50 border border-blue-100 p-4 mb-5">
-    <label class="input-label text-blue-800">Search Naka by Pincode</label>
-
-    <input
-      type="text"
-      id="nakaSearchPincode"
-      inputmode="numeric"
-      maxlength="6"
-      placeholder="Enter area pincode, e.g. 421201"
-      class="app-input"
-    />
-
-    <p class="mt-2 text-xs font-bold text-blue-700 leading-5">
-      Worker ke ghar ka pincode nahi. Jis area ke Naka / Chouk me worker kaam karega, us area ka pincode enter karein.
-    </p>
-  </div>
-
-  <!-- Selected Nakas, kept visible even after changing pincode -->
-  <div class="rounded-[24px] bg-emerald-50 border border-emerald-100 p-4 mb-5">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <h4 class="text-sm font-black text-emerald-900">Selected Nakas</h4>
-
-        <p class="text-xs font-bold text-emerald-700 mt-1">
-          Different pincodes se multiple Nakas select kar sakte ho.
-        </p>
-      </div>
-
-      <span
-        id="selectedNakaCount"
-        class="min-w-9 h-9 px-3 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-black"
-      >
-        0
-      </span>
-    </div>
-
-    <p
-      id="selectedNakaEmpty"
-      class="text-xs font-bold text-emerald-700 mt-4"
-    >
-      Abhi koi Naka select nahi hai.
-    </p>
-
-    <div
-      id="selectedNakaList"
-      class="flex flex-wrap gap-2 mt-4"
-    ></div>
-
-    <!-- IDs remain here even after searching another PIN. -->
-    <div id="selectedNakaInputs"></div>
-  </div>
-
-  <!-- Search Result Message -->
-  <div
-    id="nakaSearchHint"
-    class="rounded-[22px] bg-gray-50 border border-gray-100 p-4 mb-4"
-  >
-    <p class="text-sm font-black text-gray-700">
-      Area ka valid 6-digit pincode enter karein.
-    </p>
-
-    <p class="text-xs font-bold text-gray-500 mt-1">
-      Matching Nakas yahan automatically dikhne lagenge.
-    </p>
-  </div>
-
-  <!-- No Match Message -->
-  <div
-    id="nakaNoMatch"
-    class="hidden rounded-[22px] bg-red-50 border border-red-100 p-4 mb-4"
-  >
-    <p class="text-sm font-black text-red-700">
-      Is pincode ke liye koi Naka available nahi hai.
-    </p>
-
-    <p class="text-xs font-bold text-red-500 mt-1">
-      Pincode check karein ya Admin Panel se is area ka Naka add karein.
-    </p>
-  </div>
-
-  <!-- Results are loaded live from the current Mitra assignment. -->
-  <div id="nakaList" class="space-y-3" aria-live="polite"></div>
-</div>
-
             </section>
 
             <!-- Step 4 -->
             <section id="step-4" class="step-section">
 
-              <div class="hero-gradient rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-emerald-100 mb-5 relative overflow-hidden">
-                <div class="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full"></div>
-                <div class="relative z-10">
-                  <p class="text-sm font-bold text-emerald-50">Step 4 of 5</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1">Payment Details</h2>
-                  <p class="text-sm md:text-base font-semibold text-emerald-50 mt-2">
-                    Worker ko payment receive karne ke liye details add karein.
-                  </p>
-                </div>
-              </div>
+              <div class="mitra-step-heading"><h2>Payment Details</h2></div>
 
               <div class="section-card">
                 <div class="flex items-center gap-3 mb-5">
@@ -811,19 +630,6 @@
                     <textarea name="bankDetails" id="bankDetails" rows="3" placeholder="Account number, IFSC code, bank name" class="app-input resize-none"><%= editMode ? (formWorker.bankDetails || '') : '' %></textarea>
                   </div>
 
-                  <div class="rounded-[24px] bg-yellow-50 border border-yellow-100 p-4">
-                    <div class="flex gap-3">
-                      <div class="w-10 h-10 rounded-2xl bg-yellow-100 flex items-center justify-center">
-                        ⚠️
-                      </div>
-                      <div>
-                        <h4 class="text-sm font-black text-gray-900">Payment Detail Required</h4>
-                        <p class="text-xs font-bold text-gray-600 leading-5 mt-1">
-                          UPI ID, UPI Number ya Bank Details me se kam se kam ek detail add karein.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -832,16 +638,7 @@
             <!-- Step 5 -->
             <section id="step-5" class="step-section">
 
-              <div class="dark-card rounded-[32px] p-5 md:p-6 text-white shadow-xl shadow-gray-300 mb-5 relative overflow-hidden">
-                <div class="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/20 rounded-full"></div>
-                <div class="relative z-10">
-                  <p class="text-sm font-bold text-emerald-300">Final Step</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1">Video Consent</h2>
-                  <p class="text-sm md:text-base font-semibold text-gray-300 mt-2">
-                    Worker ki final permission video me record karein.
-                  </p>
-                </div>
-              </div>
+              <div class="mitra-step-heading"><h2>Video Consent</h2></div>
 
               <div class="section-card bg-gray-950 border-gray-900 text-white">
                 <div class="flex items-center gap-3 mb-5">
@@ -1560,7 +1357,7 @@ function renderNakaSearchResults(nakas) {
 
     const card = document.createElement("div");
     card.className =
-      "px-4 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-600 transition flex items-center justify-between gap-4";
+      "px-3 py-3 border-2 border-gray-100 rounded-xl font-black text-gray-600 transition flex items-center justify-between gap-3";
 
     const details = document.createElement("div");
     details.className = "min-w-0";
@@ -1570,13 +1367,13 @@ function renderNakaSearchResults(nakas) {
     nameNode.textContent = String(naka.name || "Naka");
 
     const locationNode = document.createElement("span");
-    locationNode.className = "block text-[11px] text-gray-400 mt-1";
+    locationNode.className = "block text-[10px] text-gray-400 mt-0.5";
     const areaText = [naka.cityName, naka.stateName].filter(Boolean).join(", ");
     locationNode.textContent =
       `Pincode: ${naka.pincode || "Not configured"}${areaText ? ` · ${areaText}` : ""}`;
 
     const marker = document.createElement("span");
-    marker.className = "text-xl shrink-0";
+    marker.className = "text-base shrink-0";
     marker.textContent = "📍";
 
     checkbox.addEventListener("change", () => {

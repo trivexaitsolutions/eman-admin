@@ -6,109 +6,74 @@
   <title>Submit Naka | E-MAN Mitra</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
-    html, body { margin:0; width:100%; min-height:100%; background:#f8fafc; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    .app { min-height:100dvh; max-width:720px; margin:0 auto; background:#f8fafc; }
-    .app-input { width:100%; border:1.5px solid #e5e7eb; background:#fff; border-radius:18px; padding:14px 16px; outline:none; font-size:15px; font-weight:700; color:#111827; transition:.2s ease; }
-    .app-input:focus { border-color:#10b981; box-shadow:0 0 0 4px rgba(16,185,129,.1); }
-    .app-input:disabled { background:#f1f5f9; color:#94a3b8; }
-    .input-label { display:block; font-size:11px; font-weight:900; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:7px; }
-    .section-card { background:#fff; border:1px solid #f1f5f9; border-radius:28px; padding:20px; box-shadow:0 8px 24px rgba(15,23,42,.04); }
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .app{width:100%;height:100dvh;display:flex;flex-direction:column;overflow:hidden;background:var(--mitra-bg)}
+    .scroll-area{flex:1;overflow-y:auto;padding-bottom:86px!important}.form-grid{display:grid;grid-template-columns:1fr;gap:10px}.field-grid{display:grid;grid-template-columns:1fr;gap:10px}
+    .form-footer{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;border-top:1px solid var(--mitra-border);padding:9px 14px max(9px,env(safe-area-inset-bottom))}.form-footer-inner{width:min(100%,900px);margin:0 auto}
+    #map{height:280px!important;border-radius:14px!important}.file-input{width:100%;border:1px solid var(--mitra-border);border-radius:12px;padding:10px;background:#fff;font-size:12px;font-weight:700}
+    @media(min-width:680px){.field-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.field-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}#map{height:320px!important}}
   </style>
 </head>
 <body>
-  <div class="app px-5 pb-12 pt-5 md:px-8 md:pt-8">
-    <a href="/mitra/nakas" class="inline-flex items-center gap-2 text-sm font-black text-slate-500 hover:text-emerald-700">← Back to My Nakas</a>
+<div class="app">
+  <header class="mitra-task-header">
+    <div class="mitra-task-header-inner">
+      <a href="/mitra/nakas" class="mitra-back">←</a>
+      <div class="mitra-task-title"><h1>Submit Naka</h1></div>
+    </div>
+  </header>
 
-    <section class="mt-5 rounded-[30px] bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white shadow-xl shadow-emerald-100">
-      <p class="text-sm font-bold text-emerald-100">Ground Survey Submission</p>
-      <h1 class="mt-1 text-3xl font-black">Submit a Naka</h1>
-      <p class="mt-3 text-sm font-semibold leading-5 text-emerald-50">Aap survey details submit karoge. Admin verify karega. Submit hote hi Naka aapko assign ho jayega, lekin operational use Admin approval ke baad hi hoga.</p>
-    </section>
+  <main class="scroll-area">
+    <div class="mitra-page">
+      <% if (error_msg) { %><div class="mitra-card mitra-card-pad" style="margin-bottom:10px;color:#b91c1c"><%= error_msg %></div><% } %>
 
-    <% if (error_msg) { %><div class="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><%= error_msg %></div><% } %>
-
-    <form id="mitraNakaForm" action="/mitra/nakas/submit" method="POST" enctype="multipart/form-data" class="mt-5 space-y-5">
-      <section class="section-card">
-        <div class="mb-5"><h2 class="text-xl font-black text-slate-900">1. Area & Naka</h2><p class="mt-1 text-sm font-semibold text-slate-500">Pehle State aur City select karo.</p></div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="input-label" for="stateId">State / Union Territory *</label>
-            <select id="stateId" name="stateId" required class="app-input">
-              <option value="">-- Select State / UT --</option>
-              <% states.forEach(state => { %><option value="<%= state.id %>"><%= state.name %> (<%= state.code %>)<%= state.type === 'UNION_TERRITORY' ? ' — UT' : '' %></option><% }) %>
-            </select>
+      <form id="mitraNakaForm" action="/mitra/nakas/submit" method="POST" enctype="multipart/form-data" class="form-grid">
+        <section class="mitra-card mitra-card-pad">
+          <div class="mitra-card-title" style="margin-bottom:10px">Area</div>
+          <div class="field-grid two">
+            <label><span class="input-label">State / UT *</span><select id="stateId" name="stateId" required class="app-input"><option value="">Select State / UT</option><% states.forEach(state => { %><option value="<%= state.id %>"><%= state.name %> (<%= state.code %>)<%= state.type === 'UNION_TERRITORY' ? ' — UT' : '' %></option><% }) %></select></label>
+            <label><span class="input-label">City *</span><select id="cityId" name="cityId" required disabled class="app-input"><option value="">Select State first</option><% cities.forEach(city => { %><option value="<%= city.id %>" data-state-id="<%= city.stateId %>" hidden disabled><%= city.name %></option><% }) %></select><span id="cityHelp" class="mitra-card-sub" style="display:block;margin-top:4px">Select a State.</span></label>
           </div>
-          <div>
-            <label class="input-label" for="cityId">City *</label>
-            <select id="cityId" name="cityId" required disabled class="app-input">
-              <option value="">-- Select State first --</option>
-              <% cities.forEach(city => { %><option value="<%= city.id %>" data-state-id="<%= city.stateId %>" hidden disabled><%= city.name %></option><% }) %>
-            </select>
-            <p id="cityHelp" class="mt-2 min-h-5 text-xs font-semibold text-slate-500">Select a State to see its Cities.</p>
+          <div class="field-grid two" style="margin-top:10px">
+            <label><span class="input-label">Naka / Chouk Name *</span><input id="name" name="name" required minlength="2" maxlength="120" placeholder="Naka name" class="app-input" /></label>
+            <label><span class="input-label">PIN Code *</span><input id="pincode" name="pincode" type="text" inputmode="numeric" autocomplete="postal-code" required minlength="6" maxlength="6" pattern="[0-9]{6}" placeholder="6 digit PIN" class="app-input" /></label>
           </div>
-        </div>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="input-label" for="name">Naka / Chouk Name *</label>
-            <input id="name" name="name" required minlength="2" maxlength="120" placeholder="Example: Station Road Naka" class="app-input" />
+          <label style="display:block;margin-top:10px"><span class="input-label">Landmark</span><input id="landmark" name="landmark" maxlength="191" placeholder="Nearest landmark" class="app-input" /></label>
+        </section>
+
+        <section class="mitra-card mitra-card-pad">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+            <div class="mitra-card-title">Location</div>
+            <button id="useCurrentLocationBtn" type="button" class="mitra-secondary-btn">Use Current</button>
           </div>
-          <div>
-            <label class="input-label" for="pincode">PIN Code *</label>
-            <input id="pincode" name="pincode" type="text" inputmode="numeric" autocomplete="postal-code" required minlength="6" maxlength="6" pattern="[0-9]{6}" placeholder="Example: 421201" class="app-input" />
-            <p class="mt-2 text-xs font-semibold text-slate-500">Abhi manually enter karo. Later exact map location se PIN Code auto-fill hoga.</p>
+          <div id="locationStatus" class="mitra-card-sub" style="margin-bottom:8px;color:#b45309">Exact GPS location required.</div>
+          <div id="map"></div>
+          <div class="field-grid two" style="margin-top:10px">
+            <label><span class="input-label">Latitude *</span><input id="latitude" name="latitude" readonly required placeholder="Select on map" class="app-input" /></label>
+            <label><span class="input-label">Longitude *</span><input id="longitude" name="longitude" readonly required placeholder="Select on map" class="app-input" /></label>
           </div>
-        </div>
-        <div class="mt-4">
-          <label class="input-label" for="landmark">Nearest Landmark</label>
-          <input id="landmark" name="landmark" maxlength="191" placeholder="Example: Opposite bus depot" class="app-input" />
-        </div>
-      </section>
+        </section>
 
-      <section class="section-card">
-        <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div><h2 class="text-xl font-black text-slate-900">2. Exact Location</h2><p class="mt-1 text-sm font-semibold text-slate-500">Current location capture karo, ya map par exact labour gathering point select karo.</p></div>
-          <button id="useCurrentLocationBtn" type="button" class="shrink-0 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100">Use Current Location</button>
-        </div>
-        <div id="locationStatus" class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">Exact GPS location mandatory hai.</div>
-        <div id="map" class="overflow-hidden rounded-3xl border border-slate-200" style="height:360px"></div>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label class="input-label" for="latitude">Latitude *</label><input id="latitude" name="latitude" readonly required placeholder="Map point select karo" class="app-input cursor-not-allowed" /></div>
-          <div><label class="input-label" for="longitude">Longitude *</label><input id="longitude" name="longitude" readonly required placeholder="Map point select karo" class="app-input cursor-not-allowed" /></div>
-        </div>
-      </section>
-
-      <section class="section-card">
-        <div class="mb-5"><h2 class="text-xl font-black text-slate-900">3. Survey Proof</h2><p class="mt-1 text-sm font-semibold text-slate-500">Yeh details Admin ko verification ke liye dikhengi.</p></div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label class="input-label" for="confidenceLevel">Confidence *</label>
-            <select id="confidenceLevel" name="confidenceLevel" required class="app-input">
-              <option value="">-- Select --</option>
-              <option value="HIGH">High — known labour gathering</option>
-              <option value="MEDIUM">Medium — likely gathering</option>
-              <option value="LOW">Low — lead to be checked</option>
-              <option value="N_A">N/A — survey from zero</option>
-            </select>
+        <section class="mitra-card mitra-card-pad">
+          <div class="mitra-card-title" style="margin-bottom:10px">Survey</div>
+          <div class="field-grid three">
+            <label><span class="input-label">Confidence *</span><select id="confidenceLevel" name="confidenceLevel" required class="app-input"><option value="">Select</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option><option value="N_A">N/A</option></select></label>
+            <label><span class="input-label">Survey Date *</span><input id="surveyDate" type="date" name="surveyDate" max="<%= new Date().toISOString().slice(0, 10) %>" required class="app-input" /></label>
+            <label><span class="input-label">Peak Workers *</span><input id="peakHourHeadcount" type="number" name="peakHourHeadcount" min="0" max="1000000" step="1" required placeholder="0" class="app-input" /></label>
           </div>
-          <div><label class="input-label" for="surveyDate">Survey Date *</label><input id="surveyDate" type="date" name="surveyDate" max="<%= new Date().toISOString().slice(0, 10) %>" required class="app-input" /></div>
-          <div><label class="input-label" for="peakHourHeadcount">Peak-hour workers *</label><input id="peakHourHeadcount" type="number" name="peakHourHeadcount" min="0" max="1000000" step="1" required placeholder="0" class="app-input" /></div>
-        </div>
-        <div class="mt-4">
-          <label class="input-label" for="verificationPhoto">Naka Verification Photo *</label>
-          <input id="verificationPhoto" type="file" name="verificationPhoto" accept="image/jpeg,image/png,image/webp" required class="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-black file:text-emerald-700" />
-          <p class="mt-2 text-xs font-semibold text-slate-500">JPG, PNG ya WEBP • maximum 5 MB.</p>
-        </div>
-        <div class="mt-4"><label class="input-label" for="surveyNotes">Survey Notes</label><textarea id="surveyNotes" name="surveyNotes" rows="4" maxlength="3000" placeholder="Peak time, skill mix, location detail, ya koi important observation..." class="app-input resize-y"></textarea></div>
-      </section>
+          <label style="display:block;margin-top:10px"><span class="input-label">Verification Photo *</span><input id="verificationPhoto" type="file" name="verificationPhoto" accept="image/jpeg,image/png,image/webp" required class="file-input" /></label>
+          <label style="display:block;margin-top:10px"><span class="input-label">Notes</span><textarea id="surveyNotes" name="surveyNotes" rows="3" maxlength="3000" placeholder="Optional notes" class="app-input" style="resize:vertical"></textarea></label>
+        </section>
+      </form>
+    </div>
+  </main>
 
-      <section class="rounded-3xl border border-sky-200 bg-sky-50 p-5 text-sm font-bold leading-6 text-sky-900">Submit karne ke baad status <strong>Pending Admin Verification</strong> rahega. Aap khud Naka ko verified nahi kar sakte. Admin approval ke baad hi yeh customer/worker operations mein aayega.</section>
+  <footer class="form-footer"><div class="form-footer-inner"><button type="submit" form="mitraNakaForm" class="mitra-primary-btn" style="width:100%;min-height:48px">Submit Naka</button></div></footer>
+</div>
 
-      <button type="submit" class="w-full rounded-2xl bg-emerald-600 px-5 py-4 text-base font-black text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700">Submit for Admin Verification</button>
-    </form>
-  </div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const stateSelect = document.getElementById('stateId');
     const citySelect = document.getElementById('cityId');

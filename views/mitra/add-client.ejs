@@ -27,6 +27,7 @@
   <title><%= editMode ? "Edit Client" : "Add Client" %> | E-MAN Mitra</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/mitra-ui.css" />
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -160,56 +161,21 @@
 <body>
 <%- include('../partials/toast') %>
 
-<div class="app">
+<div class="app mitra-compact-form">
 
-  <header class="bg-white px-5 md:px-8 pt-5 pb-4 border-b border-gray-100">
-    <div class="tablet-container">
-      <div class="flex items-center justify-between gap-4 mb-5">
-        <div class="flex items-center gap-3 min-w-0">
-          <a
-            href="/mitra/clients"
-            class="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-50 flex items-center justify-center active:bg-gray-100 shrink-0"
-            aria-label="Back to clients"
-          >
-            <span class="text-2xl font-black text-gray-900">←</span>
-          </a>
-
-          <div class="min-w-0">
-            <p class="text-xs font-black text-emerald-600 uppercase tracking-wide">
-              B2B Onboarding
-            </p>
-            <h1 class="text-xl md:text-2xl font-black text-gray-900 leading-tight truncate">
-              <%= editMode ? "Edit Client" : "Add New Client" %>
-            </h1>
-            <p class="text-xs md:text-sm text-gray-500 font-semibold mt-0.5">
-              <%= editMode ? "Update client and work-site details" : "Register client and verify mobile OTP" %>
-            </p>
-          </div>
-        </div>
-
-        <div class="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span class="text-sm font-black"><%= editMode ? "Edit Mode" : "Mitra Portal" %></span>
-        </div>
+  <header class="mitra-task-header">
+    <div class="mitra-task-header-inner" style="display:block">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="/mitra/clients" class="mitra-back">←</a>
+        <div class="mitra-task-title"><h1><%= editMode ? "Edit Client" : "Add Client" %></h1></div>
       </div>
-
-      <div class="relative">
-        <div class="absolute left-6 right-6 top-4 h-1 bg-gray-100 rounded-full"></div>
-        <div id="progressBar" class="absolute left-6 top-4 h-1 bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%;"></div>
-
+      <div class="relative" style="margin:9px 4px 0">
+        <div class="absolute left-4 right-4 top-3 h-[2px] bg-gray-100 rounded-full"></div>
+        <div id="progressBar" class="absolute left-4 top-3 h-[2px] bg-emerald-500 rounded-full transition-all duration-300" style="width:0%"></div>
         <div class="relative z-10 grid grid-cols-3 gap-1">
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="ind-1" class="step-indicator w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-sm shadow-md">1</div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">BASIC</span>
-          </div>
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="ind-2" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">2</div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700">BUSINESS</span>
-          </div>
-          <div class="flex flex-col items-center gap-1.5">
-            <div id="ind-3" class="step-indicator w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-sm">3</div>
-            <span class="text-[9px] md:text-[10px] font-black text-gray-700"><%= editMode ? "REVIEW" : "OTP" %></span>
-          </div>
+          <div class="flex justify-start"><div id="ind-1" class="step-indicator w-6 h-6 rounded-full bg-gray-900 text-white flex items-center justify-center font-black text-[11px]">1</div></div>
+          <div class="flex justify-center"><div id="ind-2" class="step-indicator w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-[11px]">2</div></div>
+          <div class="flex justify-end"><div id="ind-3" class="step-indicator w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-black text-[11px]">3</div></div>
         </div>
       </div>
     </div>

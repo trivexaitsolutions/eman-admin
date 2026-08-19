@@ -1,19 +1,11 @@
 <%
   const statusMeta = {
-    VERIFIED: { label: 'Verified', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    REVERIFY_REQUIRED: { label: 'Re-verification due', className: 'bg-amber-50 text-amber-800 border-amber-200' },
-    PENDING_VERIFICATION: { label: 'Pending Admin verification', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+    VERIFIED: { label: 'Verified', chip: 'green' },
+    REVERIFY_REQUIRED: { label: 'Reverify', chip: 'amber' },
+    PENDING_VERIFICATION: { label: 'Pending', chip: 'blue' },
   };
-
-  const getStatusMeta = (status) => statusMeta[status] || {
-    label: String(status || 'Pending Admin verification').replace(/_/g, ' '),
-    className: 'bg-stone-100 text-stone-700 border-stone-200',
-  };
-
-  const formatDate = (value) => {
-    if (!value) return '--';
-    return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
-  };
+  const getStatusMeta = (status) => statusMeta[status] || { label: String(status || 'Pending').replace(/_/g,' '), chip: '' };
+  const formatDate = (value) => value ? new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(value)) : '--';
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -22,84 +14,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>My Nakas | E-MAN Mitra</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: #e5e7eb; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .app { width: 100%; height: 100dvh; background: #f8fafc; position: relative; overflow: hidden; display: flex; flex-direction: column; margin: 0 auto; }
-    .scroll-area { flex: 1; overflow-y: auto; padding-bottom: 112px; }
-    .scroll-area::-webkit-scrollbar { display: none; }
-    .section-card { background: #fff; border: 1px solid #f1f5f9; border-radius: 28px; padding: 18px; box-shadow: 0 8px 24px rgba(15,23,42,.04); }
-    .hero-gradient { background: radial-gradient(circle at top right, rgba(255,255,255,.25), transparent 35%), linear-gradient(135deg,#0f766e,#059669); }
-    @media (max-width: 767px) { .app { max-width: 430px; } .tablet-container { width: 100%; } }
-    @media (min-width: 768px) { .app { max-width: 100%; background: #eef2f7; } .tablet-container { max-width: 1120px; margin: 0 auto; } .scroll-area { padding-bottom: 40px; } }
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .app{width:100%;height:100dvh;display:flex;flex-direction:column;overflow:hidden}.scroll-area{flex:1;overflow-y:auto}
+    .naka-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+    .naka-filter{min-height:50px;border:1px solid var(--mitra-border);border-radius:14px;background:#fff;padding:9px 10px;text-decoration:none;color:#4b5563;font-size:11px;font-weight:850;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .naka-filter.active{border-color:#86efac;background:#ecfdf5;color:#047857}.naka-filter b{font-size:17px;color:#111827}
   </style>
 </head>
 <body>
-  <div class="app">
-    <%- include('../partials/navbar', { activePage: 'nakas', mitraName }) %>
-    <main class="scroll-area">
-      <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
-        <% if (success_msg) { %><div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"><%= success_msg %></div><% } %>
-        <% if (error_msg) { %><div class="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><%= error_msg %></div><% } %>
+<div class="app">
+  <%- include('../partials/navbar', { activePage: 'nakas', mitraName }) %>
+  <main class="scroll-area">
+    <div class="mitra-page">
+      <% if (success_msg) { %><div class="mitra-card mitra-card-pad" style="margin-bottom:10px;color:#047857"><%= success_msg %></div><% } %>
+      <% if (error_msg) { %><div class="mitra-card mitra-card-pad" style="margin-bottom:10px;color:#b91c1c"><%= error_msg %></div><% } %>
 
-        <section class="hero-gradient mb-5 rounded-[30px] p-5 text-white shadow-xl shadow-emerald-100 md:p-6">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-sm font-bold text-emerald-50">Naka Network</p>
-              <h2 class="mt-1 text-3xl font-black md:text-4xl"><%= counts.total %> <span class="text-xl font-bold text-emerald-100">Assigned Nakas</span></h2>
-              <p class="mt-2 max-w-2xl text-sm font-semibold leading-5 text-emerald-50">Jis Naka ko aap submit karte ho, woh immediately aapko assign ho jata hai. Customer/worker operations mein woh Admin verification ke baad hi aayega.</p>
-            </div>
-            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-3xl">⌖</div>
-          </div>
-          <a href="/mitra/nakas/add" class="mt-5 inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-black text-emerald-700 shadow-sm hover:bg-emerald-50">+ Submit New Naka</a>
-        </section>
-
-        <section class="mb-5 grid grid-cols-3 gap-3">
-          <a href="/mitra/nakas?filter=all" class="rounded-2xl border p-4 <%= activeFilter === 'all' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white' %>">
-            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">All</p><p class="mt-1 text-2xl font-black text-slate-900"><%= counts.total %></p>
-          </a>
-          <a href="/mitra/nakas?filter=verified" class="rounded-2xl border p-4 <%= activeFilter === 'verified' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white' %>">
-            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Verified</p><p class="mt-1 text-2xl font-black text-emerald-700"><%= counts.verified %></p>
-          </a>
-          <a href="/mitra/nakas?filter=pending" class="rounded-2xl border p-4 <%= activeFilter === 'pending' ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-white' %>">
-            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Pending</p><p class="mt-1 text-2xl font-black text-sky-700"><%= counts.pending %></p>
-          </a>
-        </section>
-
-        <% if (!nakas.length) { %>
-          <section class="section-card text-center py-12">
-            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-3xl">⌖</div>
-            <h2 class="mt-4 text-xl font-black text-slate-900">No Nakas found</h2>
-            <p class="mx-auto mt-2 max-w-md text-sm font-semibold leading-5 text-slate-500">Ground survey ke baad exact location, photo aur worker headcount ke saath pehla Naka submit karo.</p>
-            <a href="/mitra/nakas/add" class="mt-5 inline-flex rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700">Submit Naka</a>
-          </section>
-        <% } else { %>
-          <section class="space-y-4">
-            <% nakas.forEach(naka => { const meta = getStatusMeta(naka.computedVerificationStatus); %>
-              <article class="section-card">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="truncate text-lg font-black text-slate-900"><%= naka.name %></p>
-                    <p class="mt-1 text-sm font-semibold text-slate-500"><%= naka.city.state ? `${naka.city.state.name} • ` : '' %><%= naka.city.name %></p>
-                  </div>
-                  <span class="shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black <%= meta.className %>"><%= meta.label %></span>
-                </div>
-                <div class="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm">
-                  <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Survey</p><p class="mt-1 font-bold text-slate-700"><%= formatDate(naka.surveyDate) %></p></div>
-                  <div><p class="text-xs font-bold uppercase tracking-wide text-slate-400">Peak workers</p><p class="mt-1 font-bold text-slate-700"><%= naka.peakHourHeadcount != null ? naka.peakHourHeadcount : '--' %></p></div>
-                </div>
-                <% if (naka.computedVerificationStatus === 'PENDING_VERIFICATION') { %>
-                  <p class="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold leading-5 text-sky-800">Admin verification pending hai. Verify hone ke baad yeh Naka worker assignment aur booking process ke liye operational hoga.</p>
-                <% } else if (naka.computedVerificationStatus === 'REVERIFY_REQUIRED') { %>
-                  <p class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-800">Re-verification due hai. Admin fresh verification ke baad ise phir operational karega.</p>
-                <% } else { %>
-                  <p class="mt-4 text-sm font-bold text-emerald-700">Verified on <%= formatDate(naka.lastVerifiedAt) %></p>
-                <% } %>
-              </article>
-            <% }) %>
-          </section>
-        <% } %>
+      <div class="mitra-page-head">
+        <div style="display:flex;align-items:center;gap:8px"><h1 class="mitra-page-title">My Nakas</h1><span class="mitra-page-count"><%= counts.total %></span></div>
+        <a href="/mitra/nakas/add" class="mitra-primary-btn">+ Add</a>
       </div>
-    </main>
-  </div>
+
+      <div class="naka-filters">
+        <a href="/mitra/nakas?filter=all" class="naka-filter <%= activeFilter === 'all' ? 'active' : '' %>"><span>All</span><b><%= counts.total %></b></a>
+        <a href="/mitra/nakas?filter=verified" class="naka-filter <%= activeFilter === 'verified' ? 'active' : '' %>"><span>Verified</span><b><%= counts.verified %></b></a>
+        <a href="/mitra/nakas?filter=pending" class="naka-filter <%= activeFilter === 'pending' ? 'active' : '' %>"><span>Pending</span><b><%= counts.pending %></b></a>
+      </div>
+
+      <% if (!nakas.length) { %>
+        <div class="mitra-empty">No Nakas found.</div>
+      <% } else { %>
+        <section class="mitra-list-grid">
+          <% nakas.forEach(naka => { const meta = getStatusMeta(naka.computedVerificationStatus); %>
+            <article class="mitra-list-card">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+                <div style="min-width:0">
+                  <div class="mitra-card-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= naka.name %></div>
+                  <div class="mitra-card-sub"><%= naka.city.state ? `${naka.city.state.name} · ` : '' %><%= naka.city.name %></div>
+                </div>
+                <span class="mitra-chip <%= meta.chip %>"><%= meta.label %></span>
+              </div>
+              <div class="mitra-detail-grid" style="margin-top:10px">
+                <div class="mitra-detail-cell"><label>Survey</label><p><%= formatDate(naka.surveyDate) %></p></div>
+                <div class="mitra-detail-cell"><label>Peak Workers</label><p><%= naka.peakHourHeadcount != null ? naka.peakHourHeadcount : '--' %></p></div>
+              </div>
+              <% if (naka.computedVerificationStatus === 'VERIFIED' && naka.lastVerifiedAt) { %><div class="mitra-card-sub" style="margin-top:8px;color:#047857">Verified <%= formatDate(naka.lastVerifiedAt) %></div><% } %>
+            </article>
+          <% }) %>
+        </section>
+      <% } %>
+    </div>
+  </main>
+</div>
 </body>
 </html>
