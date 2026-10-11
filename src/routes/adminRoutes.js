@@ -17,6 +17,7 @@ const bookingSettingRoutes = require('./bookingSettingRoutes');
 const adminBookingRoutes = require('./adminBookingRoutes');
 const adminDashboardController = require('../controllers/adminDashboardController');
 const leaveRoutes = require('./leaveRoutes');
+const adminClientController = require('../controllers/adminClientController');
 
 router.get('/login', authController.getLoginPage);
 router.post('/login', authController.login);
@@ -40,6 +41,7 @@ router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
 router.use('/booking-settings', authBouncer(['superadmin', 'admin']), bookingSettingRoutes);
 router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminBookingRoutes);
 
+router.get('/clients', authBouncer(['superadmin', 'admin', 'employee']), adminClientController.listClients);
 router.use('/workers', authBouncer(['superadmin', 'admin', 'employee']), workerRoutes);
 router.use('/mitras', authBouncer(['superadmin', 'admin']), mitraRoutes);
 router.use('/conflicts', authBouncer(['superadmin', 'admin', 'employee']), conflictRoutes);

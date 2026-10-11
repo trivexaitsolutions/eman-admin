@@ -2,16 +2,24 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
+const { getActivePoolContext } = require('../utils/bookingSettings');
+const { getActiveBookingMaps, workerStatus } = require('../services/adminPresenceService');
+const { parseDobInput, formatDobInput } = require('../utils/workerDob');
 
 const listWorkers = async (req, res) => {
     try {
-        const workers = await prisma.worker.findMany({
-            include: {
-                nakas: true,
-                skills: true,
-            },
-            orderBy: { id: "desc" },
-        });
+        const [workers, activeBookings] = await Promise.all([
+            prisma.worker.findMany({
+                include: {
+                    nakas: true,
+                    skills: true,
+                    mitra: { select: { id: true, name: true, phone: true } },
+                },
+                orderBy: { id: "desc" },
+            }),
+            getActiveBookingMaps(prisma),
+        ]);
+        const now = new Date();
 
         const workerIds = workers.map((worker) => worker.id);
 
@@ -51,6 +59,7 @@ const listWorkers = async (req, res) => {
 
         const workersWithRatings = workers.map((worker) => ({
             ...worker,
+            operationalStatus: workerStatus(worker, activeBookings.byWorker.get(worker.id), now),
             rating: ratingMap.get(worker.id) || {
                 averageRating: Number(worker.baseRating || 3),
                 ratingCount: 0,
@@ -82,7 +91,7 @@ const showForm = async (req, res) => {
             });
             isEdit = true;
         }
-        res.render('admin/workers/form', { worker, skills, isEdit, error: null });
+        res.render('admin/workers/form', { worker, skills, isEdit, error: null, formatDobInput });
     } catch (error) {
         res.redirect('/admin/workers');
     }
@@ -108,8 +117,8 @@ const saveWorker = async (req, res) => {
             name,
             phone,
             email: email ? email.trim() : null, // Store null if left blank
-            dob: new Date(dob),
-            age: parseInt(age),
+            dob: parseDobInput(dob),
+            age: parseInt(age, 10),
             qualification,
             idProofType,
             idNumber,
@@ -120,6 +129,12 @@ const saveWorker = async (req, res) => {
             upiNumber,
             isActive
         };
+
+        if (!workerData.dob || !Number.isInteger(workerData.age) || workerData.age < 0) {
+            const validationError = new Error("Please enter a valid Date of Birth.");
+            validationError.isInputError = true;
+            throw validationError;
+        }
 
         // 3. Encrypt the password if one was provided
         if (password) {
@@ -153,16 +168,29 @@ const saveWorker = async (req, res) => {
         res.redirect('/admin/workers');
     } catch (error) {
         console.error(error);
-        if (error.code === 'P2002') {
+        if (error.isInputError || error.code === 'P2002') {
             const skills = await prisma.skill.findMany({ where: { isActive: true } });
-            // Let the user know exactly which unique field they duplicated!
-            const target = error.meta.target;
-            let errorMsg = "A worker with this ID Number already exists!";
-            if (target.includes('phone')) errorMsg = "This Phone Number is already registered!";
-            if (target.includes('email')) errorMsg = "This Email ID is already registered!";
-
-            return res.render('admin/workers/form', { 
-                worker: req.body, skills, isEdit: !!id, error: errorMsg 
+            const target = String(error.meta?.target || "");
+            let errorMsg = error.message;
+            if (error.code === 'P2002') {
+                errorMsg = target.includes('phone') ? "This Phone Number is already registered!"
+                    : target.includes('email') ? "This Email ID is already registered!"
+                    : "A worker with this ID Number already exists!";
+            }
+            // Keep checkbox relations available on validation errors, including
+            // on new worker forms and when editing an existing DOB string.
+            const oldWorker = id ? await prisma.worker.findUnique({
+                where: { id: Number(id) }, include: { nakas: true, skills: true },
+            }) : null;
+            const selectedIds = (value) => [].concat(value || []).map(Number);
+            const worker = {
+                ...(oldWorker || {}), ...req.body,
+                isActive,
+                nakas: oldWorker?.nakas || [],
+                skills: skills.filter((skill) => selectedIds(skillIds).includes(skill.id)),
+            };
+            return res.status(400).render('admin/workers/form', {
+                worker, skills, isEdit: !!id, error: errorMsg, formatDobInput,
             });
         }
         res.redirect('/admin/workers');
@@ -290,38 +318,6 @@ const deleteWorker = async (req, res) => {
     }
 };
 
-const getTodayPoolTimes = () => {
-    const now = new Date();
-
-    const startHour = parseInt(process.env.POOL_START_HOUR || "8");
-    const startMinute = parseInt(process.env.POOL_START_MINUTE || "0");
-    const endHour = parseInt(process.env.POOL_END_HOUR || "20");
-    const endMinute = parseInt(process.env.POOL_END_MINUTE || "0");
-
-    const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Kolkata",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).formatToParts(now);
-
-    const year = parts.find((p) => p.type === "year").value;
-    const month = parts.find((p) => p.type === "month").value;
-    const day = parts.find((p) => p.type === "day").value;
-
-    const pad = (num) => String(num).padStart(2, "0");
-
-    const poolStart = new Date(
-        `${year}-${month}-${day}T${pad(startHour)}:${pad(startMinute)}:00+05:30`
-    );
-
-    const poolEnd = new Date(
-        `${year}-${month}-${day}T${pad(endHour)}:${pad(endMinute)}:00+05:30`
-    );
-
-    return { poolStart, poolEnd, now };
-};
-
 const getRemainingSeconds = (untilDate) => {
     if (!untilDate) return 0;
 
@@ -364,6 +360,7 @@ const updateStatus = async (req, res) => {
                     availabilityStart: null,
                     availabilityHours: null,
                     availabilityUntil: null,
+                    availabilityPoolSlotId: null,
                     lastActive: new Date(),
                 },
             });
@@ -385,6 +382,10 @@ const updateStatus = async (req, res) => {
                 availabilityStart: true,
                 availabilityHours: true,
                 availabilityUntil: true,
+                availabilityPoolSlotId: true,
+                availabilityPoolSlot: {
+                    select: { id: true, startTime: true, sortOrder: true },
+                },
             },
         });
 
@@ -399,6 +400,7 @@ const updateStatus = async (req, res) => {
             existingWorker.isAvailable &&
             existingWorker.availabilityStart &&
             existingWorker.availabilityUntil &&
+            existingWorker.availabilityPoolSlotId &&
             new Date(existingWorker.availabilityUntil) > new Date()
         ) {
             return res.json({
@@ -408,19 +410,25 @@ const updateStatus = async (req, res) => {
                     ...existingWorker,
                     elapsedSeconds: getElapsedSeconds(existingWorker.availabilityStart),
                     remainingSeconds: getRemainingSeconds(existingWorker.availabilityUntil),
+                    poolNumber: existingWorker.availabilityPoolSlot
+                        ? Number(existingWorker.availabilityPoolSlot.sortOrder || 0) + 1
+                        : null,
+                    poolStartTime: existingWorker.availabilityPoolSlot?.startTime || null,
                     serverTime: new Date().toISOString(),
                 },
             });
         }
 
-        const { poolStart, poolEnd, now } = getTodayPoolTimes();
+        const poolContext = await getActivePoolContext(prisma, new Date());
+        const { poolEnd, now, activeSlot } = poolContext;
 
         let finalAvailabilityType = availabilityType || "FULL_DAY";
-let finalAvailabilityHours = null;
-let availabilityUntil = poolEnd;
+        let finalAvailabilityHours = null;
+        let availabilityUntil = poolEnd;
 
-// Full day ke liye 8 PM ke baad allow nahi
-if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
+        // Full Day and 2/3/4 Hours Work both use the Admin-managed daily
+        // pool end. 2/3/4 hours is job-duration preference, not online expiry.
+        if (!poolContext.isOpen || !activeSlot) {
     await prisma.worker.update({
         where: { id: workerIdNumber },
         data: {
@@ -429,14 +437,17 @@ if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
             availabilityStart: null,
             availabilityHours: null,
             availabilityUntil: null,
+            availabilityPoolSlotId: null,
             lastActive: new Date(),
         },
     });
 
     return res.status(400).json({
         success: false,
-        message: "Full day pool has ended. You can use short hours availability.",
-        code: "FULL_DAY_POOL_ENDED",
+        message: now < poolContext.poolStart
+            ? `Worker pool starts at ${poolContext.setting.poolDayStart}.`
+            : `Today's worker pool ended at ${poolContext.setting.poolDayEnd}.`,
+        code: "POOL_CLOSED",
     });
 }
 
@@ -446,22 +457,21 @@ if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
             finalAvailabilityHours = null;
         }
 
-        // SHORT PERIOD
+        // SHORT WORK DURATION
+        // 2/3/4 Hours means the committed duration of a job, not the time
+        // the worker remains visible in the pool. The pool stays active until
+        // the configured pool end, exactly like Full Day.
         else if (finalAvailabilityType === "SHORT_PERIOD") {
             finalAvailabilityHours = parseInt(availabilityHours);
 
             if (!finalAvailabilityHours || finalAvailabilityHours <= 0) {
                 return res.status(400).json({
                     success: false,
-                    message: "Please select valid hours.",
+                    message: "Please select valid work hours.",
                 });
             }
 
-            availabilityUntil = new Date(
-                now.getTime() + finalAvailabilityHours * 60 * 60 * 1000
-            );
-
-            
+            availabilityUntil = poolEnd;
         }
 
         else {
@@ -479,6 +489,7 @@ if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
                 availabilityStart: now,
                 availabilityHours: finalAvailabilityHours,
                 availabilityUntil,
+                availabilityPoolSlotId: activeSlot.id,
                 lastActive: now,
             },
         });
@@ -487,14 +498,16 @@ if (finalAvailabilityType === "FULL_DAY" && now >= poolEnd) {
             success: true,
             message:
                 finalAvailabilityType === "FULL_DAY"
-                    ? "Aap full day ke liye pool mein add ho gaye hain!"
-                    : `Aap ${finalAvailabilityHours} hours ke liye pool mein add ho gaye hain!`,
+                    ? "Aap Full Day work ke liye pool mein add ho gaye hain!"
+                    : `Aap ${finalAvailabilityHours} Hours Work preference ke saath pool mein add ho gaye hain!`,
             pool: {
                 isAvailable: updatedWorker.isAvailable,
                 availabilityType: updatedWorker.availabilityType,
                 availabilityStart: updatedWorker.availabilityStart,
                 availabilityHours: updatedWorker.availabilityHours,
                 availabilityUntil: updatedWorker.availabilityUntil,
+                poolNumber: Number(activeSlot.sortOrder || 0) + 1,
+                poolStartTime: activeSlot.startTime,
                 elapsedSeconds: getElapsedSeconds(updatedWorker.availabilityStart),
                 remainingSeconds: getRemainingSeconds(updatedWorker.availabilityUntil),
                 serverTime: new Date().toISOString(),
@@ -522,6 +535,10 @@ const getPoolStatus = async (req, res) => {
                 availabilityStart: true,
                 availabilityHours: true,
                 availabilityUntil: true,
+                availabilityPoolSlotId: true,
+                availabilityPoolSlot: {
+                    select: { id: true, startTime: true, sortOrder: true },
+                },
             },
         });
 
@@ -547,6 +564,7 @@ const getPoolStatus = async (req, res) => {
                     availabilityStart: null,
                     availabilityHours: null,
                     availabilityUntil: null,
+                    availabilityPoolSlotId: null,
                     lastActive: now,
                 },
             });
@@ -567,6 +585,10 @@ const getPoolStatus = async (req, res) => {
             availabilityStart: worker.availabilityStart,
             availabilityHours: worker.availabilityHours,
             availabilityUntil: worker.availabilityUntil,
+            poolNumber: worker.availabilityPoolSlot
+                ? Number(worker.availabilityPoolSlot.sortOrder || 0) + 1
+                : null,
+            poolStartTime: worker.availabilityPoolSlot?.startTime || null,
             elapsedSeconds: getElapsedSeconds(worker.availabilityStart),
             remainingSeconds: getRemainingSeconds(worker.availabilityUntil),
             serverTime: new Date().toISOString(),
@@ -831,22 +853,34 @@ const getWorkerDashboard = async (req, res) => {
             });
         }
 
+        // Keep the redesigned dashboard data (photo, rating and Nakas), while
+        // restoring the reliable operational-state logic used by the worker flow.
         const worker = await prisma.worker.findUnique({
             where: { id: workerId },
-            select: {
-                id: true,
-                name: true,
-                isAvailable: true,
-                availabilityType: true,
-                availabilityStart: true,
-                availabilityHours: true,
-                availabilityUntil: true,
+            include: {
+                nakas: {
+                    select: { name: true },
+                },
             },
         });
 
         if (!worker) {
-            return res.status(404).json({ success: false, message: "Worker nahi mila" });
+            return res.status(404).json({
+                success: false,
+                message: "Worker not found",
+            });
         }
+
+        const ratings = await prisma.workerClientRating.aggregate({
+            where: { workerId },
+            _avg: { rating: true },
+            _count: { rating: true },
+        });
+
+        const averageRating = ratings._avg.rating
+            ? parseFloat(ratings._avg.rating.toFixed(1))
+            : worker.baseRating;
+        const ratingCount = ratings._count.rating;
 
         const now = new Date();
         let poolIsActive = Boolean(
@@ -855,6 +889,8 @@ const getWorkerDashboard = async (req, res) => {
             new Date(worker.availabilityUntil) > now
         );
 
+        // Do not let an expired pool session keep the redesigned dashboard in
+        // "Return to Work" mode after the worker is actually offline.
         if (worker.isAvailable && worker.availabilityUntil && !poolIsActive) {
             await prisma.worker.update({
                 where: { id: workerId },
@@ -870,11 +906,18 @@ const getWorkerDashboard = async (req, res) => {
             poolIsActive = false;
         }
 
+        // A booking relation remains in _BookingToWorker even after a worker
+        // cancels that duty. Therefore we must not treat every ASSIGNED booking
+        // relation as an active duty. Fetch the recent candidates, then exclude
+        // bookings whose cancelledWorkerIds contains this worker.
         const activeDutyWhere = {
             status: { in: ["ASSIGNED", "IN_PROGRESS"] },
             workers: { some: { id: workerId } },
         };
 
+        // When the worker joined a pool, only a booking created in the current
+        // availability session can be the current duty. This also protects the
+        // dashboard from old/stale ASSIGNED records.
         if (worker.availabilityStart) {
             activeDutyWhere.createdAt = { gte: worker.availabilityStart };
         }
@@ -886,16 +929,32 @@ const getWorkerDashboard = async (req, res) => {
                 status: true,
                 arrivedWorkerIds: true,
                 cancelledWorkerIds: true,
+                completedWorkerIds: true,
                 createdAt: true,
             },
             orderBy: { createdAt: "desc" },
-            take: 5,
+            take: 10,
         });
 
-        const activeDuty = activeCandidates.find((booking) => {
-            const cancelledIds = parseCancelledWorkerIds(booking.cancelledWorkerIds);
-            return !cancelledIds.includes(workerId);
-        }) || null;
+        const activeDuty =
+            activeCandidates.find((booking) => {
+                const cancelledIds = parseCancelledWorkerIds(
+                    booking.cancelledWorkerIds
+                );
+                let completedIds = [];
+                try {
+                    completedIds = JSON.parse(
+                        booking.completedWorkerIds || "[]"
+                    ).map(Number);
+                } catch (error) {
+                    completedIds = [];
+                }
+
+                return (
+                    !cancelledIds.includes(workerId) &&
+                    !completedIds.includes(workerId)
+                );
+            }) || null;
 
         let operationalStatus = {
             type: "IDLE",
@@ -910,13 +969,16 @@ const getWorkerDashboard = async (req, res) => {
         if (activeDuty) {
             let arrivedWorkerIds = [];
             try {
-                arrivedWorkerIds = JSON.parse(activeDuty.arrivedWorkerIds || "[]").map(Number);
+                arrivedWorkerIds = JSON.parse(
+                    activeDuty.arrivedWorkerIds || "[]"
+                ).map(Number);
             } catch (error) {
                 arrivedWorkerIds = [];
             }
 
             const workerArrived = arrivedWorkerIds.includes(workerId);
-            const inProgress = activeDuty.status === "IN_PROGRESS" || workerArrived;
+            const inProgress =
+                activeDuty.status === "IN_PROGRESS" || workerArrived;
 
             operationalStatus = {
                 type: "BOOKING",
@@ -924,7 +986,9 @@ const getWorkerDashboard = async (req, res) => {
                 actionLabel: "Return to Booking",
                 bookingId: activeDuty.id,
                 bookingStatus: activeDuty.status,
-                returnScreen: inProgress ? "duty-in-progress" : "active-duty",
+                returnScreen: inProgress
+                    ? "duty-in-progress"
+                    : "active-duty",
                 availabilityType: null,
             };
         } else if (poolIsActive) {
@@ -932,8 +996,8 @@ const getWorkerDashboard = async (req, res) => {
                 type: "POOL",
                 label:
                     worker.availabilityType === "SHORT_PERIOD"
-                        ? `In pool · ${worker.availabilityHours || "Short"} hour slot`
-                        : "In pool",
+                        ? `In pool · ${worker.availabilityHours || "Short"} Hours Work`
+                        : "Waiting for work",
                 actionLabel: "Return to Pool",
                 bookingId: null,
                 bookingStatus: null,
@@ -942,34 +1006,27 @@ const getWorkerDashboard = async (req, res) => {
             };
         }
 
-        const { start, end } = getWalletDateRange();
-        const walletSummary = await buildWorkerWalletSummary(workerId, start, end);
-
-        const emanScore = 4.2;
-        const level = "Silver Imaandar";
-
-        return res.json({
+        return res.status(200).json({
             success: true,
             data: {
                 id: worker.id,
                 name: worker.name,
-                emanId: `EMN-MUM-00${worker.id}`,
-                score: emanScore,
-                level,
-                weeklyEarning: walletSummary.balance,
-                walletBalance: walletSummary.balance,
-                grossEarning: walletSummary.grossEarning,
-                totalPenalty: walletSummary.totalDeductions,
-                walletPeriod: {
-                    from: start.toISOString(),
-                    to: end.toISOString(),
+                photoUrl: worker.photoUrl,
+                baseRating: worker.baseRating,
+                rating: {
+                    averageRating,
+                    ratingCount,
                 },
+                nakas: worker.nakas,
                 operationalStatus,
             },
         });
     } catch (error) {
-        console.error("Worker Dashboard Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        console.error("Error fetching worker dashboard:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server se data load nahi ho paya.",
+        });
     }
 };
 
@@ -1480,19 +1537,37 @@ const normalizeMitraWorkerData = async ({
         throw new Error("Mitra account was not found.");
     }
 
-    // Never trust selected IDs coming from the browser. The same eligibility
-    // rule used by the live search is enforced once more before saving.
-    const operationalNakas = await prisma.naka.findMany({
-        where: {
-            id: { in: selectedNakaIds },
-            ...getOperationalMitraNakaWhere(mitraId),
-        },
-        select: { id: true },
-    });
+    // During edit, previously assigned Nakas remain valid for a profile/video
+    // update, even if their verification has expired since registration.
+    // Only NEW Naka connections must pass the current operational checks.
+    let previouslyAssignedNakaIds = new Set();
+    if (isEditMode) {
+        const editedWorker = await prisma.worker.findFirst({
+            where: { id: editingWorkerId, mitraId },
+            select: { nakas: { select: { id: true } } },
+        });
+        if (!editedWorker) {
+            throw new Error("Worker not found or access denied.");
+        }
+        previouslyAssignedNakaIds = new Set(editedWorker.nakas.map((naka) => naka.id));
+    }
 
-    if (operationalNakas.length !== selectedNakaIds.length) {
+    const newlySelectedNakaIds = selectedNakaIds.filter(
+        (id) => !previouslyAssignedNakaIds.has(id)
+    );
+    const operationalNakas = newlySelectedNakaIds.length
+        ? await prisma.naka.findMany({
+            where: {
+                id: { in: newlySelectedNakaIds },
+                ...getOperationalMitraNakaWhere(mitraId),
+            },
+            select: { id: true },
+        })
+        : [];
+
+    if (operationalNakas.length !== newlySelectedNakaIds.length) {
         throw new Error(
-            "One or more selected Nakas are not assigned to you, are not verified, or need re-verification. Please search and select operational Nakas again."
+            "Newly selected Nakas must be assigned to your Mitra account and currently verified. Existing worker Nakas are preserved during profile edits."
         );
     }
 

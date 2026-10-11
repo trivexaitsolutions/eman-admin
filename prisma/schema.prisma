@@ -321,14 +321,17 @@ model Worker {
   mitraId Int?
   mitra   Mitra? @relation(fields: [mitraId], references: [id])
 
-  availabilityType  String?
-  availabilityStart DateTime?
-  availabilityHours Int?
-  availabilityUntil DateTime?
+  availabilityType       String?
+  availabilityStart      DateTime?
+  availabilityHours      Int?
+  availabilityUntil      DateTime?
+  availabilityPoolSlotId Int?
+  availabilityPoolSlot   PoolSlot? @relation(fields: [availabilityPoolSlotId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
+  @@index([availabilityPoolSlotId])
   @@map("worker")
 }
 
@@ -349,6 +352,7 @@ model Customer {
   otpExpiry  DateTime?
   isVerified Boolean   @default(false)
   pushToken  String?   @db.Text
+  lastSeenAt DateTime? // Client app last foreground heartbeat (UTC)
 
   mitraId Int?
   mitra   Mitra? @relation(fields: [mitraId], references: [id])
@@ -396,6 +400,9 @@ model Booking {
   arrivedWorkerIds   String  @default("[]")
   cancelledWorkerIds String  @default("[]")
   completedWorkerIds String? @db.Text
+  workerWorkDurations String @db.Text
+  workerArrivalTimes  String @db.Text
+  workerPriceSnapshot String @db.Text
 
   isRated Boolean @default(false)
 
@@ -545,10 +552,38 @@ model BookingSetting {
   nearbyNakaRadiusMeters Int                  @default(5000)
   mapApiKey              String?              @db.Text
 
+  // Admin-managed daily pool window and pool-wise pricing reduction.
+  poolDayStart       String @default("08:00")
+  poolDayEnd         String @default("20:00")
+  poolReductionType  String @default("FIXED")
+  poolReductionValue Float  @default(100)
+
+  poolSlots PoolSlot[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("bookingsetting")
+}
+
+model PoolSlot {
+  id               Int            @id @default(autoincrement())
+  bookingSettingId Int            @default(1)
+  bookingSetting   BookingSetting @relation(fields: [bookingSettingId], references: [id], onDelete: Cascade)
+
+  // HH:mm in Asia/Kolkata. sortOrder starts from 0, so Pool 1 has no reduction.
+  startTime String
+  sortOrder Int
+  isActive  Boolean @default(true)
+
+  workers Worker[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingSettingId, startTime])
+  @@index([bookingSettingId, sortOrder])
+  @@map("poolslot")
 }
 
 enum ConflictRaisedBy {

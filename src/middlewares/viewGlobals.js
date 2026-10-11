@@ -38,6 +38,7 @@ const viewGlobals = (req, res, next) => {
         {
             name: 'Workforce',
             items: [
+                { name: 'Clients', path: '/admin/clients', icon: icons.workers, roles: ['superadmin', 'admin', 'employee'] },
                 { name: 'Workers', path: '/admin/workers', icon: icons.workers, roles: ['superadmin', 'admin', 'employee'] },
                 { name: 'Mitras', path: '/admin/mitras', icon: icons.mitras, roles: ['superadmin', 'admin'] },
                 { name: 'Employees', path: '/admin/employees', icon: icons.employees, roles: ['superadmin', 'admin'] },

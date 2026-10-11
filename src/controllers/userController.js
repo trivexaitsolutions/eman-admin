@@ -6,9 +6,31 @@ const {
     findNearbyVerifiedNakas
 } = require('../utils/nearbyNakas');
 const {
+    applyPoolReduction,
     getBookingSetting,
     toPublicMapSettings
 } = require('../utils/bookingSettings');
+
+// Foreground-only heartbeat; inactivity is determined using a two-minute TTL.
+const updateCustomerPresence = async (req, res) => {
+    const customerId = Number(req.body?.customerId);
+    if (!Number.isSafeInteger(customerId) || customerId < 1) {
+        return res.status(400).json({ success: false, message: "Valid customer ID required." });
+    }
+    try {
+        // Client app sends online=false on background/logout. Avoid guessing
+        // presence based on customer.updatedAt or Expo push token.
+        const result = await prisma.customer.updateMany({
+            where: { id: customerId },
+            data: { lastSeenAt: req.body?.online === false ? null : new Date() },
+        });
+        if (!result.count) return res.status(404).json({ success: false, message: "Customer not found." });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error("Customer presence update error:", error);
+        return res.status(500).json({ success: false, message: "Presence update failed." });
+    }
+};
 
 const NAKA_VERIFIED_STATUS = 'VERIFIED';
 
@@ -38,7 +60,8 @@ const sendOtp = async (req, res) => {
             }
         });
 
-        const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        // const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        const generatedOtp = "123456"; // Testing ke liye fixed OTP, production me random OTP use karein
         const expiryTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
 
         if (!customer) {
@@ -397,7 +420,10 @@ const getAvailableWorkers = async (req, res) => {
             },
             select: {
                 id: true,
-                name: true
+                name: true,
+                rates: {
+                    select: { star: true, rate: true },
+                },
             }
         });
 
@@ -444,12 +470,22 @@ const getAvailableWorkers = async (req, res) => {
                 id: true,
                 name: true,
                 photoUrl: true,
+                consentVoiceUrl: true,
                 age: true,
                 gender: true,
                 qualification: true,
                 baseRating: true,
                 lastActive: true,
                 availabilityUntil: true,
+                availabilityType: true,
+                availabilityHours: true,
+                availabilityPoolSlot: {
+                    select: {
+                        id: true,
+                        startTime: true,
+                        sortOrder: true,
+                    },
+                },
 
                 nakas: {
                     where: {
@@ -557,6 +593,22 @@ const getAvailableWorkers = async (req, res) => {
             });
         });
 
+        let selectedPoolBaseRate = null;
+
+        if (Array.isArray(skill.rates) && skill.rates.length > 0) {
+            if (parsedMinRating === 0) {
+                selectedPoolBaseRate = [...skill.rates].sort(
+                    (first, second) => Number(first.rate) - Number(second.rate)
+                )[0] || null;
+            } else {
+                selectedPoolBaseRate = skill.rates.find(
+                    (rate) => Number(rate.star) === parsedMinRating
+                ) || null;
+            }
+        }
+
+        const baseRate = Number(selectedPoolBaseRate?.rate || 0);
+
         /*
         |--------------------------------------------------------------------------
         | 6. Safe response + minimum rating filter
@@ -581,6 +633,8 @@ const getAvailableWorkers = async (req, res) => {
                     id: worker.id,
                     name: worker.name,
                     photoUrl: worker.photoUrl,
+                    consentVoiceUrl: worker.consentVoiceUrl || null,
+                    videoUrl: worker.consentVoiceUrl || null,
                     age: worker.age,
                     gender: worker.gender,
                     qualification:
@@ -603,6 +657,24 @@ const getAvailableWorkers = async (req, res) => {
 
                     availabilityUntil:
                         worker.availabilityUntil,
+                    availabilityType:
+                        worker.availabilityType,
+                    availabilityHours:
+                        worker.availabilityHours,
+                    poolNumber: worker.availabilityPoolSlot
+                        ? Number(worker.availabilityPoolSlot.sortOrder || 0) + 1
+                        : 1,
+                    poolStartTime:
+                        worker.availabilityPoolSlot?.startTime ||
+                        bookingSetting.poolDayStart,
+                    baseRate,
+                    effectiveRate: applyPoolReduction({
+                        baseRate,
+                        poolSortOrder:
+                            worker.availabilityPoolSlot?.sortOrder || 0,
+                        reductionType: bookingSetting.poolReductionType,
+                        reductionValue: bookingSetting.poolReductionValue,
+                    }),
 
                     nakas: worker.nakas,
                     skills: worker.skills
@@ -670,6 +742,7 @@ const getAvailableWorkers = async (req, res) => {
 module.exports = {
     sendOtp,
     verifyOtp,
+    updateCustomerPresence,
     getBookingOptions,
     searchNakas,
     getNearbyNakas,

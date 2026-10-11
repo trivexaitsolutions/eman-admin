@@ -1,0 +1,9 @@
+<% const st = operationalStatus || { state: 'offline', label: 'Offline' }; %>
+<% const color = st.state === 'booking' ? 'bg-sky-50 text-sky-700 border-sky-200' : st.state === 'online' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-stone-100 text-stone-500 border-stone-200'; %>
+<span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold <%= color %>">
+  <span class="h-2 w-2 rounded-full <%= st.state === 'booking' ? 'bg-sky-500' : st.state === 'online' ? 'bg-emerald-500' : 'bg-stone-400' %>"></span>
+  <%= st.label %>
+</span>
+<% if (st.bookingId) { %>
+  <a class="block mt-1 text-xs font-semibold text-emerald-700 hover:underline" href="/admin/bookings/<%= st.bookingId %>">Booking #<%= st.bookingId %></a>
+<% } %>
