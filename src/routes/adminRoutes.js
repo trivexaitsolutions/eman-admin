@@ -18,6 +18,7 @@ const adminBookingRoutes = require('./adminBookingRoutes');
 const adminDashboardController = require('../controllers/adminDashboardController');
 const leaveRoutes = require('./leaveRoutes');
 const adminClientController = require('../controllers/adminClientController');
+const adminSimulatorRoutes = require('./adminSimulatorRoutes');
 
 router.get('/login', authController.getLoginPage);
 router.post('/login', authController.login);
@@ -38,6 +39,7 @@ router.use('/states', authBouncer(['superadmin', 'admin']), stateRoutes);
 router.use('/cities', authBouncer(['superadmin', 'admin']), cityRoutes);
 router.use('/nakas', authBouncer(['superadmin', 'admin']), nakaRoutes);
 router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
+router.use('/simulator', authBouncer(['superadmin', 'admin']), adminSimulatorRoutes);
 router.use('/booking-settings', authBouncer(['superadmin', 'admin']), bookingSettingRoutes);
 router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminBookingRoutes);
 

@@ -169,6 +169,7 @@ model Mitra {
   submittedNakas Naka[]     @relation("NakaSubmittedByMitra")
   workers        Worker[]
   customers      Customer[]
+  isDemo         Boolean @default(false)
   leaveRequests             LeaveRequest[] @relation("MitraLeaveRequests")
   leaveReassignmentTargets  LeaveRequest[] @relation("LeaveReassignToMitra")
 
@@ -305,6 +306,7 @@ model Worker {
   upiNumber   String?
 
   isActive Boolean @default(true)
+  isDemo   Boolean @default(false)
 
   // Starting rating used until the worker receives real customer reviews.
   baseRating Float @default(3)
@@ -332,6 +334,7 @@ model Worker {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@index([availabilityPoolSlotId])
+  @@index([isDemo])
   @@map("worker")
 }
 
@@ -351,6 +354,7 @@ model Customer {
   otp        String?
   otpExpiry  DateTime?
   isVerified Boolean   @default(false)
+  isDemo     Boolean   @default(false)
   pushToken  String?   @db.Text
   lastSeenAt DateTime? // Client app last foreground heartbeat (UTC)
 
@@ -363,6 +367,7 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([isDemo])
   @@map("customer")
 }
 
@@ -602,4 +607,38 @@ enum ConflictUpdatedBy {
   ADMIN
   MITRA
   SYSTEM
+}
+
+// Test-only campaigns use real E-MAN worker records and the same pool/booking APIs.
+model SimulatorCampaign {
+  id           Int      @id @default(autoincrement())
+  name         String
+  mode         String   @default("MANUAL") // MANUAL or AUTOMATIC
+  status       String   @default("DRAFT") // DRAFT, RUNNING, PAUSED, STOPPED
+  maxWorkers   Int      @default(200)
+  pollSeconds  Int      @default(20)
+  createdById  Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  instances    SimulatorInstance[]
+
+  @@map("simulatorcampaign")
+}
+
+model SimulatorInstance {
+  id            Int      @id @default(autoincrement())
+  campaignId    Int
+  campaign      SimulatorCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  workerId      Int
+  // Stable per-browser ID supplied by Admin panel. Max 20 claims per ID.
+  deviceId      String   @db.VarChar(64)
+  slotIndex     Int
+  lastSeenAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([campaignId, workerId])
+  @@unique([campaignId, deviceId, slotIndex])
+  @@index([workerId])
+  @@index([campaignId, deviceId])
+  @@map("simulatorinstance")
 }

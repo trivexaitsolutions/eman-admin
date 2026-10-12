@@ -1,0 +1,38 @@
+<div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+  <div><h1 class="text-2xl font-bold text-stone-900">Worker App Simulator</h1>
+    <p class="text-sm text-stone-500 mt-1">Independent demo workers on multiple PCs. Maximum 20 virtual apps per browser.</p></div>
+  <span class="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg font-semibold">DEMO / TEST ONLY</span>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-7">
+  <form method="post" action="/admin/simulator" class="lg:col-span-2 bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
+    <h2 class="text-lg font-bold text-stone-900">Create Campaign</h2>
+    <div><label class="text-sm font-semibold text-stone-700">Campaign Name</label>
+      <input name="name" maxlength="80" placeholder="October 200 Worker Test" required class="mt-1 w-full rounded-xl border border-stone-200 px-3 py-3 outline-none focus:border-emerald-500"></div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div><label class="text-sm font-semibold text-stone-700" for="mode">Operating Mode</label>
+        <select id="mode" name="mode" class="mt-1 w-full rounded-xl border border-stone-200 px-3 py-3 font-semibold"><option value="MANUAL">Manual — each app individually</option><option value="AUTOMATIC">Automatic — pool join + monitoring</option></select></div>
+      <div><label class="text-sm font-semibold text-stone-700" for="maxWorkers">Max Workers Across PCs</label>
+        <input id="maxWorkers" type="number" name="maxWorkers" value="200" min="1" max="200" required class="mt-1 w-full rounded-xl border border-stone-200 px-3 py-3"></div>
+    </div>
+    <div><label class="text-sm font-semibold text-stone-700" for="pollSeconds">Refresh Interval (seconds)</label>
+      <input id="pollSeconds" type="number" name="pollSeconds" value="20" min="10" max="120" required class="mt-1 w-full rounded-xl border border-stone-200 px-3 py-3"></div>
+    <button class="rounded-xl bg-emerald-600 text-white font-bold px-6 py-3 hover:bg-emerald-700">Create & Start Campaign</button>
+  </form>
+  <div class="rounded-2xl bg-emerald-950 text-white p-5 flex flex-col justify-center gap-2">
+    <p class="text-emerald-200 text-sm">Available Demo Workers</p>
+    <strong class="text-5xl"><%= demoWorkers %></strong>
+    <p class="text-xs text-emerald-200">Import demo workers before starting a campaign.</p>
+    <div class="border-t border-emerald-700 mt-4 pt-4 text-sm">1 PC = up to 20 worker sessions. 10 PCs = up to 200 virtual workers.</div>
+  </div>
+</div>
+<h2 class="text-lg font-bold text-stone-900 mb-3">Campaign History</h2>
+<div class="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+  <% if (!campaigns.length) { %><p class="p-8 text-center text-stone-500">No campaigns. Create one above.</p><% } %>
+  <% campaigns.forEach(campaign => { %>
+   <a href="/admin/simulator/<%= campaign.id %>" class="flex items-center gap-3 justify-between px-5 py-4 border-b border-stone-100 hover:bg-emerald-50">
+     <div class="min-w-0"><p class="font-bold text-stone-900 truncate"><%= campaign.name %></p>
+       <p class="text-xs text-stone-500"><%= campaign.mode %> · <%= campaign._count.instances %>/<%= campaign.maxWorkers %> virtual workers</p></div>
+     <span class="shrink-0 rounded-full px-3 py-1 text-xs font-bold <%= campaign.status === 'RUNNING' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600' %>"><%= campaign.status %></span>
+   </a>
+  <% }) %>
+</div>

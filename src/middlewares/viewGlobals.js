@@ -58,6 +58,7 @@ const viewGlobals = (req, res, next) => {
         {
             name: 'Settings',
             items: [
+                { name: 'App Simulator', path: '/admin/simulator', icon: icons.workers, roles: ['superadmin', 'admin'] },
                 { name: 'Booking Settings', path: '/admin/booking-settings', icon: icons.settings, roles: ['superadmin', 'admin'] },
             ],
         },

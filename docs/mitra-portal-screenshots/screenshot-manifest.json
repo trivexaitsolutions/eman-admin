@@ -1,0 +1,244 @@
+{
+  "baseUrl": "http://localhost:4000",
+  "viewport": {
+    "width": 680,
+    "height": 980,
+    "deviceScaleFactor": 1,
+    "mobile": false
+  },
+  "demoMitraEmail": "mitra10@demo.eman.test",
+  "captured": [
+    {
+      "name": "01-login",
+      "title": "Mitra sign in",
+      "path": "/mitra/login",
+      "file": "mitra-portal-screenshots/01-login.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "02-dashboard",
+      "title": "Dashboard",
+      "path": "/mitra/dashboard",
+      "file": "mitra-portal-screenshots/02-dashboard.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "02-dashboard-quick-add",
+      "title": "Dashboard quick-add menu",
+      "path": "/mitra/dashboard",
+      "file": "mitra-portal-screenshots/02-dashboard-quick-add.png",
+      "width": 680,
+      "height": 980,
+      "note": "Temporary menu opened for capture; no action was submitted."
+    },
+    {
+      "name": "03-clients",
+      "title": "Clients list",
+      "path": "/mitra/clients",
+      "file": "mitra-portal-screenshots/03-clients.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "04-client-add-step-1",
+      "title": "Add Client - Step 1",
+      "path": "/mitra/clients/add",
+      "file": "mitra-portal-screenshots/04-client-add-step-1.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "04-client-add-step-2",
+      "title": "Add Client - Step 2",
+      "path": "/mitra/clients/add",
+      "file": "mitra-portal-screenshots/04-client-add-step-2.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "04-client-add-step-3",
+      "title": "Add Client - Step 3",
+      "path": "/mitra/clients/add",
+      "file": "mitra-portal-screenshots/04-client-add-step-3.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "05-client-edit-step-1",
+      "title": "Edit Client - Step 1",
+      "path": "/mitra/clients/edit/22",
+      "file": "mitra-portal-screenshots/05-client-edit-step-1.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "05-client-edit-step-2",
+      "title": "Edit Client - Step 2",
+      "path": "/mitra/clients/edit/22",
+      "file": "mitra-portal-screenshots/05-client-edit-step-2.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "05-client-edit-step-3",
+      "title": "Edit Client - Step 3",
+      "path": "/mitra/clients/edit/22",
+      "file": "mitra-portal-screenshots/05-client-edit-step-3.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "06-workers",
+      "title": "Workers list",
+      "path": "/mitra/workers",
+      "file": "mitra-portal-screenshots/06-workers.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "07-worker-add-step-1",
+      "title": "Add Worker - Step 1",
+      "path": "/mitra/workers/add",
+      "file": "mitra-portal-screenshots/07-worker-add-step-1.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "07-worker-add-step-2",
+      "title": "Add Worker - Step 2",
+      "path": "/mitra/workers/add",
+      "file": "mitra-portal-screenshots/07-worker-add-step-2.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "07-worker-add-step-3",
+      "title": "Add Worker - Step 3",
+      "path": "/mitra/workers/add",
+      "file": "mitra-portal-screenshots/07-worker-add-step-3.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "07-worker-add-step-4",
+      "title": "Add Worker - Step 4",
+      "path": "/mitra/workers/add",
+      "file": "mitra-portal-screenshots/07-worker-add-step-4.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "07-worker-add-step-5",
+      "title": "Add Worker - Step 5",
+      "path": "/mitra/workers/add",
+      "file": "mitra-portal-screenshots/07-worker-add-step-5.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "08-worker-edit-step-1",
+      "title": "Edit Worker - Step 1",
+      "path": "/mitra/workers/edit/206",
+      "file": "mitra-portal-screenshots/08-worker-edit-step-1.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "08-worker-edit-step-2",
+      "title": "Edit Worker - Step 2",
+      "path": "/mitra/workers/edit/206",
+      "file": "mitra-portal-screenshots/08-worker-edit-step-2.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "08-worker-edit-step-3",
+      "title": "Edit Worker - Step 3",
+      "path": "/mitra/workers/edit/206",
+      "file": "mitra-portal-screenshots/08-worker-edit-step-3.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "08-worker-edit-step-4",
+      "title": "Edit Worker - Step 4",
+      "path": "/mitra/workers/edit/206",
+      "file": "mitra-portal-screenshots/08-worker-edit-step-4.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "08-worker-edit-step-5",
+      "title": "Edit Worker - Step 5",
+      "path": "/mitra/workers/edit/206",
+      "file": "mitra-portal-screenshots/08-worker-edit-step-5.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "09-my-nakas",
+      "title": "My Nakas",
+      "path": "/mitra/nakas",
+      "file": "mitra-portal-screenshots/09-my-nakas.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "10-submit-naka",
+      "title": "Submit Naka form",
+      "path": "/mitra/nakas/add",
+      "file": "mitra-portal-screenshots/10-submit-naka.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "11-conflicts",
+      "title": "Conflicts list",
+      "path": "/mitra/conflicts",
+      "file": "mitra-portal-screenshots/11-conflicts.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    },
+    {
+      "name": "13-leaves",
+      "title": "Mitra Leaves",
+      "path": "/mitra/leaves",
+      "file": "mitra-portal-screenshots/13-leaves.png",
+      "width": 680,
+      "height": 980,
+      "note": ""
+    }
+  ],
+  "skipped": [
+    {
+      "name": "12-conflict-detail",
+      "path": "/mitra/conflicts (first matching record)",
+      "reason": "No matching record is present in the list."
+    }
+  ]
+}

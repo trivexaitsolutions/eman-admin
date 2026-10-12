@@ -1,0 +1,17 @@
+const express = require('express');
+const router = express.Router();
+const simulator = require('../controllers/adminSimulatorController');
+router.use(simulator.ensureEnabled);
+router.get('/', simulator.list);
+router.post('/', simulator.create);
+router.get('/:id', simulator.show);
+router.post('/:id/status', simulator.update);
+router.post('/:id/clear-claims', simulator.clearClaims);
+router.post('/:id/claim', simulator.claim);
+router.get('/:id/claims', simulator.claims);
+router.get('/:id/priorities', simulator.priorities);
+router.post('/:id/release', simulator.release);
+router.get('/:id/worker/:workerId/state', simulator.state);
+router.post('/:id/worker/:workerId/action', simulator.action);
+router.post('/:id/worker/:workerId/auto-tick', simulator.autoTick);
+module.exports = router;

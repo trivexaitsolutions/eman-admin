@@ -1,0 +1,258 @@
+<div class="mb-5 flex flex-wrap gap-3 items-start justify-between">
+  <div><a href="/admin/simulator" class="text-sm font-semibold text-emerald-700">← All Campaigns</a>
+    <h1 class="text-2xl font-bold text-stone-900 mt-2"><%= campaign.name %></h1>
+    <p class="text-xs text-stone-500 mt-1">Campaign #<%= campaign.id %> · <%= campaign.mode %> · <%= allocated %>/<%= campaign.maxWorkers %> allocated · Refresh every <%= campaign.pollSeconds %> sec</p></div>
+  <div class="flex gap-2 flex-wrap">
+    <% if (campaign.status !== 'RUNNING' && campaign.status !== 'STOPPED') { %><form method="post" action="/admin/simulator/<%= campaign.id %>/status"><input type="hidden" name="action" value="RUNNING"><button class="rounded-xl bg-emerald-600 px-4 py-2.5 text-white font-bold">Resume</button></form><% } %>
+    <% if (campaign.status === 'RUNNING') { %><form method="post" action="/admin/simulator/<%= campaign.id %>/status"><input type="hidden" name="action" value="PAUSED"><button class="rounded-xl bg-amber-100 text-amber-900 px-4 py-2.5 font-bold">Pause</button></form><% } %>
+    <form method="post" action="/admin/simulator/<%= campaign.id %>/clear-claims" onsubmit="return confirm('Release claims on ALL PCs? Bookings are preserved.')"><button class="rounded-xl border border-stone-200 px-4 py-2.5 font-semibold">Release All PCs</button></form>
+    <% if (campaign.status !== 'STOPPED') { %><form method="post" action="/admin/simulator/<%= campaign.id %>/status" onsubmit="return confirm('Stop campaign? Existing bookings will NOT be cancelled.')"><input type="hidden" name="action" value="STOPPED"><button class="rounded-xl bg-stone-900 px-4 py-2.5 text-white font-bold">Stop</button></form><% } %>
+  </div>
+</div>
+<div class="bg-white rounded-2xl border border-stone-200 p-4 mb-5 flex flex-wrap gap-3 items-end justify-between">
+  <div class="flex items-end gap-3">
+    <div><label for="instanceCount" class="block text-sm font-bold text-stone-800 mb-1">Worker Apps on This PC</label>
+      <input id="instanceCount" type="number" min="1" max="20" value="5" class="w-28 border border-stone-300 rounded-xl p-3 text-lg font-bold"></div>
+    <button id="allocateBtn" class="bg-emerald-600 rounded-xl text-white font-bold px-5 py-3 disabled:opacity-50" <%= campaign.status !== 'RUNNING' ? 'disabled' : '' %>>Open Apps</button>
+  </div>
+  <div class="flex gap-2 flex-wrap items-center">
+    <label class="inline-flex items-center gap-2 rounded-xl border border-stone-200 px-3 py-3 font-bold text-sm cursor-pointer">
+      <input type="checkbox" id="selectAllWorkers" class="h-5 w-5 accent-emerald-600" aria-label="Select all worker apps on this PC" />
+      Select All <span id="selectedWorkerCount" class="text-stone-500">(0)</span>
+    </label>
+    <button id="bulkOnlineBtn" class="rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white disabled:opacity-50" disabled>Bring Selected Online</button>
+    <button id="releaseBtn" class="text-sm px-4 py-3 rounded-xl border border-stone-200 font-semibold hover:bg-stone-100">Release This PC's Apps</button>
+  </div>
+</div>
+<div class="flex flex-wrap gap-3 mb-4 text-xs text-stone-500">
+ <p><span class="text-emerald-700 font-bold">●</span> Online = in pool</p>
+ <p><span class="text-amber-700 font-bold">●</span> In Booking = assigned duty</p>
+ <p>2/3/4 hours = one job's duration, NOT the pool's expiry</p>
+ <p>PC identity is per browser profile (not hardware-bound)</p>
+ <p>Select All affects only workers assigned to this browser; assigned jobs cannot be force-joined/offlined.</p>
+</div>
+<div id="simNotice" role="status" aria-live="polite" class="hidden mb-4 rounded-xl p-3 text-sm font-semibold"></div>
+<div id="phoneGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-live="off"></div>
+<div id="emptyGrid" class="py-12 text-center text-stone-500 bg-white rounded-2xl border border-dashed border-stone-300">Select 1–20 instances and click <strong>Open Apps</strong>.</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(() => {
+ const CAMPAIGN = <%- JSON.stringify({id:campaign.id,mode:campaign.mode,status:campaign.status,pollSeconds:campaign.pollSeconds}) %>;
+ const root = `/admin/simulator/${CAMPAIGN.id}`;
+ const key = 'eman_simulator_device_v1';
+ let deviceId = localStorage.getItem(key);
+ if (!deviceId || !/^[a-zA-Z0-9_-]{16,64}$/.test(deviceId)) {
+   deviceId = `browser_${(globalThis.crypto?.randomUUID?.()?.replaceAll('-','') || (Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)))}`;
+   localStorage.setItem(key, deviceId);
+ }
+ let instances = [], working = new Set(), lastStates = new Map(), bulkBusy = false;
+ const selectAll = document.querySelector('#selectAllWorkers');
+ const selectedCount = document.querySelector('#selectedWorkerCount');
+ const bulkBtn = document.querySelector('#bulkOnlineBtn');
+ const grid = document.querySelector('#phoneGrid');
+ const empty = document.querySelector('#emptyGrid');
+ const notice = document.querySelector('#simNotice');
+ const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g,c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function message(text, bad) { notice.textContent = text; notice.className = `mb-4 rounded-xl p-3 text-sm font-semibold ${bad?'bg-red-50 text-red-700':'bg-emerald-50 text-emerald-800'}`; }
+ async function api(url, method='GET', body) {
+   const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},credentials:'same-origin',body:body?JSON.stringify({...body,deviceId}):undefined});
+   let json; try {json=await r.json()} catch {throw Error(`HTTP ${r.status}`)}
+   if (!r.ok || json.success === false) throw Error(json.message || `HTTP ${r.status}`);
+   return json;
+ }
+ function cardHTML(inst) {
+   const w=inst.worker || {};
+   return `<section class="rounded-2xl border border-stone-200 bg-white shadow-sm overflow-hidden" data-worker="${inst.workerId}">
+     <div class="bg-stone-950 text-white px-4 py-3 flex items-center justify-between"><label class="flex items-center gap-2 font-bold text-sm"><input type="checkbox" data-select-worker class="h-5 w-5 accent-emerald-500" aria-label="Select worker ${inst.slotIndex}" />📱 Worker ${inst.slotIndex}</label><span class="text-xs text-emerald-400">Demo</span></div>
+     <div class="p-4 space-y-3">
+       <div><div class="font-bold text-stone-900 truncate" title="${escapeHtml(w.name)}">${escapeHtml(w.name)}</div><div class="text-xs text-stone-500">#${inst.workerId} · ${escapeHtml(w.phone)}</div></div>
+       <div class="flex items-center justify-between"><strong data-label class="rounded-full px-3 py-1 bg-stone-100 text-stone-600 text-xs">Loading...</strong><span data-duration class="text-sm font-bold text-stone-700">—</span></div>
+       <div data-worker-info class="text-xs text-stone-500"></div>
+       <div data-duty class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600 min-h-24">Checking assigned work...</div>
+       <select aria-label="Work duration" data-choice class="w-full rounded-xl border border-stone-200 p-3 text-sm font-semibold bg-white">
+        <option value="FULL_DAY">Full Day</option><option value="2">2 Hours Work</option><option value="3">3 Hours Work</option><option value="4">4 Hours Work</option></select>
+       <div class="grid grid-cols-2 gap-2"><button data-op="JOIN" class="rounded-xl bg-emerald-600 text-white font-bold py-3">Join Pool</button>
+       <button data-op="OFFLINE" class="rounded-xl border border-stone-200 font-bold py-3">Offline</button></div>
+       <p data-error class="text-xs text-red-600 min-h-4" aria-live="polite"></p>
+     </div></section>`;
+ }
+ function updateSelection() {
+   const boxes=[...grid.querySelectorAll('[data-select-worker]')];
+   const selected=boxes.filter(b=>b.checked).length;
+   selectAll.checked=boxes.length>0 && selected===boxes.length;
+   selectAll.indeterminate=selected>0 && selected<boxes.length;
+   selectedCount.textContent=`(${selected}/${boxes.length})`;
+   bulkBtn.disabled=!selected || bulkBusy || CAMPAIGN.status!=='RUNNING' || CAMPAIGN.mode==='AUTOMATIC';
+   bulkBtn.title=CAMPAIGN.mode==='AUTOMATIC'?'Automatic campaigns manage pool join themselves':'';
+ }
+ function sortCardsByDuty() {
+   // Stable ordering within each priority: In Booking, Online, Offline.
+   const weights={'In Booking':0,'Online':1,'Offline':2};
+   const cards=[...grid.children];
+   const rank=el=>weights[el.dataset.status]??3;
+   const sorted=cards.slice().sort((a,b)=>rank(a)-rank(b));
+   if (sorted.some((el,i)=>el!==cards[i])) sorted.forEach(el=>grid.appendChild(el));
+ }
+ function applyStatus(el, operationalStatus) {
+   el.dataset.status=operationalStatus;
+   const badge=el.querySelector('[data-label]');
+   badge.textContent=operationalStatus;
+   badge.className='rounded-full px-3 py-1 text-xs font-bold '+(operationalStatus==='In Booking'?'bg-amber-100 text-amber-800':operationalStatus==='Online'?'bg-emerald-100 text-emerald-800':'bg-stone-100 text-stone-600');
+   sortCardsByDuty();
+ }
+ function paint(inst, state) {
+   const el=grid.querySelector(`[data-worker="${inst.workerId}"]`);
+   if (!el) return;
+   const w=state.worker, job=state.booking;
+   applyStatus(el, w.operationalStatus);
+   const duration=w.availabilityType==='FULL_DAY'?'Full Day':w.availabilityType==='SHORT_PERIOD'?`${w.availabilityHours} Hours`:'Not selected';
+   el.querySelector('[data-duration]').textContent=duration;
+   const workerInfo=el.querySelector('[data-worker-info]');
+   workerInfo.innerHTML=`<div>${escapeHtml((w.skills||[]).map(v=>v.name).join(', '))} · ${escapeHtml((w.nakas||[]).map(v=>v.name).join(', '))}</div>${w.mitra?`<div class="mt-1">Mitra: <b>${escapeHtml(w.mitra.name)}</b> · <a class="text-emerald-700 font-bold" href="tel:${escapeHtml(w.mitra.phone)}">Call Mitra</a></div>`:''}`;
+   const duty=el.querySelector('[data-duty]');
+   if (!job) duty.textContent='No booking assigned. Waiting for customer...';
+   else {
+    let content=`<div class="font-bold text-stone-900">Booking #${job.id}</div><div>Client: ${escapeHtml(job.customerName)}</div>`;
+    if(job.isComplete) content+=`<div class="mt-2 text-emerald-700 font-bold">Work Complete</div>${job.canRate?`<button data-op="RATE" data-booking="${job.id}" class="mt-2 bg-emerald-600 text-white rounded-lg p-2 w-full">Rate Customer ★★★★★</button>`:job.rated?'<div class="text-xs">Rating submitted</div>':''}`;
+    else if(job.workerArrived) content+=`<div class="mt-2 font-bold text-emerald-700">Arrival verified · On Duty</div><div class="text-xs mt-1">Work Timer (verified arrival)</div><div data-timer-start="${escapeHtml(job.workStartedAt||'')}" data-timer-hours="${Number(job.committedHours)||0}" class="text-2xl font-extrabold text-stone-900 mt-1">--:--:--</div><div class="text-xs mt-1">Customer completes work on Android app.</div>`;
+    else content+=`<div class="mt-2 text-xs">Customer QR Scan / Manual Code</div><div data-qr class="flex justify-center bg-white rounded-xl p-2 mt-2"></div><div class="text-center text-[10px] mt-1">OR ENTER 6 DIGIT CODE</div><div class="tracking-[0.18em] text-center text-3xl font-extrabold my-2 text-stone-900">${escapeHtml(job.arrivalCode||'------')}</div><p class="text-xs text-stone-500">Code expires ${job.arrivalCodeExpiresAt?new Date(job.arrivalCodeExpiresAt).toLocaleTimeString():''}</p>`;
+    duty.innerHTML=content;
+    const qrEl=duty.querySelector('[data-qr]');
+    if(qrEl){
+      if(window.QRCode) new QRCode(qrEl,{text:JSON.stringify({action:'VERIFY_WORKER_ARRIVAL',bookingId:job.id,workerId:inst.workerId}),width:146,height:146,colorDark:'#111827',colorLight:'#FFFFFF'});
+      else qrEl.innerHTML='<span class="text-xs text-amber-700">QR library unavailable. Use the 6-digit code below.</span>';
+    }
+   }
+   el.querySelector('[data-choice]').disabled=CAMPAIGN.mode==='AUTOMATIC';
+   el.querySelectorAll('[data-op="JOIN"],[data-op="OFFLINE"]').forEach(b=> b.disabled=bulkBusy||CAMPAIGN.mode==='AUTOMATIC'||CAMPAIGN.status!=='RUNNING');
+ }
+ async function fetchState(inst) {
+   if (working.has(inst.workerId)) return;
+   working.add(inst.workerId);
+   try {
+     if (CAMPAIGN.mode==='AUTOMATIC' && CAMPAIGN.status==='RUNNING') await api(`${root}/worker/${inst.workerId}/auto-tick`,'POST',{});
+     const state=await api(`${root}/worker/${inst.workerId}/state?deviceId=${encodeURIComponent(deviceId)}`);
+     lastStates.set(inst.workerId,state); paint(inst,state);
+   } catch(e) {
+     const el=grid.querySelector(`[data-worker="${inst.workerId}"]`);
+     if(el) el.querySelector('[data-error]').textContent=e.message;
+   } finally {working.delete(inst.workerId)}
+ }
+ async function loadExisting() {
+   try {
+     const r=await api(`${root}/claims?deviceId=${encodeURIComponent(deviceId)}`);
+     instances=r.instances;
+     if(instances.length) {
+       document.getElementById('instanceCount').value=instances.length;
+       grid.innerHTML=instances.map(cardHTML).join('');
+       empty.classList.add('hidden');
+       updateSelection();
+       await Promise.allSettled(instances.map(fetchState));
+     }
+   }catch(e){message(e.message,true)}
+ }
+ async function allocate() {
+   try {
+     const count=Number(document.getElementById('instanceCount').value);
+     if(!Number.isInteger(count)||count<1||count>20) return message('Each PC can have 1–20 apps only.',true);
+     const response=await api(`${root}/claim`,'POST',{count});
+     instances=response.instances;
+     grid.innerHTML=instances.map(cardHTML).join(''); empty.classList.toggle('hidden',instances.length>0);
+     updateSelection();
+     if(instances.length<count) message(`Only ${instances.length}/${count} workers available (other PCs may have claimed the rest).`,true);
+     else message(`${instances.length} independent worker apps ready on this PC.`,false);
+     // Promise.allSettled prevents one worker's error hiding the other 19.
+     await Promise.allSettled(instances.map(fetchState));
+   }catch(e){message(e.message,true)}
+ }
+ selectAll.addEventListener('change',()=>{
+   grid.querySelectorAll('[data-select-worker]').forEach(b=>{b.checked=selectAll.checked});
+   updateSelection();
+ });
+ grid.addEventListener('change',e=>{if(e.target.matches('[data-select-worker]'))updateSelection()});
+ bulkBtn.addEventListener('click',async()=>{
+   if(bulkBusy || CAMPAIGN.status!=='RUNNING' || CAMPAIGN.mode==='AUTOMATIC') return;
+   const selected=[...grid.querySelectorAll('[data-worker]')].filter(card=>card.querySelector('[data-select-worker]')?.checked);
+   if(!selected.length) return;
+   bulkBusy=true; updateSelection();
+   const original=bulkBtn.textContent;
+   bulkBtn.textContent='Bringing Online...';
+   let successful=0, skipped=0, alreadyOnline=0, failed=0;
+   // Four requests concurrently: avoid flooding the DB with 20 updates at once.
+   let cursor=0;
+   const worker=async()=>{
+     while(cursor<selected.length){
+       const card=selected[cursor++], id=Number(card.dataset.worker);
+       const state=lastStates.get(id);
+       if(state?.worker?.operationalStatus==='In Booking'){skipped++;continue}
+       if(state?.worker?.operationalStatus==='Online'){alreadyOnline++;continue}
+       try{
+         await api(`${root}/worker/${id}/action`,'POST',{operation:'JOIN',duration:card.querySelector('[data-choice]').value});
+         successful++;
+         await fetchState(instances.find(i=>i.workerId===id));
+         card.querySelector('[data-error]').textContent='';
+       } catch(e){failed++;card.querySelector('[data-error]').textContent=e.message}
+     }
+   };
+   try{
+     await Promise.all(Array.from({length:Math.min(4,selected.length)},()=>worker()));
+     message(`Brought online: ${successful} · Already online: ${alreadyOnline} · In booking: ${skipped} · Failed: ${failed}. Other PCs unchanged.`,failed>0);
+   }finally{
+     bulkBusy=false;bulkBtn.textContent=original;updateSelection();
+     await Promise.allSettled(instances.map(fetchState));
+   }
+ });
+ grid.addEventListener('click',async e=>{
+   const btn=e.target.closest('[data-op]'); if(!btn || bulkBusy) return;
+   const el=btn.closest('[data-worker]'), workerId=Number(el?.dataset.worker);
+   const op=btn.dataset.op;
+   const body={operation:op,duration:el.querySelector('[data-choice]').value};
+   if(op==='RATE'){body.bookingId=Number(btn.dataset.booking);body.rating=5;}
+   btn.disabled=true;
+   try {await api(`${root}/worker/${workerId}/action`,'POST',body); await fetchState(instances.find(i=>i.workerId===workerId));el.querySelector('[data-error]').textContent='';}
+   catch(err){el.querySelector('[data-error]').textContent=err.message}finally{btn.disabled=false}
+ });
+ document.getElementById('allocateBtn').addEventListener('click',allocate);
+ document.getElementById('releaseBtn').addEventListener('click',async()=>{
+  if(!confirm('Release this PC’s simulated apps? Active bookings will remain unchanged.')) return;
+  try {await api(`${root}/release`,'POST',{});instances=[];lastStates.clear();grid.innerHTML='';empty.classList.remove('hidden');updateSelection();message('All instances released for this PC.',false)}
+  catch(e){message(e.message,true)}
+ });
+ const fmt = (v) => {const h=Math.floor(v/3600),m=Math.floor(v%3600/60),s=v%60;return [h,m,s].map(n=>String(n).padStart(2,'0')).join(':')};
+ setInterval(()=>grid.querySelectorAll('[data-timer-start]').forEach(el=>{
+   const t=new Date(el.dataset.timerStart).getTime();
+   if(!Number.isFinite(t)) {el.textContent='Waiting for arrival timestamp';return}
+   const elapsed=Math.max(0,Math.floor((Date.now()-t)/1000));
+   const hours=Number(el.dataset.timerHours)||0;
+   const remaining=hours>0 ? hours*3600-elapsed : null;
+   if(remaining!==null && remaining<0){el.textContent='+'+fmt(-remaining);el.className='text-2xl font-extrabold mt-1 text-red-600'}
+   else {el.textContent=fmt(remaining===null?elapsed:remaining);el.className='text-2xl font-extrabold mt-1 text-stone-900'}
+ }),1000);
+ // Lightweight status refresh (one query group per PC) every 5 sec.
+ let priorityBusy=false;
+ setInterval(async()=>{
+   if(priorityBusy||!instances.length||document.hidden)return;
+   priorityBusy=true;
+   try{
+     const result=await api(`${root}/priorities?deviceId=${encodeURIComponent(deviceId)}`);
+     const changed=[];
+     for(const row of result.statuses){
+       const card=grid.querySelector(`[data-worker="${row.workerId}"]`);
+       if(!card||card.dataset.status===row.operationalStatus)continue;
+       applyStatus(card,row.operationalStatus);
+       const inst=instances.find(v=>v.workerId===row.workerId);
+       if(inst)changed.push(inst);
+     }
+     if(changed.length)await Promise.allSettled(changed.map(fetchState));
+   }catch(e){console.warn('Simulator status refresh:',e.message)}
+   finally{priorityBusy=false}
+ },5000);
+ // Safe at 20 apps: fetches per-worker via real Express HTTP endpoints.
+ let pollBusy=false;
+ setInterval(async()=>{if(pollBusy||!instances.length||document.hidden)return;
+   pollBusy=true; try{await Promise.allSettled(instances.map(fetchState));}finally{pollBusy=false}
+ },CAMPAIGN.pollSeconds*1000);
+ // Reload existing reservations without reassigning others; claim is idempotent.
+ loadExisting();
+})();
+</script>

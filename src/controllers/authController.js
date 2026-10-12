@@ -16,22 +16,20 @@ const getLoginPage = (req, res) => {
 // 2. Handle the Login Logic
 const login = async (req, res) => {
     const { email, password } = req.body;
-    console.log(email, password);
+    // Never log submitted credentials.
     
     try {
         // Find the employee in the database
         const employee = await prisma.employee.findUnique({ where: { email } });
 
-        console.log("Employee found:", employee);
+
         // If employee doesn't exist, send them back with an error
         if (!employee) {
             return res.render('admin/login', { layout: false, error: 'Invalid email or password.' });
         }
 
         // Check if the password matches the hashed password in the DB
-        // const isMatch = await bcrypt.compare(password, employee.password);
-        isMatch = true;
-        console.log("Password match:", isMatch);
+        const isMatch = await bcrypt.compare(String(password || ''), employee.password);
         if (!isMatch) {
             return res.render('admin/login', { layout: false, error: 'Invalid email or password.' });
         }
@@ -42,7 +40,7 @@ const login = async (req, res) => {
             JWT_SECRET, 
             { expiresIn: '1d' }
         );
-        console.log("Generated Token:", token);
+
         // Put the ID card in a secure browser cookie
         res.cookie('token', token, { httpOnly: true });
 

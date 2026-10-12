@@ -9,6 +9,7 @@ const {
     findNearbyVerifiedNakas
 } = require('../utils/nearbyNakas');
 const { applyPoolReduction, getBookingSetting } = require('../utils/bookingSettings');
+const { bookingPricePresentation } = require('../utils/bookingPricing');
 
 const NAKA_VERIFIED_STATUS = 'VERIFIED';
 
@@ -1555,53 +1556,47 @@ const completeBooking = async (req, res) => {
 
 const getBookingHistory = async (req, res) => {
     try {
-        const { customerId } = req.params;
-
-        // Saari bookings dhoondo jo 'COMPLETED' ya 'CANCELLED' ho chuki hain
-        // Ya phir aap saari bookings bhi dikha sakte hain
+        const customerId = Number(req.params.customerId);
+        if (!Number.isSafeInteger(customerId) || customerId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid customer ID' });
+        }
         const history = await prisma.booking.findMany({
-    where: {
-        customerId: parseInt(customerId)
-    },
-    include: {
-        workers: true // Sirf workers ko include karein
-    },
-    orderBy: {
-        createdAt: "desc"
-    }
-});
-
-        res.json({ success: true, history });
+            where: { customerId },
+            include: { workers: true },
+            orderBy: { createdAt: 'desc' },
+        });
+        return res.json({ success: true, history: history.map((booking) => ({
+            ...booking,
+            ...bookingPricePresentation(booking),
+        })) });
     } catch (error) {
-        console.error("History Fetch Error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+        console.error('History Fetch Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
     }
 };
 
-// src/controllers/bookingController.js (getBookingById)
 const getBookingById = async (req, res) => {
     try {
-        const { id } = req.params;
-
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid booking ID' });
+        }
         const booking = await prisma.booking.findUnique({
-            where: { id: parseInt(id) },
+            where: { id },
             include: {
                 workers: true,
-                ratings: true // 👈 YEH NAYI LINE ADD KI HAI (Purani rating laane ke liye)
-            }
+                ratings: true,
+            },
         });
-
         if (!booking) {
-            return res.status(404).json({ success: false, message: "Booking nahi mili" });
+            return res.status(404).json({ success: false, message: 'Booking nahi mili' });
         }
-
-        const isRated = booking.isRated || false; 
-
-        res.json({ success: true, booking: { ...booking, isRated } });
-
+        return res.json({ success: true, booking: {
+            ...booking, ...bookingPricePresentation(booking), isRated: !!booking.isRated,
+        } });
     } catch (error) {
-        console.error("Fetch Booking Details Error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+        console.error('Fetch Booking Details Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
     }
 };
 

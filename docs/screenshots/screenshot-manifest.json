@@ -1,0 +1,328 @@
+{
+  "baseUrl": "http://localhost:4000",
+  "viewport": {
+    "width": 1440,
+    "height": 1000,
+    "deviceScaleFactor": 1,
+    "mobile": false
+  },
+  "captured": [
+    {
+      "name": "01-login",
+      "title": "Admin sign-in",
+      "path": "/admin/login",
+      "landedUrl": "http://localhost:4000/admin/login",
+      "file": "screenshots/01-login.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "02-dashboard",
+      "title": "Dashboard",
+      "path": "/admin/dashboard",
+      "landedUrl": "http://localhost:4000/admin/dashboard",
+      "file": "screenshots/02-dashboard.png",
+      "width": 1440,
+      "height": 1000,
+      "note": "Daily operational overview."
+    },
+    {
+      "name": "03-states",
+      "title": "States and Union Territories",
+      "path": "/admin/states",
+      "landedUrl": "http://localhost:4000/admin/states",
+      "file": "screenshots/03-states.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "04-cities",
+      "title": "Cities list",
+      "path": "/admin/cities",
+      "landedUrl": "http://localhost:4000/admin/cities",
+      "file": "screenshots/04-cities.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "05-city-create",
+      "title": "Create city",
+      "path": "/admin/cities/create",
+      "landedUrl": "http://localhost:4000/admin/cities/create",
+      "file": "screenshots/05-city-create.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "05-city-edit",
+      "title": "Edit city",
+      "path": "/admin/cities/edit/3",
+      "landedUrl": "http://localhost:4000/admin/cities/edit/3",
+      "file": "screenshots/05-city-edit.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "06-skills",
+      "title": "Skills list",
+      "path": "/admin/skills",
+      "landedUrl": "http://localhost:4000/admin/skills",
+      "file": "screenshots/06-skills.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "07-skill-create",
+      "title": "Create skill",
+      "path": "/admin/skills/create",
+      "landedUrl": "http://localhost:4000/admin/skills/create",
+      "file": "screenshots/07-skill-create.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "07-skill-edit",
+      "title": "Edit skill",
+      "path": "/admin/skills/edit/5",
+      "landedUrl": "http://localhost:4000/admin/skills/edit/5",
+      "file": "screenshots/07-skill-edit.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "08-nakas",
+      "title": "Nakas list",
+      "path": "/admin/nakas",
+      "landedUrl": "http://localhost:4000/admin/nakas",
+      "file": "screenshots/08-nakas.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "09-naka-create",
+      "title": "Create Naka",
+      "path": "/admin/nakas/create",
+      "landedUrl": "http://localhost:4000/admin/nakas/create",
+      "file": "screenshots/09-naka-create.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "09-naka-edit",
+      "title": "Edit Naka",
+      "path": "/admin/nakas/edit/196",
+      "landedUrl": "http://localhost:4000/admin/nakas/edit/196",
+      "file": "screenshots/09-naka-edit.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "10-booking-settings",
+      "title": "Booking Settings",
+      "path": "/admin/booking-settings",
+      "landedUrl": "http://localhost:4000/admin/booking-settings",
+      "file": "screenshots/10-booking-settings.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "11-employees",
+      "title": "Employees list",
+      "path": "/admin/employees",
+      "landedUrl": "http://localhost:4000/admin/employees",
+      "file": "screenshots/11-employees.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "12-employee-create",
+      "title": "Create employee",
+      "path": "/admin/employees/create",
+      "landedUrl": "http://localhost:4000/admin/employees/create",
+      "file": "screenshots/12-employee-create.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "12-employee-edit",
+      "title": "Edit employee",
+      "path": "/admin/employees/edit/1",
+      "landedUrl": "http://localhost:4000/admin/employees/edit/1",
+      "file": "screenshots/12-employee-edit.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "13-mitras",
+      "title": "Mitras list",
+      "path": "/admin/mitras",
+      "landedUrl": "http://localhost:4000/admin/mitras",
+      "file": "screenshots/13-mitras.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "14-mitra-create",
+      "title": "Create Mitra",
+      "path": "/admin/mitras/create",
+      "landedUrl": "http://localhost:4000/admin/mitras/create",
+      "file": "screenshots/14-mitra-create.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "14-mitra-edit",
+      "title": "Edit Mitra",
+      "path": "/admin/mitras/edit/14",
+      "landedUrl": "http://localhost:4000/admin/mitras/edit/14",
+      "file": "screenshots/14-mitra-edit.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "15-workers",
+      "title": "Workers list",
+      "path": "/admin/workers",
+      "landedUrl": "http://localhost:4000/admin/workers",
+      "file": "screenshots/15-workers.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "16-worker-create",
+      "title": "Create worker",
+      "path": "/admin/workers/create",
+      "landedUrl": "http://localhost:4000/admin/workers/create",
+      "file": "screenshots/16-worker-create.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "16-worker-edit",
+      "title": "Edit worker",
+      "path": "/admin/workers/edit/216",
+      "landedUrl": "http://localhost:4000/admin/workers/edit/216",
+      "file": "screenshots/16-worker-edit.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "17-clients",
+      "title": "Clients list",
+      "path": "/admin/clients",
+      "landedUrl": "http://localhost:4000/admin/clients",
+      "file": "screenshots/17-clients.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "18-bookings",
+      "title": "Bookings list",
+      "path": "/admin/bookings",
+      "landedUrl": "http://localhost:4000/admin/bookings",
+      "file": "screenshots/18-bookings.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "19-online-workers",
+      "title": "Online Workers",
+      "path": "/admin/bookings/online-workers",
+      "landedUrl": "http://localhost:4000/admin/bookings/online-workers",
+      "file": "screenshots/19-online-workers.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "20-booking-detail",
+      "title": "Booking detail",
+      "path": "/admin/bookings/62",
+      "landedUrl": "http://localhost:4000/admin/bookings/62",
+      "file": "screenshots/20-booking-detail.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "21-conflicts",
+      "title": "Conflict Management",
+      "path": "/admin/conflicts",
+      "landedUrl": "http://localhost:4000/admin/conflicts",
+      "file": "screenshots/21-conflicts.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "23-leave-management",
+      "title": "Leave Management",
+      "path": "/admin/leaves",
+      "landedUrl": "http://localhost:4000/admin/leaves",
+      "file": "screenshots/23-leave-management.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "24-my-leaves",
+      "title": "My Leaves",
+      "path": "/admin/leaves/my",
+      "landedUrl": "http://localhost:4000/admin/leaves/my",
+      "file": "screenshots/24-my-leaves.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "25-simulator",
+      "title": "App Simulator campaigns",
+      "path": "/admin/simulator",
+      "landedUrl": "http://localhost:4000/admin/simulator",
+      "file": "screenshots/25-simulator.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    },
+    {
+      "name": "26-simulator-campaign",
+      "title": "Simulator campaign console",
+      "path": "/admin/simulator/1",
+      "landedUrl": "http://localhost:4000/admin/simulator/1",
+      "file": "screenshots/26-simulator-campaign.png",
+      "width": 1440,
+      "height": 1000,
+      "note": ""
+    }
+  ],
+  "skipped": [
+    {
+      "name": "22-conflict-detail",
+      "path": "/admin/conflicts (first matching record)",
+      "reason": "No matching record is present in the list."
+    }
+  ]
+}

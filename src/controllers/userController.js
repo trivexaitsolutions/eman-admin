@@ -2,6 +2,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendOtpEmail } = require('../utils/mailer');
+const { randomInt } = require('node:crypto');
 const {
     findNearbyVerifiedNakas
 } = require('../utils/nearbyNakas');
@@ -61,7 +62,12 @@ const sendOtp = async (req, res) => {
         });
 
         // const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        const generatedOtp = "123456"; // Testing ke liye fixed OTP, production me random OTP use karein
+        // Fixed OTP is permitted only for explicitly marked demo customers and
+        // only when the operator enables it in a non-production test environment.
+        // Real customer OTPs must remain unpredictable.
+        const demoOtp = process.env.DEMO_OTP_ENABLED === 'true' &&
+            process.env.NODE_ENV !== 'production' && customer?.isDemo === true;
+        const generatedOtp = demoOtp ? '123456' : String(randomInt(100000, 1000000));
         const expiryTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
 
         if (!customer) {
@@ -113,10 +119,10 @@ const sendOtp = async (req, res) => {
         }
 
         // Email par OTP bhejien
-        const emailSent = await sendOtpEmail(customer.email, generatedOtp);
+        const emailSent = demoOtp ? true : await sendOtpEmail(customer.email, generatedOtp);
 
         if (emailSent) {
-            res.json({ success: true, message: `OTP ${customer.email} par bhej diya gaya hai!`, customerId: customer.id });
+            res.json({ success: true, message: demoOtp ? 'Demo OTP is 123456 (staging only).' : `OTP ${customer.email} par bhej diya gaya hai!`, customerId: customer.id });
         } else {
             res.status(500).json({ success: false, message: "Email bhejne me problem aayi." });
         }

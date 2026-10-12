@@ -201,7 +201,7 @@ const saveWorker = async (req, res) => {
 const loginWorker = async (req, res) => {
     // We expect 'loginId' from the app, which could be a phone OR email
     const { loginId, password } = req.body; 
-    console.log("Login Attempt:", loginId,password); // Log the login ID for debugging
+    // Do not log passwords or complete worker records.
     
     try {
         // Find worker by matching either phone or email
@@ -213,13 +213,16 @@ const loginWorker = async (req, res) => {
                 ]
             } 
         });
-        console.log("worker found:", worker); // Log the worker object for debugging
+
         if (!worker) {
             return res.status(401).json({ success: false, message: "Invalid ID or password." });
         }
 
+        if (worker.isDemo && process.env.NODE_ENV === 'production' && process.env.DEMO_ALLOW_PRODUCTION !== 'true') {
+            return res.status(403).json({ success: false, message: 'Demo accounts are disabled on production.' });
+        }
         const isMatch = await bcrypt.compare(password, worker.password);
-        console.log("Password match:", isMatch); // Log the password match result for debugging
+
         if (!isMatch) {
             return res.status(401).json({ success: false, message: "Invalid ID or password." });
         }
