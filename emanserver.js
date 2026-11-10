@@ -12,7 +12,7 @@ const { startLeaveReassignmentWatcher } = require('./src/services/leaveService')
 
 const app = express();
 app.use(cors());
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3500;
 
 // --- 1. VIEW ENGINE SETUP ---
 app.set('view engine', 'ejs');
