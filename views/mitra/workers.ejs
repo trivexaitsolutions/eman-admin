@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Workers | E-MAN Mitra</title>
+  <title>Workers | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     .app{width:100%;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
     .scroll-area{flex:1;overflow-y:auto}
+    .mitra-list-card.draft-worker-card{border:1px solid #fca5a5;background:#fff7f7}
+    .mitra-draft-badge{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:4px 9px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800}
+    .mitra-draft-note{color:#b91c1c;font-size:11px;font-weight:700}
+    .mitra-draft-link{color:#b91c1c;font-weight:800;font-size:12px}
   </style>
 </head>
 <body>
@@ -24,26 +28,27 @@
           <h1 class="mitra-page-title">Workers</h1>
           <span class="mitra-page-count"><%= workers.length %></span>
         </div>
-        <a href="/mitra/workers/add" class="mitra-primary-btn">+ Add</a>
+        <a href="/field-agent/workers/add" class="mitra-primary-btn">+ Add</a>
       </div>
 
-      <form method="GET" action="/mitra/workers" class="mitra-filter two">
-        <input class="mitra-input" type="text" name="search" value="<%= filters.search %>" placeholder="Search worker" />
+      <form method="GET" action="/field-agent/workers" class="mitra-filter two">
+        <input class="mitra-input" type="text" name="search" value="<%= filters.search %>" placeholder="Search worker or draft" />
         <select class="mitra-input" name="status">
           <option value="ALL" <%= filters.status === 'ALL' ? 'selected' : '' %>>All</option>
           <option value="ACTIVE" <%= filters.status === 'ACTIVE' ? 'selected' : '' %>>Active</option>
           <option value="INACTIVE" <%= filters.status === 'INACTIVE' ? 'selected' : '' %>>Inactive</option>
+          <option value="DRAFT" <%= filters.status === 'DRAFT' ? 'selected' : '' %>>Draft</option>
         </select>
         <div class="filter-actions" style="display:flex;gap:6px">
           <button class="mitra-primary-btn" type="submit">Search</button>
           <% if (filters.search || filters.status !== 'ALL') { %>
-            <a href="/mitra/workers" class="mitra-secondary-btn">Clear</a>
+            <a href="/field-agent/workers" class="mitra-secondary-btn">Clear</a>
           <% } %>
         </div>
       </form>
 
       <% if (!workers.length) { %>
-        <div class="mitra-empty">No workers found.</div>
+        <div class="mitra-empty">No workers or drafts found.</div>
       <% } else { %>
         <section class="mitra-list-grid">
           <% workers.forEach(worker => { %>
@@ -52,7 +57,7 @@
               const skills = Array.isArray(worker.skills) ? worker.skills : [];
               const nakas = Array.isArray(worker.nakas) ? worker.nakas : [];
             %>
-            <article class="mitra-list-card">
+            <article class="mitra-list-card <%= worker.isDraft ? 'draft-worker-card' : '' %>">
               <div class="mitra-person-row">
                 <div class="mitra-avatar">
                   <% if (worker.photoUrl) { %><img src="<%= worker.photoUrl %>" alt="" /><% } else { %><%= initial %><% } %>
@@ -61,21 +66,34 @@
                   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
                     <div style="min-width:0">
                       <div class="mitra-card-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= worker.name %></div>
-                      <div class="mitra-card-sub"><%= worker.phone %> · #<%= worker.id %></div>
+                      <div class="mitra-card-sub"><%= worker.phone || 'Phone not added yet' %> · <%= worker.isDraft ? `Draft #${worker.draftId}` : `#${worker.id}` %></div>
                     </div>
-                    <span class="mitra-status-badge <%= worker.isActive ? 'mitra-chip green' : 'mitra-chip' %>"><%= worker.isActive ? 'Active' : 'Inactive' %></span>
+                    <% if (worker.isDraft) { %>
+                      <span class="mitra-draft-badge">Draft</span>
+                    <% } else { %>
+                      <span class="mitra-status-badge <%= worker.isActive ? 'mitra-chip green' : 'mitra-chip' %>"><%= worker.isActive ? 'Active' : 'Inactive' %></span>
+                    <% } %>
                   </div>
 
                   <div class="mitra-chip-row">
-                    <% skills.slice(0,2).forEach(skill => { %><span class="mitra-chip green"><%= skill.name %></span><% }) %>
-                    <% if (skills.length > 2) { %><span class="mitra-chip">+<%= skills.length - 2 %></span><% } %>
-                    <% if (nakas.length) { %><span class="mitra-chip blue"><%= nakas[0].name %><%= nakas.length > 1 ? ` +${nakas.length - 1}` : '' %></span><% } %>
+                    <% if (worker.isDraft) { %>
+                      <span class="mitra-draft-note">Incomplete registration · Step <%= worker.step %> of 5</span>
+                    <% } else { %>
+                      <% skills.slice(0,2).forEach(skill => { %><span class="mitra-chip green"><%= skill.name %></span><% }) %>
+                      <% if (skills.length > 2) { %><span class="mitra-chip">+<%= skills.length - 2 %></span><% } %>
+                      <% if (nakas.length) { %><span class="mitra-chip blue"><%= nakas[0].name %><%= nakas.length > 1 ? ` +${nakas.length - 1}` : '' %></span><% } %>
+                    <% } %>
                   </div>
                 </div>
               </div>
               <div class="mitra-card-foot">
-                <span class="mitra-card-sub"><%= skills.length %> skill<%= skills.length === 1 ? '' : 's' %> · <%= nakas.length %> naka<%= nakas.length === 1 ? '' : 's' %></span>
-                <a class="mitra-link" href="/mitra/workers/edit/<%= worker.id %>">Edit ›</a>
+                <% if (worker.isDraft) { %>
+                  <span class="mitra-card-sub">Saved <%= new Date(worker.updatedAt).toLocaleString('en-IN') %></span>
+                  <a class="mitra-draft-link" href="/field-agent/workers/add?draft=<%= worker.draftId %>">Continue ›</a>
+                <% } else { %>
+                  <span class="mitra-card-sub"><%= skills.length %> skill<%= skills.length === 1 ? '' : 's' %> · <%= nakas.length %> naka<%= nakas.length === 1 ? '' : 's' %></span>
+                  <a class="mitra-link" href="/field-agent/workers/edit/<%= worker.id %>">Edit ›</a>
+                <% } %>
               </div>
             </article>
           <% }) %>

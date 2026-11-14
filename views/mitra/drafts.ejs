@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saved Registrations | Field Agent</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-slate-50 min-h-screen text-slate-900">
+<main class="max-w-3xl mx-auto p-5 sm:p-9">
+  <div class="flex items-center justify-between gap-4 mb-8">
+    <div><p class="text-xs font-bold uppercase text-emerald-600">Field Agent</p><h1 class="text-2xl font-black">Saved Registrations</h1>
+      <p class="text-slate-500 text-sm mt-1">Continue your incomplete worker and customer forms from any device.</p></div>
+    <a href="/field-agent/dashboard" class="bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold">Dashboard</a>
+  </div>
+  <div class="flex gap-3 mb-6">
+    <a href="/field-agent/workers/add" class="bg-emerald-600 text-white rounded-xl py-3 px-4 text-sm font-bold">+ Worker</a>
+    <a href="/field-agent/clients/add" class="bg-slate-900 text-white rounded-xl py-3 px-4 text-sm font-bold">+ Customer</a>
+  </div>
+  <% if (!drafts.length) { %><div class="rounded-2xl bg-white shadow-sm p-8 text-slate-500">No unfinished registrations yet.</div><% } %>
+  <div class="space-y-3">
+    <% for (const draft of drafts) { %>
+      <a href="<%= draft.kind === 'WORKER' ? '/field-agent/workers/add' : '/field-agent/clients/add' %>?draft=<%= draft.id %>"
+         class="block rounded-2xl bg-white border border-slate-200 p-5 hover:border-emerald-400">
+        <div class="flex justify-between items-start gap-3">
+          <div><div class="text-xs font-bold text-emerald-600"><%= draft.kind === 'WORKER' ? 'Worker' : 'Customer' %> · Step <%= draft.step %></div>
+            <div class="font-black mt-1"><%= draft.label || 'Untitled registration' %></div></div>
+          <span class="text-xs font-bold bg-slate-100 py-2 px-3 rounded-lg">Resume →</span>
+        </div>
+        <div class="text-xs text-slate-400 mt-3">Last saved: <%= new Date(draft.updatedAt).toLocaleString('en-IN') %></div>
+      </a>
+    <% } %>
+  </div>
+</main></body></html>

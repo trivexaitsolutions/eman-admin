@@ -4,23 +4,25 @@ const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { processCurrentMitraLeaveReassignments } = require('../services/leaveService');
+const { uppercaseName } = require('../utils/registration');
+const draftController = require('./fieldOfficerDraftController');
 
 const login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // 1. Email se Mitra ko database mein dhoondho
+        // 1. Email se Field Agent ko database mein dhoondho
         const mitra = await prisma.mitra.findUnique({ where: { email } });
 
         // 2. Agar nahi mila ya inactive hai
         if (!mitra || !mitra.isActive) {
-            return res.redirect('/mitra/login?error=invalid_credentials');
+            return res.redirect('/field-agent/login?error=invalid_credentials');
         }
 
         // 3. Password match karo
         const isMatch = await bcrypt.compare(password, mitra.password);
         if (!isMatch) {
-            return res.redirect('/mitra/login?error=invalid_credentials');
+            return res.redirect('/field-agent/login?error=invalid_credentials');
         }
 
         // 4. Token banao aur role 'MITRA' set karo
@@ -32,18 +34,19 @@ const login = async (req, res) => {
 
         // 5. 'mitraToken' naam ki cookie me save karo
         res.cookie('mitraToken', token, { httpOnly: true });
-        res.redirect('/mitra/dashboard');
+        res.redirect('/field-agent/dashboard');
     } catch (error) {
-        console.error("Mitra Login Error:", error);
-        res.redirect('/mitra/login');
+        console.error("Field Agent Login Error:", error);
+        res.redirect('/field-agent/login');
     }
 };
 
 const showDashboard = async (req, res) => {
     try {
-        // Assume kar rahe hain ki Mitra login hai aur uski ID req me hai (e.g., req.session.mitra.id)
+        // Assume kar rahe hain ki Field Agent login hai aur uski ID req me hai (e.g., req.session.mitra.id)
         // Testing ke liye ID 1 use kar rahe hain, aap isko apne auth bouncer ke hisaab se set karein
-        const mitraId = req.user ? req.user.id : 1; 
+        const mitraId = req.user?.id;
+        if (!mitraId) return res.redirect('/field-agent/login');
 
         // Time logic: Aaj ki shuruwat aur Is mahine ki shuruwat
         const startOfToday = new Date();
@@ -63,7 +66,7 @@ const showDashboard = async (req, res) => {
         const clientsToday = await prisma.customer.count({ where: { mitraId, createdAt: { gte: startOfToday } } });
         const clientsMonth = await prisma.customer.count({ where: { mitraId, createdAt: { gte: startOfMonth } } });
 
-        // Worker ke direct "Connect Mitra" cancellation requests.
+        // Worker ke direct "Connect Field Agent" cancellation requests.
         const pendingWorkerRequests = await prisma.conflict.count({
             where: {
                 mitraId,
@@ -92,10 +95,7 @@ const showDashboard = async (req, res) => {
 
             activePage: "dashboard",
 
-            mitraName:
-                req.user?.name ||
-                req.user?.fullName ||
-                "Mitra",
+            mitraName: (await prisma.mitra.findUnique({ where: { id: mitraId }, select: { name: true } }))?.name || req.user.name || 'Field Agent',
         });
 
     } catch (error) {
@@ -106,15 +106,26 @@ const showDashboard = async (req, res) => {
 
 const logout = (req, res) => {
     res.clearCookie('mitraToken');
-    res.redirect('/mitra/login');
+    res.redirect('/field-agent/login');
 };
 
-const getAddClient = (req, res) => {
+const getAddClient = async (req, res) => {
+    let draft = null;
+    if (req.query.draft) {
+        draft = await draftController.getOwnedDraft(req, req.query.draft, 'CUSTOMER');
+        if (!draft) return res.redirect('/field-agent/drafts');
+    }
     return res.render("mitra/add-client", {
         layout: false,
         isEdit: false,
-        client: null,
-        primaryAddress: null,
+        client: draft ? (() => { const f = draftController.getSavedDraftData(draft); return {
+            ...f, name: f.contactName, workerRequirement: null,
+        }; })() : null,
+        primaryAddress: draft ? (() => { const f = draftController.getSavedDraftData(draft); return {
+            latitude: f.siteLatitude, longitude: f.siteLongitude, locationSource: f.siteLocationSource,
+            addressLine: f.siteAddress,
+        }; })() : null,
+        onboardingDraft: draft ? { id: draft.id, step: draft.step, fields: draftController.getSavedDraftData(draft) } : null,
         success_msg: req.query.success || null,
         error_msg: req.query.error || null,
     });
@@ -124,7 +135,7 @@ const getAddClient = (req, res) => {
 const postAddClient = async (req, res) => {
     const redirectWithError = (message) => {
         return res.redirect(
-            `/mitra/clients/add?error=${encodeURIComponent(message)}`
+            `/field-agent/clients/add?error=${encodeURIComponent(message)}`
         );
     };
 
@@ -176,7 +187,7 @@ const postAddClient = async (req, res) => {
         } = req.body;
 
         const finalClientType = cleanText(clientType);
-        const finalContactName = cleanText(contactName);
+        const finalContactName = uppercaseName(contactName);
         const finalPhone = cleanPhone(phone);
         const finalEmail = cleanText(email)?.toLowerCase() || null;
 
@@ -269,7 +280,7 @@ const postAddClient = async (req, res) => {
 
         if (!mitraId) {
             return redirectWithError(
-                "Mitra session was not found. Please login again."
+                "Field Agent session was not found. Please login again."
             );
         }
 
@@ -307,7 +318,8 @@ const postAddClient = async (req, res) => {
                     ? cleanText(gstNumber)?.toUpperCase() || null
                     : null,
 
-            workerRequirement: cleanText(workerRequirement),
+            // Historical field remains in DB; new registrations do not collect it.
+            workerRequirement: null,
             isVerified: true,
             mitraId,
         };
@@ -342,7 +354,7 @@ const postAddClient = async (req, res) => {
                     },
                 });
 
-            // Is client ka latest Mitra-added site default hoga
+            // Is client ka latest Field Agent-added site default hoga
             await tx.customerAddress.updateMany({
                 where: {
                     customerId: savedCustomer.id,
@@ -395,10 +407,11 @@ const postAddClient = async (req, res) => {
             }
         });
 
-        return res.redirect(
-            "/mitra/dashboard?success=" +
-            encodeURIComponent("Client added successfully.")
-        );
+        if (req.body.draftId) {
+            const finished = await draftController.getOwnedDraft(req, req.body.draftId, 'CUSTOMER');
+            if (finished) await prisma.fieldOfficerDraft.delete({ where: { id: finished.id } });
+        }
+        return res.redirect('/field-agent/dashboard?success=' + encodeURIComponent('Client added successfully.'));
     } catch (error) {
         console.error("Add Client Error:", error);
 
@@ -427,14 +440,14 @@ const showEditClient = async (req, res) => {
 
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
             return res.redirect(
-                "/mitra/dashboard?error=" +
-                encodeURIComponent("Mitra session was not found.")
+                "/field-agent/dashboard?error=" +
+                encodeURIComponent("Field Agent session was not found.")
             );
         }
 
         if (!Number.isInteger(customerId) || customerId <= 0) {
             return res.redirect(
-                "/mitra/clients?error=" +
+                "/field-agent/clients?error=" +
                 encodeURIComponent("Invalid client selected.")
             );
         }
@@ -457,7 +470,7 @@ const showEditClient = async (req, res) => {
 
         if (!client) {
             return res.redirect(
-                "/mitra/clients?error=" +
+                "/field-agent/clients?error=" +
                 encodeURIComponent("Client was not found or is not assigned to you.")
             );
         }
@@ -474,7 +487,7 @@ const showEditClient = async (req, res) => {
         console.error("Show Edit Client Error:", error);
 
         return res.redirect(
-            "/mitra/clients?error=" +
+            "/field-agent/clients?error=" +
             encodeURIComponent("Client edit page load nahi ho paya.")
         );
     }
@@ -485,7 +498,7 @@ const updateClient = async (req, res) => {
 
     const redirectWithError = (message) => {
         return res.redirect(
-            `/mitra/clients/edit/${customerId}?error=${encodeURIComponent(message)}`
+            `/field-agent/clients/edit/${customerId}?error=${encodeURIComponent(message)}`
         );
     };
 
@@ -520,12 +533,12 @@ const updateClient = async (req, res) => {
         const mitraId = Number(req.user?.id);
 
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
-            return redirectWithError("Mitra session was not found. Please login again.");
+            return redirectWithError("Field Agent session was not found. Please login again.");
         }
 
         if (!Number.isInteger(customerId) || customerId <= 0) {
             return res.redirect(
-                "/mitra/clients?error=" +
+                "/field-agent/clients?error=" +
                 encodeURIComponent("Invalid client selected.")
             );
         }
@@ -550,7 +563,7 @@ const updateClient = async (req, res) => {
 
         if (!existingCustomer) {
             return res.redirect(
-                "/mitra/clients?error=" +
+                "/field-agent/clients?error=" +
                 encodeURIComponent("Client was not found or is not assigned to you.")
             );
         }
@@ -571,7 +584,7 @@ const updateClient = async (req, res) => {
         } = req.body;
 
         const finalClientType = cleanText(clientType);
-        const finalContactName = cleanText(contactName);
+        const finalContactName = uppercaseName(contactName);
         const finalPhone = cleanPhone(phone);
         const finalEmail = cleanText(email)?.toLowerCase() || null;
         const finalSiteAddress = cleanText(siteAddress);
@@ -678,7 +691,8 @@ const updateClient = async (req, res) => {
                 finalClientType === "Company"
                     ? cleanText(gstNumber)?.toUpperCase() || null
                     : null,
-            workerRequirement: cleanText(workerRequirement),
+            // Legacy requirement value is preserved on edits; this field is no
+            // longer collected in the customer form.
         };
 
         const workSiteAddressData = {
@@ -736,7 +750,7 @@ const updateClient = async (req, res) => {
         });
 
         return res.redirect(
-            "/mitra/clients?success=" +
+            "/field-agent/clients?success=" +
             encodeURIComponent("Client updated successfully.")
         );
     } catch (error) {
@@ -761,100 +775,143 @@ const listMitraClients = async (req, res) => {
 
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
             return res.redirect(
-                "/mitra/dashboard?error=" +
-                encodeURIComponent("Mitra session was not found.")
+                "/field-agent/dashboard?error=" +
+                encodeURIComponent("Field Agent session was not found.")
             );
         }
 
         const search = String(req.query.search || "").trim();
-        const type = String(req.query.type || "ALL").toUpperCase();
+        const requestedType = String(req.query.type || "ALL").toUpperCase();
+        const type = ["COMPANY", "INDIVIDUAL"].includes(requestedType)
+            ? requestedType
+            : "ALL";
+        const requestedStatus = String(req.query.status || "ALL").toUpperCase();
+        const status = ["REGISTERED", "DRAFT"].includes(requestedStatus)
+            ? requestedStatus
+            : "ALL";
 
-        const where = {
-            mitraId,
-        };
-
-        if (type === "COMPANY") {
-            where.clientType = "Company";
-        }
-
-        if (type === "INDIVIDUAL") {
-            where.clientType = "Individual";
-        }
+        const where = { mitraId };
+        if (type === "COMPANY") where.clientType = "Company";
+        if (type === "INDIVIDUAL") where.clientType = "Individual";
 
         if (search) {
             where.OR = [
-                {
-                    name: {
-                        contains: search,
-                    },
-                },
-                {
-                    businessName: {
-                        contains: search,
-                    },
-                },
-                {
-                    phone: {
-                        contains: search,
-                    },
-                },
-                {
-                    email: {
-                        contains: search,
-                    },
-                },
+                { name: { contains: search } },
+                { businessName: { contains: search } },
+                { phone: { contains: search } },
+                { email: { contains: search } },
             ];
         }
 
-        const clients = await prisma.customer.findMany({
-            where,
-            include: {
-                addresses: {
-                    where: {
-                        isDefault: true,
+        // Incomplete customer registrations are stored in field_officer_draft,
+        // not customer. Load both so a saved draft appears in the Clients list.
+        const registeredClientsPromise = status === "DRAFT"
+            ? Promise.resolve([])
+            : prisma.customer.findMany({
+                where,
+                include: {
+                    addresses: {
+                        where: { isDefault: true },
+                        select: {
+                            id: true,
+                            addressLine: true,
+                            pincode: true,
+                            latitude: true,
+                            longitude: true,
+                            updatedAt: true,
+                        },
+                        orderBy: { updatedAt: "desc" },
+                        take: 1,
                     },
-                    select: {
-                        id: true,
-                        addressLine: true,
-                        pincode: true,
-                        latitude: true,
-                        longitude: true,
-                        updatedAt: true,
-                    },
-                    orderBy: {
-                        updatedAt: "desc",
-                    },
-                    take: 1,
                 },
-            },
-            orderBy: {
-                createdAt: "desc",
-            },
+                orderBy: { createdAt: "desc" },
+            });
+
+        const customerDraftsPromise = status === "REGISTERED"
+            ? Promise.resolve([])
+            : prisma.fieldOfficerDraft.findMany({
+                where: { mitraId, kind: "CUSTOMER" },
+                select: {
+                    id: true,
+                    step: true,
+                    label: true,
+                    payload: true,
+                    updatedAt: true,
+                },
+                orderBy: { updatedAt: "desc" },
+            });
+
+        const [registeredClients, savedDrafts] = await Promise.all([
+            registeredClientsPromise,
+            customerDraftsPromise,
+        ]);
+
+        // Draft payloads are encrypted. Search/filter only after decrypting
+        // server-side; do not send raw payloads or other sensitive fields to EJS.
+        const searchNeedle = search.toLocaleLowerCase();
+        const draftClients = savedDrafts.flatMap((draft) => {
+            let fields;
+            try {
+                fields = draftController.getSavedDraftData(draft) || {};
+            } catch (error) {
+                console.error(`Unable to read Customer draft #${draft.id}:`, error.message);
+                return [];
+            }
+
+            const clientType = String(fields.clientType || "").trim();
+            if (type !== "ALL" && clientType.toUpperCase() !== type) return [];
+
+            const name = String(fields.contactName || draft.label || "Incomplete Client").trim();
+            const businessName = String(fields.businessName || "").trim();
+            const phone = String(fields.phone || "").trim();
+            const email = String(fields.email || "").trim();
+            const siteAddress = String(fields.siteAddress || "").trim();
+            const searchableText = [name, draft.label, businessName, phone, email, siteAddress]
+                .filter(Boolean)
+                .join(" ")
+                .toLocaleLowerCase();
+            if (searchNeedle && !searchableText.includes(searchNeedle)) return [];
+
+            return [{
+                id: `draft-${draft.id}`,
+                draftId: draft.id,
+                isDraft: true,
+                name,
+                businessName,
+                phone,
+                email,
+                clientType,
+                siteAddress,
+                addresses: [],
+                step: draft.step,
+                createdAt: draft.updatedAt,
+                updatedAt: draft.updatedAt,
+            }];
+        });
+
+        const clients = [...registeredClients, ...draftClients].sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+            const dateB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+            return dateB - dateA;
         });
 
         return res.render("mitra/clients", {
             layout: false,
             clients,
-            filters: {
-                search,
-                type:
-                    type === "COMPANY" || type === "INDIVIDUAL"
-                        ? type
-                        : "ALL",
-            },
+            filters: { search, type, status },
             success_msg: req.query.success || null,
             error_msg: req.query.error || null,
             activePage: "clients",
             mitraName:
                 req.user?.name ||
                 req.user?.fullName ||
-                "Mitra",
+                "Field Agent",
         });
     } catch (error) {
-        console.error("Mitra Client List Error:", error);
+        console.error("Field Agent Client List Error:", error);
 
         return res.redirect(
-            "/mitra/dashboard?error=" +
+            "/field-agent/dashboard?error=" +
             encodeURIComponent("Clients list load nahi ho payi.")
         );
     }
@@ -1021,7 +1078,7 @@ const getMitraConflicts = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error("Mitra Conflicts Error:", error);
+        console.error("Field Agent Conflicts Error:", error);
         return res.status(500).send("Server Error while loading conflicts");
     }
 };
@@ -1065,7 +1122,7 @@ const getMitraConflictDetails = async (req, res) => {
             conflict: formattedConflict,
         });
     } catch (error) {
-        console.error("Mitra Conflict Details Error:", error);
+        console.error("Field Agent Conflict Details Error:", error);
         return res.status(500).send("Server Error while loading conflict details");
     }
 };
@@ -1103,7 +1160,7 @@ const updateMitraConflictStatus = async (req, res) => {
 
         let finalPenaltyAmount = conflict.penaltyAmount || 0;
 
-        // Penalty is a Mitra decision and becomes final only when the
+        // Penalty is a Field Agent decision and becomes final only when the
         // worker cancellation conflict is marked SOLVED.
         if (isWorkerCancellation && status === "SOLVED") {
             const rawPenalty = String(penaltyAmount ?? "").trim();
@@ -1124,7 +1181,7 @@ const updateMitraConflictStatus = async (req, res) => {
 
         if (isWorkerCancellation && status === "SOLVED") {
             updateData.penaltyAmount = finalPenaltyAmount;
-            timelineNote = `Worker penalty finalized by Mitra: ₹${finalPenaltyAmount}. ${timelineNote}`;
+            timelineNote = `Worker penalty finalized by Field Agent: ₹${finalPenaltyAmount}. ${timelineNote}`;
         } else if (isWorkerCancellation) {
             updateData.penaltyAmount = 0;
         }
@@ -1149,9 +1206,9 @@ const updateMitraConflictStatus = async (req, res) => {
             });
         });
 
-        return res.redirect(`/mitra/conflicts/${id}`);
+        return res.redirect(`/field-agent/conflicts/${id}`);
     } catch (error) {
-        console.error("Mitra Conflict Update Error:", error);
+        console.error("Field Agent Conflict Update Error:", error);
         return res.status(500).send("Server Error while updating conflict");
     }
 };

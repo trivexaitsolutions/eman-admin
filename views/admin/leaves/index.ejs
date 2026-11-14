@@ -61,15 +61,15 @@
                 <label class="block">
                     <span class="mb-1.5 block text-xs font-bold text-stone-500">Staff Type</span>
                     <select name="subjectType" id="manualSubjectType" required class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
-                        <option value="MITRA">Mitra</option>
+                        <option value="MITRA">Field Agent</option>
                         <option value="EMPLOYEE">Employee</option>
                     </select>
                 </label>
 
                 <label class="block" id="manualMitraWrap">
-                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Mitra</span>
+                    <span class="mb-1.5 block text-xs font-bold text-stone-500">Field Agent</span>
                     <select name="mitraId" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
-                        <option value="">Select Mitra</option>
+                        <option value="">Select Field Agent</option>
                         <% (staff?.mitras || []).forEach((item) => { %>
                             <option value="<%= item.id %>"><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
                         <% }) %>
@@ -114,15 +114,15 @@
                 <label class="block" id="manualWorkHandlingWrap">
                     <span class="mb-1.5 block text-xs font-bold text-stone-500">Existing Conflict Work</span>
                     <select name="workHandling" id="manualWorkHandling" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
-                        <option value="KEEP">Keep with current Mitra</option>
-                        <option value="REASSIGN_SELECTED">Reassign to selected Mitra</option>
+                        <option value="KEEP">Keep with current Field Agent</option>
+                        <option value="REASSIGN_SELECTED">Reassign to selected Field Agent</option>
                     </select>
                 </label>
 
                 <label class="hidden" id="manualReassignTargetWrap">
                     <span class="mb-1.5 block text-xs font-bold text-stone-500">Assign Existing Conflicts To</span>
                     <select name="reassignToMitraId" class="h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
-                        <option value="">Select Mitra</option>
+                        <option value="">Select Field Agent</option>
                         <% (staff?.mitras || []).forEach((item) => { %>
                             <option value="<%= item.id %>"><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
                         <% }) %>
@@ -145,7 +145,7 @@
                 <input name="search" value="<%= filters.search %>" placeholder="Search staff" class="xl:col-span-2 h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400" />
                 <select name="staffType" class="h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
                     <option value="ALL" <%= filters.staffType === 'ALL' ? 'selected' : '' %>>All Staff</option>
-                    <option value="MITRA" <%= filters.staffType === 'MITRA' ? 'selected' : '' %>>Mitras</option>
+                    <option value="MITRA" <%= filters.staffType === 'MITRA' ? 'selected' : '' %>>Field Agents</option>
                     <option value="EMPLOYEE" <%= filters.staffType === 'EMPLOYEE' ? 'selected' : '' %>>Employees</option>
                 </select>
                 <select name="status" class="h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-400">
@@ -234,9 +234,9 @@
                                         <% if (leave.workReassignedAt) { %>
                                             Existing work: Reassigned<% if (leave.reassignToMitra?.name) { %> to <%= leave.reassignToMitra.name %><% } %>
                                         <% } else if (leave.workHandling === 'REASSIGN_SELECTED') { %>
-                                            Existing work: Will reassign to <%= leave.reassignToMitra?.name || 'selected Mitra' %> when leave starts
+                                            Existing work: Will reassign to <%= leave.reassignToMitra?.name || 'selected Field Agent' %> when leave starts
                                         <% } else { %>
-                                            Existing work: Kept with current Mitra
+                                            Existing work: Kept with current Field Agent
                                         <% } %>
                                     </p>
                                 <% } %>
@@ -268,10 +268,10 @@
                                             <% if (leave.subjectType === 'MITRA') { %>
                                                 <select name="workHandling" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs font-semibold">
                                                     <option value="KEEP">Keep existing conflicts</option>
-                                                    <option value="REASSIGN_SELECTED">Reassign to selected Mitra</option>
+                                                    <option value="REASSIGN_SELECTED">Reassign to selected Field Agent</option>
                                                 </select>
                                                 <select name="reassignToMitraId" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs">
-                                                    <option value="">Select handover Mitra (required if reassign)</option>
+                                                    <option value="">Select handover Field Agent (required if reassign)</option>
                                                     <% (staff?.mitras || []).filter((item) => item.id !== leave.mitraId).forEach((item) => { %>
                                                         <option value="<%= item.id %>"><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
                                                     <% }) %>
@@ -293,9 +293,9 @@
                                     <% } %>
 
                                     <% if (leave.subjectType === 'MITRA' && !leave.workReassignedAt) { %>
-                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/reassign" class="space-y-2" onsubmit="return confirm('Assign all currently open conflicts to the selected Mitra?')">
+                                        <form method="POST" action="/admin/leaves/<%= leave.id %>/reassign" class="space-y-2" onsubmit="return confirm('Assign all currently open conflicts to the selected Field Agent?')">
                                             <select name="reassignToMitraId" required class="h-10 w-full rounded-xl border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-700">
-                                                <option value="">Select conflict handover Mitra</option>
+                                                <option value="">Select conflict handover Field Agent</option>
                                                 <% (staff?.mitras || []).filter((item) => item.id !== leave.mitraId).forEach((item) => { %>
                                                     <option value="<%= item.id %>" <%= Number(leave.reassignToMitraId) === Number(item.id) ? 'selected' : '' %>><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
                                                 <% }) %>
@@ -328,10 +328,10 @@
                                                 <% } else { %>
                                                     <select name="workHandling" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs">
                                                         <option value="KEEP" <%= leave.workHandling === 'KEEP' ? 'selected' : '' %>>Keep existing conflicts</option>
-                                                        <option value="REASSIGN_SELECTED" <%= leave.workHandling === 'REASSIGN_SELECTED' ? 'selected' : '' %>>Reassign to selected Mitra</option>
+                                                        <option value="REASSIGN_SELECTED" <%= leave.workHandling === 'REASSIGN_SELECTED' ? 'selected' : '' %>>Reassign to selected Field Agent</option>
                                                     </select>
                                                     <select name="reassignToMitraId" class="h-9 w-full rounded-lg border border-stone-200 px-2 text-xs">
-                                                        <option value="">Select handover Mitra (required if reassign)</option>
+                                                        <option value="">Select handover Field Agent (required if reassign)</option>
                                                         <% (staff?.mitras || []).filter((item) => item.id !== leave.mitraId).forEach((item) => { %>
                                                             <option value="<%= item.id %>" <%= Number(leave.reassignToMitraId) === Number(item.id) ? 'selected' : '' %>><%= item.name %><%= item.phone ? ` · ${item.phone}` : '' %></option>
                                                         <% }) %>

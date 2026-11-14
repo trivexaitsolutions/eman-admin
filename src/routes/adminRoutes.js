@@ -45,7 +45,14 @@ router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminB
 
 router.get('/clients', authBouncer(['superadmin', 'admin', 'employee']), adminClientController.listClients);
 router.use('/workers', authBouncer(['superadmin', 'admin', 'employee']), workerRoutes);
-router.use('/mitras', authBouncer(['superadmin', 'admin']), mitraRoutes);
+router.use('/field-agents', authBouncer(['superadmin', 'admin']), mitraRoutes);
+// Old admin links continue to work; POST /admin/mitras/save remains compatible.
+router.use('/mitras', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        return res.redirect(302, req.originalUrl.replace(/^\/admin\/mitras(?=\/|\?|$)/, '/admin/field-agents'));
+    }
+    next();
+}, authBouncer(['superadmin', 'admin']), mitraRoutes);
 router.use('/conflicts', authBouncer(['superadmin', 'admin', 'employee']), conflictRoutes);
 router.use('/leaves', authBouncer(['superadmin', 'admin', 'employee']), leaveRoutes);
 

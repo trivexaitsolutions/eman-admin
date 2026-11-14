@@ -47,15 +47,15 @@ function getNakaCreator(naka) {
                 type: 'MITRA',
                 name: naka.createdByMitra.name,
                 phone: naka.createdByMitra.phone || null,
-                label: `Mitra: ${naka.createdByMitra.name}`,
+                label: `Field Agent: ${naka.createdByMitra.name}`,
             };
         }
 
         return {
             type: 'MITRA',
-            name: 'Mitra record unavailable',
+            name: 'Field Agent record unavailable',
             phone: null,
-            label: 'Mitra submission',
+            label: 'Field Agent submission',
         };
     }
 

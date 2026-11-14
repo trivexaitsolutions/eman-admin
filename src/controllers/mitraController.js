@@ -2,8 +2,9 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
+const { uppercaseName } = require('../utils/registration');
 
-// 1. Saare Mitras ki list dikhane ke liye
+// 1. Saare Field Agents ki list dikhane ke liye
 const listMitras = async (req, res) => {
     try {
         const mitras = await prisma.mitra.findMany({
@@ -12,7 +13,7 @@ const listMitras = async (req, res) => {
         });
         res.render('admin/mitras/index', { mitras });
     } catch (error) {
-        console.error("List Mitras Error:", error);
+        console.error("List Field Agents Error:", error);
         res.status(500).send("Server Error");
     }
 };
@@ -33,12 +34,12 @@ const showForm = async (req, res) => {
         }
         res.render('admin/mitras/form', { mitra, nakas, isEdit, error: null });
     } catch (error) {
-        console.error("Show Mitra Form Error:", error);
-        res.redirect('/admin/mitras');
+        console.error("Show Field Agent Form Error:", error);
+        res.redirect('/admin/field-agents');
     }
 };
 
-// 3. Mitra ka data save ya update karne ke liye
+// 3. Field Agent ka data save ya update karne ke liye
 const saveMitra = async (req, res) => {
     const { id, name, phone, email, password, nakaIds } = req.body;
     const isActive = req.body.isActive === 'on';
@@ -48,7 +49,7 @@ const saveMitra = async (req, res) => {
         const selectedNakas = [].concat(nakaIds || []).filter(nId => nId).map(nId => ({ id: parseInt(nId) }));
 
         const mitraData = {
-            name,
+            name: uppercaseName(name),
             phone,
             email: email ? email.trim() : null,
             isActive
@@ -78,21 +79,21 @@ const saveMitra = async (req, res) => {
             });
         }
         
-        res.redirect('/admin/mitras');
+        res.redirect('/admin/field-agents');
     } catch (error) {
-        console.error("Save Mitra Backend Error:", error);
-        res.redirect('/admin/mitras'); 
+        console.error("Save Field Agent Backend Error:", error);
+        res.redirect('/admin/field-agents'); 
     }
 };
 
-// 4. Mitra delete karne ke liye
+// 4. Field Agent delete karne ke liye
 const deleteMitra = async (req, res) => {
     try {
         await prisma.mitra.delete({ where: { id: parseInt(req.params.id) } });
-        res.redirect('/admin/mitras');
+        res.redirect('/admin/field-agents');
     } catch (error) {
-        console.error("Delete Mitra Error:", error);
-        res.redirect('/admin/mitras');
+        console.error("Delete Field Agent Error:", error);
+        res.redirect('/admin/field-agents');
     }
 };
 

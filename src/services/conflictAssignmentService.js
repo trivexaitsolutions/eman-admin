@@ -154,8 +154,8 @@ async function reassignOpenConflictsForMitra(mitraId) {
           oldStatus: conflict.status,
           newStatus: conflict.status,
           note: replacementMitraId
-            ? `Conflict reassigned from Mitra #${sourceMitraId} to Mitra #${replacementMitraId} because the assigned Mitra is on approved leave.`
-            : `Conflict removed from Mitra #${sourceMitraId} because the assigned Mitra is on approved leave. No other available Mitra was found for this Naka; Admin action is required.`,
+            ? `Conflict reassigned from Field Agent #${sourceMitraId} to Field Agent #${replacementMitraId} because the assigned Field Agent is on approved leave.`
+            : `Conflict removed from Field Agent #${sourceMitraId} because the assigned Field Agent is on approved leave. No other available Field Agent was found for this Naka; Admin action is required.`,
         },
       });
 
@@ -227,7 +227,7 @@ async function reassignOpenConflictsToMitra(sourceMitraId, targetMitraId) {
           updatedById: null,
           oldStatus: conflict.status,
           newStatus: conflict.status,
-          note: `Conflict reassigned from Mitra #${sourceId} to Mitra #${targetId} (${target.name}) as per Admin-selected leave handover.`,
+          note: `Conflict reassigned from Field Agent #${sourceId} to Field Agent #${targetId} (${target.name}) as per Admin-selected leave handover.`,
         },
       });
 

@@ -98,6 +98,8 @@ const buildWorkerDurationSnapshot = (workers = []) => {
     }, {});
 };
 
+const { prorateWorkerAmount } = require('../utils/registration');
+
 const buildWorkerPriceSnapshot = (workers = [], baseRate, bookingSetting) => {
     return workers.reduce((snapshot, worker) => {
         const workerId = Number(worker.id);
@@ -113,7 +115,9 @@ const buildWorkerPriceSnapshot = (workers = [], baseRate, bookingSetting) => {
 
         snapshot[String(workerId)] = {
             baseRate: Number(baseRate),
-            amount: effectiveRate,
+            amount: prorateWorkerAmount(effectiveRate, worker.availabilityType, worker.availabilityHours),
+            availabilityType: worker.availabilityType === 'SHORT_PERIOD' ? 'SHORT_PERIOD' : 'FULL_DAY',
+            hours: worker.availabilityType === 'SHORT_PERIOD' ? Number(worker.availabilityHours) : 8,
             poolNumber: poolSortOrder + 1,
             poolStartTime: worker.availabilityPoolSlot?.startTime || bookingSetting.poolDayStart || null,
         };
@@ -138,11 +142,10 @@ const getWorkerBookedAmount = (booking, workerId) => {
 };
 
 
-// Razorpay Setup (Aap apni test keys .env file me daaliyega)
-const razorpay = new Razorpay({
-    key_id: 'rzp_test_SouUYINcIpP7iB',
-    key_secret: 'NLb7nFGTsnZedF3oyJlmmLiH',
-});
+// Credentials stay in the server's .env, never in distributable source code.
+const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
+    ? new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
+    : null;
 
 const initiateBooking = async (req, res) => {
     const {
@@ -686,6 +689,7 @@ const initiateBooking = async (req, res) => {
         let razorpayOrder;
 
         try {
+            if (!razorpay) throw new Error('Razorpay credentials are not configured.');
             razorpayOrder =
                 await razorpay.orders.create({
                     amount: Math.round(
@@ -1974,7 +1978,7 @@ const getWorkerBookingHistory = async (req, res) => {
             (booking) => !booking.isClientRated
         ).length;
 
-        // Wallet/history total me sirf Mitra-finalized worker cancellation penalties deduct hongi.
+        // Wallet/history total me sirf Field Officer-finalized worker cancellation penalties deduct hongi.
         const penaltySummary = await prisma.conflict.aggregate({
             where: {
                 workerId: workerIdNumber,

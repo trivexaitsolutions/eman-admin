@@ -1,20 +1,19 @@
 // src/utils/mailer.js
 const nodemailer = require('nodemailer');
 
-// Aapko apne Gmail account se ek "App Password" generate karna hoga aur yahan dalna hoga
-// Filhal testing ke liye aap apni email aur password daal sakte hain
+// Gmail app password is read from server environment only.
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'gandheresarvesh@gmail.com', // Apna testing email yahan daalein
-        pass: 'mcog ewuk affz hxtn' // Apna App Password yahan daalein
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_APP_PASSWORD,
     }
 });
 
 const sendOtpEmail = async (toEmail, otpCode) => {
     try {
         const mailOptions = {
-            from: '"E-MAN App" <gandheresarvesh@gmail.com>',
+            from: `"E-MAN App" <${process.env.MAIL_USER || ''}>`,
             to: toEmail,
             subject: 'E-MAN Login OTP',
             html: `

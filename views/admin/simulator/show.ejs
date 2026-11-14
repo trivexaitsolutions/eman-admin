@@ -108,7 +108,7 @@
    const duration=w.availabilityType==='FULL_DAY'?'Full Day':w.availabilityType==='SHORT_PERIOD'?`${w.availabilityHours} Hours`:'Not selected';
    el.querySelector('[data-duration]').textContent=duration;
    const workerInfo=el.querySelector('[data-worker-info]');
-   workerInfo.innerHTML=`<div>${escapeHtml((w.skills||[]).map(v=>v.name).join(', '))} · ${escapeHtml((w.nakas||[]).map(v=>v.name).join(', '))}</div>${w.mitra?`<div class="mt-1">Mitra: <b>${escapeHtml(w.mitra.name)}</b> · <a class="text-emerald-700 font-bold" href="tel:${escapeHtml(w.mitra.phone)}">Call Mitra</a></div>`:''}`;
+   workerInfo.innerHTML=`<div>${escapeHtml((w.skills||[]).map(v=>v.name).join(', '))} · ${escapeHtml((w.nakas||[]).map(v=>v.name).join(', '))}</div>${w.mitra?`<div class="mt-1">Field Agent: <b>${escapeHtml(w.mitra.name)}</b> · <a class="text-emerald-700 font-bold" href="tel:${escapeHtml(w.mitra.phone)}">Call Field Agent</a></div>`:''}`;
    const duty=el.querySelector('[data-duty]');
    if (!job) duty.textContent='No booking assigned. Waiting for customer...';
    else {

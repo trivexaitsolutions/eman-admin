@@ -12,7 +12,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>My Nakas | E-MAN Mitra</title>
+  <title>My Nakas | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
@@ -33,13 +33,13 @@
 
       <div class="mitra-page-head">
         <div style="display:flex;align-items:center;gap:8px"><h1 class="mitra-page-title">My Nakas</h1><span class="mitra-page-count"><%= counts.total %></span></div>
-        <a href="/mitra/nakas/add" class="mitra-primary-btn">+ Add</a>
+        <a href="/field-agent/nakas/add" class="mitra-primary-btn">+ Add</a>
       </div>
 
       <div class="naka-filters">
-        <a href="/mitra/nakas?filter=all" class="naka-filter <%= activeFilter === 'all' ? 'active' : '' %>"><span>All</span><b><%= counts.total %></b></a>
-        <a href="/mitra/nakas?filter=verified" class="naka-filter <%= activeFilter === 'verified' ? 'active' : '' %>"><span>Verified</span><b><%= counts.verified %></b></a>
-        <a href="/mitra/nakas?filter=pending" class="naka-filter <%= activeFilter === 'pending' ? 'active' : '' %>"><span>Pending</span><b><%= counts.pending %></b></a>
+        <a href="/field-agent/nakas?filter=all" class="naka-filter <%= activeFilter === 'all' ? 'active' : '' %>"><span>All</span><b><%= counts.total %></b></a>
+        <a href="/field-agent/nakas?filter=verified" class="naka-filter <%= activeFilter === 'verified' ? 'active' : '' %>"><span>Verified</span><b><%= counts.verified %></b></a>
+        <a href="/field-agent/nakas?filter=pending" class="naka-filter <%= activeFilter === 'pending' ? 'active' : '' %>"><span>Pending</span><b><%= counts.pending %></b></a>
       </div>
 
       <% if (!nakas.length) { %>

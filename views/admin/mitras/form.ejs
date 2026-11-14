@@ -1,14 +1,14 @@
 <div class="mb-6">
-    <a href="/admin/mitras" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
+    <a href="/admin/field-agents" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
         ← Back to List
     </a>
     <h1 class="text-2xl font-bold text-gray-800">
-        <%= isEdit ? 'Edit Mitra Details' : 'Register New Mitra' %>
+        <%= isEdit ? 'Edit Field Agent Details' : 'Register New Field Agent' %>
     </h1>
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 max-w-2xl overflow-hidden">
-    <form action="/admin/mitras/save" method="POST" class="p-6 space-y-6">
+    <form action="/admin/field-agents/save" method="POST" class="p-6 space-y-6">
         <% if (isEdit) { %>
             <input type="hidden" name="id" value="<%= mitra.id %>">
         <% } %>
@@ -16,7 +16,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
-                <input type="text" name="name" required value="<%= mitra.name || '' %>" placeholder="Enter full name"
+                <input type="text" name="name" required value="<%= mitra.name || '' %>" placeholder="Enter full name" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase"
                        class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
             </div>
 
@@ -43,7 +43,7 @@
 
         <div class="border-t border-gray-100 pt-6">
             <label class="block text-sm font-semibold text-gray-700 mb-3">Assign Nakas to Manage</label>
-            <p class="text-xs text-gray-400 mb-4">Yeh Mitra jin areas/nakas par ground operations handle karega, unhe select karein.</p>
+            <p class="text-xs text-gray-400 mb-4">Yeh Field Agent jin areas/nakas par ground operations handle karega, unhe select karein.</p>
             
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <% const assignedNakaIds = mitra.nakas.map(n => n.id); %>
@@ -62,16 +62,16 @@
             <input type="checkbox" id="isActive" name="isActive" <%= mitra.isActive ? 'checked' : '' %>
                    class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4">
             <label for="isActive" class="text-sm font-semibold text-gray-700 cursor-pointer">
-                Account Active (If unchecked, Mitra won't be able to log in)
+                Account Active (If unchecked, Field Agent won't be able to log in)
             </label>
         </div>
 
         <div class="flex justify-end gap-3 border-t border-gray-100 pt-6">
-            <a href="/admin/mitras" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm">
+            <a href="/admin/field-agents" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm">
                 Cancel
             </a>
             <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors text-sm shadow-sm">
-                <%= isEdit ? 'Update Mitra' : 'Register Mitra' %>
+                <%= isEdit ? 'Update Field Agent' : 'Register Field Agent' %>
             </button>
         </div>
     </form>

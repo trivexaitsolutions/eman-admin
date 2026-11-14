@@ -97,14 +97,14 @@ function buildUploadUrl(file) {
 }
 
 function mitraName(req) {
-    return req.user?.name || req.user?.fullName || 'Mitra';
+    return req.user?.name || req.user?.fullName || 'Field Agent';
 }
 
 const listMyNakas = async (req, res) => {
     try {
         const mitraId = Number(req.user?.id);
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
-            return res.redirect('/mitra/login');
+            return res.redirect('/field-agent/login');
         }
 
         const cutoff = getVerificationCutoff();
@@ -163,9 +163,9 @@ const listMyNakas = async (req, res) => {
             error_msg: req.query.error || null,
         });
     } catch (error) {
-        console.error('Mitra Naka List Error:', error);
+        console.error('Field Agent Naka List Error:', error);
         return res.redirect(
-            '/mitra/dashboard?error=' +
+            '/field-agent/dashboard?error=' +
             encodeURIComponent('My Nakas list load nahi ho payi.')
         );
     }
@@ -194,9 +194,9 @@ const showAddNakaForm = async (req, res) => {
             mitraName: mitraName(req),
         });
     } catch (error) {
-        console.error('Mitra Add Naka Form Error:', error);
+        console.error('Field Agent Add Naka Form Error:', error);
         return res.redirect(
-            '/mitra/nakas?error=' +
+            '/field-agent/nakas?error=' +
             encodeURIComponent('Naka form open nahi ho paya.')
         );
     }
@@ -204,12 +204,12 @@ const showAddNakaForm = async (req, res) => {
 
 const submitNaka = async (req, res) => {
     const redirectWithError = (message) =>
-        res.redirect(`/mitra/nakas/add?error=${encodeURIComponent(message)}`);
+        res.redirect(`/field-agent/nakas/add?error=${encodeURIComponent(message)}`);
 
     try {
         const mitraId = Number(req.user?.id);
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
-            return redirectWithError('Mitra session invalid hai. Please login again.');
+            return redirectWithError('Field Agent session invalid hai. Please login again.');
         }
 
         const {
@@ -319,7 +319,7 @@ const submitNaka = async (req, res) => {
                 createdByType: 'MITRA',
                 createdByMitraId: mitraId,
 
-                // The Mitra is assigned to this Naka immediately on submission.
+                // The Field Agent is assigned to this Naka immediately on submission.
                 mitras: {
                     connect: { id: mitraId },
                 },
@@ -327,11 +327,11 @@ const submitNaka = async (req, res) => {
         });
 
         return res.redirect(
-            '/mitra/nakas?filter=pending&success=' +
+            '/field-agent/nakas?filter=pending&success=' +
             encodeURIComponent('Naka submitted for Admin verification and assigned to you successfully.')
         );
     } catch (error) {
-        console.error('Mitra Submit Naka Error:', error);
+        console.error('Field Agent Submit Naka Error:', error);
 
         if (error?.code === 'P2002') {
             return redirectWithError('A matching Naka already exists.');

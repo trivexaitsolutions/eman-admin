@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Conflicts | E-MAN Mitra</title>
+  <title>Conflicts | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
@@ -25,7 +25,7 @@
         </div>
       </div>
 
-      <form method="GET" action="/mitra/conflicts" class="mitra-filter conflict">
+      <form method="GET" action="/field-agent/conflicts" class="mitra-filter conflict">
         <select name="status" class="mitra-input wide">
           <option value="ALL" <%= filters.status === 'ALL' ? 'selected' : '' %>>All status</option>
           <option value="PENDING" <%= filters.status === 'PENDING' ? 'selected' : '' %>>Pending</option>
@@ -37,7 +37,7 @@
         <input type="date" name="toDate" value="<%= filters.toDate %>" class="mitra-input" aria-label="To date" />
         <div style="display:flex;gap:6px">
           <button class="mitra-primary-btn" type="submit">Apply</button>
-          <a class="mitra-secondary-btn" href="/mitra/conflicts">Clear</a>
+          <a class="mitra-secondary-btn" href="/field-agent/conflicts">Clear</a>
         </div>
       </form>
 
@@ -51,7 +51,7 @@
               const statusLabel = conflict.status === 'IN_PROGRESS' ? 'In Progress' : String(conflict.status || '').replaceAll('_',' ');
               const when = new Date(conflict.createdAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
             %>
-            <a href="/mitra/conflicts/<%= conflict.id %>" class="mitra-list-card" style="display:block;text-decoration:none;color:inherit">
+            <a href="/field-agent/conflicts/<%= conflict.id %>" class="mitra-list-card" style="display:block;text-decoration:none;color:inherit">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
                 <div style="min-width:0">
                   <div class="mitra-card-title"><%= String(conflict.requestedAction || 'Issue').replaceAll('_',' ') %></div>

@@ -3,13 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Clients | E-MAN Mitra</title>
+  <title>Clients | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     .app{width:100%;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
     .scroll-area{flex:1;overflow-y:auto}
+    .mitra-filter.client-filter{grid-template-columns:minmax(0,1fr) 120px 120px auto}
+    .mitra-list-card.draft-client-card{border:1px solid #fca5a5;background:#fff7f7}
+    .mitra-draft-badge{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:4px 9px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800}
+    .mitra-draft-note{color:#b91c1c;font-size:11px;font-weight:700}
+    .mitra-draft-link{color:#b91c1c;font-weight:800;font-size:12px}
+    @media(max-width:640px){
+      .mitra-filter.client-filter{grid-template-columns:minmax(0,1fr) 110px}
+      .mitra-filter.client-filter select[name="status"]{grid-column:1 / -1}
+      .mitra-filter.client-filter .filter-actions{grid-column:1 / -1}
+    }
   </style>
 </head>
 <body>
@@ -24,24 +34,29 @@
           <h1 class="mitra-page-title">Clients</h1>
           <span class="mitra-page-count"><%= clients.length %></span>
         </div>
-        <a href="/mitra/clients/add" class="mitra-primary-btn">+ Add</a>
+        <a href="/field-agent/clients/add" class="mitra-primary-btn">+ Add</a>
       </div>
 
-      <form method="GET" action="/mitra/clients" class="mitra-filter two">
-        <input class="mitra-input" type="text" name="search" value="<%= filters.search %>" placeholder="Search client" />
+      <form method="GET" action="/field-agent/clients" class="mitra-filter client-filter">
+        <input class="mitra-input" type="text" name="search" value="<%= filters.search %>" placeholder="Search client or draft" />
         <select class="mitra-input" name="type">
           <option value="ALL" <%= filters.type === 'ALL' ? 'selected' : '' %>>All</option>
           <option value="INDIVIDUAL" <%= filters.type === 'INDIVIDUAL' ? 'selected' : '' %>>Individual</option>
           <option value="COMPANY" <%= filters.type === 'COMPANY' ? 'selected' : '' %>>Company</option>
         </select>
+        <select class="mitra-input" name="status" aria-label="Registration status">
+          <option value="ALL" <%= filters.status === 'ALL' ? 'selected' : '' %>>All statuses</option>
+          <option value="REGISTERED" <%= filters.status === 'REGISTERED' ? 'selected' : '' %>>Registered</option>
+          <option value="DRAFT" <%= filters.status === 'DRAFT' ? 'selected' : '' %>>Draft</option>
+        </select>
         <div class="filter-actions" style="display:flex;gap:6px">
           <button class="mitra-primary-btn" type="submit">Search</button>
-          <% if (filters.search || filters.type !== 'ALL') { %><a href="/mitra/clients" class="mitra-secondary-btn">Clear</a><% } %>
+          <% if (filters.search || filters.type !== 'ALL' || filters.status !== 'ALL') { %><a href="/field-agent/clients" class="mitra-secondary-btn">Clear</a><% } %>
         </div>
       </form>
 
       <% if (!clients.length) { %>
-        <div class="mitra-empty">No clients found.</div>
+        <div class="mitra-empty">No clients or drafts found.</div>
       <% } else { %>
         <section class="mitra-list-grid">
           <% clients.forEach(client => { %>
@@ -52,29 +67,43 @@
               const address = client.addresses && client.addresses.length ? client.addresses[0] : null;
               const site = address?.addressLine || client.siteAddress || '';
             %>
-            <article class="mitra-list-card">
+            <article class="mitra-list-card <%= client.isDraft ? 'draft-client-card' : '' %>">
               <div class="mitra-person-row">
                 <div class="mitra-avatar" style="background:#eff6ff;color:#1d4ed8"><%= initial %></div>
                 <div style="flex:1;min-width:0">
                   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
                     <div style="min-width:0">
                       <div class="mitra-card-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= displayName %></div>
-                      <div class="mitra-card-sub"><%= client.phone %><%= client.name && company ? ` · ${client.name}` : '' %></div>
+                      <div class="mitra-card-sub"><%= client.phone || (client.isDraft ? 'Phone not added yet' : '') %><% if (client.isDraft) { %> · Draft #<%= client.draftId %><% } else if (client.name && company) { %> · <%= client.name %><% } %></div>
                     </div>
-                    <span class="mitra-chip <%= company ? 'blue' : '' %>"><%= company ? 'Company' : 'Individual' %></span>
+                    <% if (client.isDraft) { %>
+                      <span class="mitra-draft-badge">Draft</span>
+                    <% } else { %>
+                      <span class="mitra-chip <%= company ? 'blue' : '' %>"><%= company ? 'Company' : 'Individual' %></span>
+                    <% } %>
                   </div>
 
                   <div class="mitra-chip-row">
-                    <% if (client.isVerified) { %><span class="mitra-chip green">Verified</span><% } else { %><span class="mitra-chip amber">Pending</span><% } %>
-                    <% if (client.workerRequirement) { %><span class="mitra-chip"><%= client.workerRequirement %> workers</span><% } %>
-                    <% if (address?.pincode) { %><span class="mitra-chip blue"><%= address.pincode %></span><% } %>
+                    <% if (client.isDraft) { %>
+                      <span class="mitra-draft-note">Incomplete registration · Step <%= client.step %> of 3</span>
+                      <% if (client.clientType) { %><span class="mitra-chip"><%= client.clientType %></span><% } %>
+                    <% } else { %>
+                      <% if (client.isVerified) { %><span class="mitra-chip green">Verified</span><% } else { %><span class="mitra-chip amber">Pending</span><% } %>
+                      <% if (client.workerRequirement) { %><span class="mitra-chip"><%= client.workerRequirement %> workers</span><% } %>
+                      <% if (address?.pincode) { %><span class="mitra-chip blue"><%= address.pincode %></span><% } %>
+                    <% } %>
                   </div>
                 </div>
               </div>
               <% if (site) { %><div class="mitra-card-sub" style="margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⌖ <%= site %></div><% } %>
               <div class="mitra-card-foot">
-                <span class="mitra-card-sub"><%= client.email || '' %></span>
-                <a class="mitra-link" href="/mitra/clients/edit/<%= client.id %>">Edit ›</a>
+                <% if (client.isDraft) { %>
+                  <span class="mitra-card-sub">Saved <%= new Date(client.updatedAt).toLocaleString('en-IN') %></span>
+                  <a class="mitra-draft-link" href="/field-agent/clients/add?draft=<%= client.draftId %>">Continue ›</a>
+                <% } else { %>
+                  <span class="mitra-card-sub"><%= client.email || '' %></span>
+                  <a class="mitra-link" href="/field-agent/clients/edit/<%= client.id %>">Edit ›</a>
+                <% } %>
               </div>
             </article>
           <% }) %>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Submit Naka | E-MAN Mitra</title>
+  <title>Submit Naka | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/css/mitra-ui.css" />
@@ -20,7 +20,7 @@
 <div class="app">
   <header class="mitra-task-header">
     <div class="mitra-task-header-inner">
-      <a href="/mitra/nakas" class="mitra-back">←</a>
+      <a href="/field-agent/nakas" class="mitra-back">←</a>
       <div class="mitra-task-title"><h1>Submit Naka</h1></div>
     </div>
   </header>
@@ -29,7 +29,7 @@
     <div class="mitra-page">
       <% if (error_msg) { %><div class="mitra-card mitra-card-pad" style="margin-bottom:10px;color:#b91c1c"><%= error_msg %></div><% } %>
 
-      <form id="mitraNakaForm" action="/mitra/nakas/submit" method="POST" enctype="multipart/form-data" class="form-grid">
+      <form id="mitraNakaForm" action="/field-agent/nakas/submit" method="POST" enctype="multipart/form-data" class="form-grid">
         <section class="mitra-card mitra-card-pad">
           <div class="mitra-card-title" style="margin-bottom:10px">Area</div>
           <div class="field-grid two">

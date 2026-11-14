@@ -1,7 +1,7 @@
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold text-gray-800">Manage Mitras (Field Agents)</h1>
-    <a href="/admin/mitras/create" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-        + Add New Mitra
+    <h1 class="text-2xl font-bold text-gray-800">Manage Field Agents</h1>
+    <a href="/admin/field-agents/create" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+        + Add New Field Agent
     </a>
 </div>
 
@@ -22,7 +22,7 @@
                 <% if (mitras.length === 0) { %>
                     <tr>
                         <td colspan="6" class="px-6 py-10 text-center text-gray-400">
-                            Koi Mitra registered nahi hai. Naya Mitra add karein!
+                            Koi Field Agent registered nahi hai. Naya Field Agent add karein!
                         </td>
                     </tr>
                 <% } %>
@@ -57,11 +57,11 @@
                         </td>
                         <td class="px-6 py-4 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-3">
-                                <a href="/admin/mitras/edit/<%= mitra.id %>" class="text-blue-600 hover:text-blue-900">
+                                <a href="/admin/field-agents/edit/<%= mitra.id %>" class="text-blue-600 hover:text-blue-900">
                                     Edit
                                 </a>
-                                <a href="/admin/mitras/delete/<%= mitra.id %>" 
-                                   onclick="return confirm('Kya aap sach mein is Mitra ko delete karna chahte hain?')" 
+                                <a href="/admin/field-agents/delete/<%= mitra.id %>" 
+                                   onclick="return confirm('Kya aap sach mein is Field Agent ko delete karna chahte hain?')" 
                                    class="text-red-600 hover:text-red-900">
                                     Delete
                                 </a>

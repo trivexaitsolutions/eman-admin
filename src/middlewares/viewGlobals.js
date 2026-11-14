@@ -40,7 +40,7 @@ const viewGlobals = (req, res, next) => {
             items: [
                 { name: 'Clients', path: '/admin/clients', icon: icons.workers, roles: ['superadmin', 'admin', 'employee'] },
                 { name: 'Workers', path: '/admin/workers', icon: icons.workers, roles: ['superadmin', 'admin', 'employee'] },
-                { name: 'Mitras', path: '/admin/mitras', icon: icons.mitras, roles: ['superadmin', 'admin'] },
+                { name: 'Field Agents', path: '/admin/field-agents', icon: icons.mitras, roles: ['superadmin', 'admin'] },
                 { name: 'Employees', path: '/admin/employees', icon: icons.employees, roles: ['superadmin', 'admin'] },
                 { name: 'Leave Management', path: '/admin/leaves', icon: icons.leave, roles: ['superadmin', 'admin'], exact: true },
                 { name: 'My Leaves', path: '/admin/leaves/my', icon: icons.leave, roles: ['employee'] },

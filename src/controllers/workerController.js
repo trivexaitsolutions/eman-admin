@@ -3,6 +3,9 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 const { getActivePoolContext } = require('../utils/bookingSettings');
+const { uppercaseName, prorateWorkerAmount, dobFromAge } = require('../utils/registration');
+const draftController = require('./fieldOfficerDraftController');
+const { compressConsentVideo } = require('../utils/consentVideo');
 const { getActiveBookingMaps, workerStatus } = require('../services/adminPresenceService');
 const { parseDobInput, formatDobInput } = require('../utils/workerDob');
 
@@ -114,7 +117,7 @@ const saveWorker = async (req, res) => {
 
         // 2. Add phone and email to workerData
         const workerData = {
-            name,
+            name: uppercaseName(name),
             phone,
             email: email ? email.trim() : null, // Store null if left blank
             dob: parseDobInput(dob),
@@ -690,6 +693,7 @@ const buildWorkerWalletSummary = async (workerId, start, end) => {
             select: {
                 id: true,
                 amount: true,
+                workerPriceSnapshot: true,
                 workerCount: true,
                 cancelledWorkerIds: true,
                 updatedAt: true,
@@ -726,10 +730,16 @@ const buildWorkerWalletSummary = async (workerId, start, end) => {
         .map((booking) => {
             const bookingAmount = Number(booking.amount || 0);
             const workerCount = Number(booking.workerCount || 1);
-            const workerShare =
-                workerCount > 0
-                    ? Math.round(bookingAmount / workerCount)
-                    : bookingAmount;
+            let snapshotAmount = null;
+            try {
+                const snapshot = JSON.parse(booking.workerPriceSnapshot || '{}');
+                const recorded = snapshot?.[String(workerId)]?.amount;
+                if (recorded !== null && recorded !== undefined && Number.isFinite(Number(recorded))) {
+                    snapshotAmount = Number(recorded);
+                }
+            } catch (_) { /* Historical booking without a price snapshot. */ }
+            const workerShare = snapshotAmount !== null ? snapshotAmount
+                : workerCount > 0 ? Math.round((bookingAmount / workerCount) * 100) / 100 : bookingAmount;
 
             return {
                 id: `booking-${booking.id}`,
@@ -752,7 +762,7 @@ const buildWorkerWalletSummary = async (workerId, start, end) => {
         type: "DEDUCTION",
         amount: Number(conflict.penaltyAmount || 0),
         title: `Penalty · Booking #${conflict.bookingId}`,
-        description: conflict.reason || "Mitra finalized cancellation penalty",
+        description: conflict.reason || "Field Agent finalized cancellation penalty",
         occurredAt: conflict.updatedAt,
         bookingId: conflict.bookingId,
         conflictId: conflict.id,
@@ -864,6 +874,7 @@ const getWorkerDashboard = async (req, res) => {
                 nakas: {
                     select: { name: true },
                 },
+                skills: { include: { rates: true } },
             },
         });
 
@@ -1009,6 +1020,12 @@ const getWorkerDashboard = async (req, res) => {
             };
         }
 
+        // Preview is an indicative 'from' rate using the lowest configured
+        // skill/rating tariff; actual booking snapshot uses selected skill,
+        // selected rating, pool reduction and availability hours.
+        const candidateRates = worker.skills.flatMap(skill => skill.rates.map(rate => Number(rate.rate)))
+            .filter(rate => Number.isFinite(rate) && rate > 0);
+        const startingDayRate = candidateRates.length ? Math.min(...candidateRates) : null;
         return res.status(200).json({
             success: true,
             data: {
@@ -1022,6 +1039,13 @@ const getWorkerDashboard = async (req, res) => {
                 },
                 nakas: worker.nakas,
                 operationalStatus,
+                ratePreview: startingDayRate === null ? null : {
+                    isEstimate: true,
+                    fullDay: prorateWorkerAmount(startingDayRate, 'FULL_DAY', 8),
+                    twoHours: prorateWorkerAmount(startingDayRate, 'SHORT_PERIOD', 2),
+                    threeHours: prorateWorkerAmount(startingDayRate, 'SHORT_PERIOD', 3),
+                    fourHours: prorateWorkerAmount(startingDayRate, 'SHORT_PERIOD', 4),
+                },
             },
         });
     } catch (error) {
@@ -1034,7 +1058,7 @@ const getWorkerDashboard = async (req, res) => {
 };
 
 // --------------------------------------------------
-// Mitra Worker Onboarding: Shared Create + Edit helpers
+// Field Agent Worker Onboarding: Shared Create + Edit helpers
 // --------------------------------------------------
 
 const NAKA_VERIFIED_STATUS = "VERIFIED";
@@ -1066,8 +1090,8 @@ const getOperationalMitraNakaWhere = (mitraId, pincode = null) => {
 };
 
 /**
- * GET /mitra/api/nakas/search?pincode=421202
- * Returns the latest operational Nakas assigned to the logged-in Mitra.
+ * GET /field-agent/api/nakas/search?pincode=421202
+ * Returns the latest operational Nakas assigned to the logged-in Field Agent.
  * This avoids stale Naka cards in an already-open Worker Onboarding page.
  */
 const searchMitraNakasByPincode = async (req, res) => {
@@ -1078,7 +1102,7 @@ const searchMitraNakasByPincode = async (req, res) => {
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
             return res.status(401).json({
                 success: false,
-                message: "Mitra session was not found. Please login again.",
+                message: "Field Agent session was not found. Please login again.",
             });
         }
 
@@ -1125,7 +1149,7 @@ const searchMitraNakasByPincode = async (req, res) => {
             })),
         });
     } catch (error) {
-        console.error("Live Mitra Naka Search Error:", error);
+        console.error("Live Field Agent Naka Search Error:", error);
 
         return res.status(500).json({
             success: false,
@@ -1151,7 +1175,7 @@ const getMitraWorkerFormData = async (mitraId) => {
     ]);
 
     if (!mitra) {
-        throw new Error("Mitra account was not found.");
+        throw new Error("Field Agent account was not found.");
     }
 
     return {
@@ -1255,9 +1279,8 @@ const normalizeMitraWorkerData = async ({
         throw new Error("Password is required for a new worker.");
     }
 
-    if (!cleanText(dob)) {
-        throw new Error("Date of birth is required.");
-    }
+    const normalizedDob = cleanText(dob) || dobFromAge(body.age);
+    if (!normalizedDob) throw new Error('Date of birth or valid age is required.');
 
     if (!cleanText(gender)) {
         throw new Error("Gender is required.");
@@ -1313,7 +1336,7 @@ const normalizeMitraWorkerData = async ({
     // --------------------------------------------------
     // 3. DOB and age
     // --------------------------------------------------
-    const dobDate = new Date(`${cleanText(dob)}T00:00:00`);
+    const dobDate = new Date(`${normalizedDob}T00:00:00`);
 
     if (Number.isNaN(dobDate.getTime())) {
         throw new Error("Please enter a valid date of birth.");
@@ -1537,7 +1560,7 @@ const normalizeMitraWorkerData = async ({
     }
 
     if (!mitra) {
-        throw new Error("Mitra account was not found.");
+        throw new Error("Field Agent account was not found.");
     }
 
     // During edit, previously assigned Nakas remain valid for a profile/video
@@ -1570,12 +1593,12 @@ const normalizeMitraWorkerData = async ({
 
     if (operationalNakas.length !== newlySelectedNakaIds.length) {
         throw new Error(
-            "Newly selected Nakas must be assigned to your Mitra account and currently verified. Existing worker Nakas are preserved during profile edits."
+            "Newly selected Nakas must be assigned to your Field Agent account and currently verified. Existing worker Nakas are preserved during profile edits."
         );
     }
 
     const workerData = {
-        name: cleanText(name),
+        name: uppercaseName(name),
         phone: cleanPhone,
         email: cleanEmail,
 
@@ -1623,6 +1646,8 @@ const normalizeMitraWorkerData = async ({
 const showMitraAddForm = async (req, res) => {
     try {
         const { skills, nakas } = await getMitraWorkerFormData(req.user.id);
+        const draft = req.query.draft ? await draftController.getOwnedDraft(req, req.query.draft, 'WORKER') : null;
+        if (req.query.draft && !draft) return res.redirect('/field-agent/drafts');
 
         return res.render("mitra/add-worker", {
             layout: false,
@@ -1632,6 +1657,8 @@ const showMitraAddForm = async (req, res) => {
             worker: null,
             workerDob: "",
             isEdit: false,
+            onboardingDraft: draft ? { id: draft.id, step: draft.step, videoUrl: draft.videoUrl,
+                fields: draftController.getSavedDraftData(draft) } : null,
 
             error: req.query.error || null,
             success_msg: req.query.success || null,
@@ -1641,7 +1668,7 @@ const showMitraAddForm = async (req, res) => {
         console.error("Show Add Worker Form Error:", error);
 
         return res.redirect(
-            "/mitra/dashboard?error=" +
+            "/field-agent/dashboard?error=" +
             encodeURIComponent("Unable to open worker onboarding form.")
         );
     }
@@ -1652,7 +1679,7 @@ const showMitraEditForm = async (req, res) => {
 
     if (!Number.isInteger(workerId) || workerId <= 0) {
         return res.redirect(
-            "/mitra/workers?error=" +
+            "/field-agent/workers?error=" +
             encodeURIComponent("Invalid worker selected.")
         );
     }
@@ -1678,7 +1705,7 @@ const showMitraEditForm = async (req, res) => {
 
         if (!worker) {
             return res.redirect(
-                "/mitra/workers?error=" +
+                "/field-agent/workers?error=" +
                 encodeURIComponent("Worker not found or you do not have access.")
             );
         }
@@ -1691,6 +1718,7 @@ const showMitraEditForm = async (req, res) => {
             worker,
             workerDob: toWorkerDobInput(worker.dob),
             isEdit: true,
+            onboardingDraft: null,
 
             error: req.query.error || null,
             success_msg: req.query.success || null,
@@ -1700,7 +1728,7 @@ const showMitraEditForm = async (req, res) => {
         console.error("Show Edit Worker Form Error:", error);
 
         return res.redirect(
-            "/mitra/workers?error=" +
+            "/field-agent/workers?error=" +
             encodeURIComponent("Unable to open worker edit form.")
         );
     }
@@ -1709,15 +1737,19 @@ const showMitraEditForm = async (req, res) => {
 const saveMitraWorker = async (req, res) => {
     const redirectWithError = (message) => {
         return res.redirect(
-            `/mitra/workers/add?error=${encodeURIComponent(message)}`
+            `/field-agent/workers/add?error=${encodeURIComponent(message)}${req.body.draftId ? `&draft=${encodeURIComponent(req.body.draftId)}` : ''}`
         );
     };
 
     try {
+        const draft = req.body.draftId ? await draftController.getOwnedDraft(req, req.body.draftId, 'WORKER') : null;
+        if (req.body.draftId && !draft) return redirectWithError('Registration draft not found.');
+        const draftVideoFile = draft?.videoUrl ? { filename: draft.videoUrl.split('/').pop() } : null;
+        const finalConsentFile = req.file ? await compressConsentVideo(req.file) : draftVideoFile;
         const { workerData, selectedSkillIds, selectedNakaIds } =
             await normalizeMitraWorkerData({
                 body: req.body,
-                uploadedFile: req.file,
+                uploadedFile: finalConsentFile,
                 mitraId: req.user.id,
             });
 
@@ -1737,8 +1769,10 @@ const saveMitraWorker = async (req, res) => {
             },
         });
 
+        if (draft) await prisma.fieldOfficerDraft.delete({ where: { id: draft.id } });
+
         return res.redirect(
-            "/mitra/dashboard?success=" +
+            "/field-agent/dashboard?success=" +
             encodeURIComponent("Worker added successfully.")
         );
     } catch (error) {
@@ -1757,13 +1791,13 @@ const updateMitraWorker = async (req, res) => {
 
     const redirectWithError = (message) => {
         return res.redirect(
-            `/mitra/workers/edit/${req.params.id}?error=${encodeURIComponent(message)}`
+            `/field-agent/workers/edit/${req.params.id}?error=${encodeURIComponent(message)}`
         );
     };
 
     if (!Number.isInteger(workerId) || workerId <= 0) {
         return res.redirect(
-            "/mitra/workers?error=" +
+            "/field-agent/workers?error=" +
             encodeURIComponent("Invalid worker selected.")
         );
     }
@@ -1781,7 +1815,7 @@ const updateMitraWorker = async (req, res) => {
 
         if (!existingWorker) {
             return res.redirect(
-                "/mitra/workers?error=" +
+                "/field-agent/workers?error=" +
                 encodeURIComponent("Worker not found or you do not have access.")
             );
         }
@@ -1810,7 +1844,7 @@ const updateMitraWorker = async (req, res) => {
         });
 
         return res.redirect(
-            "/mitra/workers?success=" +
+            "/field-agent/workers?success=" +
             encodeURIComponent("Worker updated successfully.")
         );
     } catch (error) {
@@ -1830,97 +1864,126 @@ const listMitraWorkers = async (req, res) => {
 
         if (!Number.isInteger(mitraId) || mitraId <= 0) {
             return res.redirect(
-                "/mitra/dashboard?error=" +
-                encodeURIComponent("Mitra session was not found.")
+                "/field-agent/dashboard?error=" +
+                encodeURIComponent("Field Agent session was not found.")
             );
         }
 
         const search = String(req.query.search || "").trim();
-        const status = String(req.query.status || "ALL").toUpperCase();
+        const requestedStatus = String(req.query.status || "ALL").toUpperCase();
+        const status = ["ACTIVE", "INACTIVE", "DRAFT"].includes(requestedStatus)
+            ? requestedStatus
+            : "ALL";
 
-        const where = {
-            mitraId,
-        };
-
-        if (status === "ACTIVE") {
-            where.isActive = true;
-        }
-
-        if (status === "INACTIVE") {
-            where.isActive = false;
-        }
+        const where = { mitraId };
+        if (status === "ACTIVE") where.isActive = true;
+        if (status === "INACTIVE") where.isActive = false;
 
         if (search) {
             where.OR = [
-                {
-                    name: {
-                        contains: search,
-                    },
-                },
-                {
-                    phone: {
-                        contains: search,
-                    },
-                },
-                {
-                    email: {
-                        contains: search,
-                    },
-                },
-                {
-                    idNumber: {
-                        contains: search,
-                    },
-                },
+                { name: { contains: search } },
+                { phone: { contains: search } },
+                { email: { contains: search } },
+                { idNumber: { contains: search } },
             ];
         }
 
-        const workers = await prisma.worker.findMany({
-            where,
-            include: {
-                skills: {
-                    orderBy: {
-                        name: "asc",
-                    },
+        // Registered workers and unfinished worker drafts share one list.
+        // Draft payloads are encrypted, so search them after decrypting on the server.
+        const registeredWorkersPromise = status === "DRAFT"
+            ? Promise.resolve([])
+            : prisma.worker.findMany({
+                where,
+                include: {
+                    skills: { orderBy: { name: "asc" } },
+                    nakas: { orderBy: { name: "asc" } },
                 },
-                nakas: {
-                    orderBy: {
-                        name: "asc",
-                    },
+                orderBy: { createdAt: "desc" },
+            });
+
+        const workerDraftsPromise = status === "ACTIVE" || status === "INACTIVE"
+            ? Promise.resolve([])
+            : prisma.fieldOfficerDraft.findMany({
+                where: { mitraId, kind: "WORKER" },
+                select: {
+                    id: true,
+                    step: true,
+                    label: true,
+                    payload: true,
+                    videoUrl: true,
+                    updatedAt: true,
                 },
-            },
-            orderBy: {
-                createdAt: "desc",
-            },
+                orderBy: { updatedAt: "desc" },
+            });
+
+        const [registeredWorkers, savedDrafts] = await Promise.all([
+            registeredWorkersPromise,
+            workerDraftsPromise,
+        ]);
+
+        const searchNeedle = search.toLocaleLowerCase();
+        const draftWorkers = savedDrafts.flatMap((draft) => {
+            let fields;
+            try {
+                fields = draftController.getSavedDraftData(draft) || {};
+            } catch (error) {
+                // A single unreadable legacy draft should not break the entire Workers page.
+                console.error(`Unable to read Worker draft #${draft.id}:`, error.message);
+                return [];
+            }
+
+            const name = String(fields.name || draft.label || "Incomplete Worker").trim();
+            const phone = String(fields.phone || "").trim();
+            const email = String(fields.email || "").trim();
+            const idNumber = String(fields.idNumber || "").trim();
+            const searchableText = [name, draft.label, phone, email, idNumber]
+                .filter(Boolean)
+                .join(" ")
+                .toLocaleLowerCase();
+
+            if (searchNeedle && !searchableText.includes(searchNeedle)) return [];
+
+            return [{
+                id: `draft-${draft.id}`,
+                draftId: draft.id,
+                isDraft: true,
+                name,
+                phone,
+                email,
+                photoUrl: null,
+                isActive: false,
+                skills: [],
+                nakas: [],
+                step: draft.step,
+                videoUrl: draft.videoUrl,
+                createdAt: draft.updatedAt,
+                updatedAt: draft.updatedAt,
+            }];
+        });
+
+        const workers = [...registeredWorkers, ...draftWorkers].sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+            const dateB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+            return dateB - dateA;
         });
 
         return res.render("mitra/workers", {
             layout: false,
             workers,
-
-            filters: {
-                search,
-                status:
-                    status === "ACTIVE" || status === "INACTIVE"
-                        ? status
-                        : "ALL",
-            },
-
+            filters: { search, status },
             success_msg: req.query.success || null,
             error_msg: req.query.error || null,
-
             activePage: "workers",
-
             mitraName:
                 req.user?.name ||
                 req.user?.fullName ||
-                "Mitra",
+                "Field Agent",
         });
     } catch (error) {
-        console.error("Mitra Worker List Error:", error);
+        console.error("Field Agent Worker List Error:", error);
 
         return res.redirect(
-            "/mitra/dashboard?error=" +
+            "/field-agent/dashboard?error=" +
             encodeURIComponent("Workers list load nahi ho payi.")
         );
     }

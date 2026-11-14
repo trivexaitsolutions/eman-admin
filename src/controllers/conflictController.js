@@ -83,7 +83,7 @@ const createConflict = async (req, res) => {
       raisedById = booking.customerId;
       customerId = booking.customerId;
 
-      // Main assignment: booking ke naka ke best Mitra ko conflict assign karo
+      // Main assignment: booking ke naka ke best Field Agent ko conflict assign karo
       // Fallback: customer ka mitra
       mitraId = assignedMitraId || await findFirstAvailableMitraByIds([
         booking.customer?.mitraId,
@@ -158,11 +158,11 @@ const createConflict = async (req, res) => {
       raisedById = parseInt(workerId);
       finalWorkerId = parseInt(workerId);
 
-      // Main assignment: booking ke naka ka best Mitra
-      // Fallback: worker ka onboarding Mitra
+      // Main assignment: booking ke naka ka best Field Agent
+      // Fallback: worker ka onboarding Field Agent
       mitraId = assignedMitraId || await findFirstAvailableMitraByIds([worker.mitraId]);
 
-      // Worker penalty is decided by the assigned Mitra after reviewing the conflict.
+      // Worker penalty is decided by the assigned Field Agent after reviewing the conflict.
       // Do not apply any automatic/client-supplied penalty when the issue is raised.
       finalPenaltyAmount = 0;
 
@@ -179,7 +179,7 @@ const createConflict = async (req, res) => {
       };
     }
 
-    // Mobile retries or a repeated long-press must not create duplicate Mitra
+    // Mobile retries or a repeated long-press must not create duplicate Field Agent
     // requests for the same worker and booking.
     if (
       raisedBy === "WORKER" &&
@@ -200,7 +200,7 @@ const createConflict = async (req, res) => {
       if (existingCancelRequest) {
         return res.json({
           success: true,
-          message: "Mitra request already exists.",
+          message: "Field Agent request already exists.",
           conflict: existingCancelRequest,
           cancelledWorkerInfo,
           assignedMitraId: existingCancelRequest.mitraId,
@@ -236,7 +236,7 @@ const createConflict = async (req, res) => {
           newStatus: "PENDING",
           note: `Issue raised by ${raisedBy}. Reason: ${reason}. Action: ${finalRequestedAction}. Continue work: ${
             shouldContinueWork ? "Yes" : "No"
-          }. Assigned Mitra ID: ${mitraId || "ADMIN_ONLY"}`,
+          }. Assigned Field Agent ID: ${mitraId || "ADMIN_ONLY"}`,
         },
       });
 

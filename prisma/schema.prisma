@@ -169,6 +169,7 @@ model Mitra {
   submittedNakas Naka[]     @relation("NakaSubmittedByMitra")
   workers        Worker[]
   customers      Customer[]
+  onboardingDrafts FieldOfficerDraft[]
   isDemo         Boolean @default(false)
   leaveRequests             LeaveRequest[] @relation("MitraLeaveRequests")
   leaveReassignmentTargets  LeaveRequest[] @relation("LeaveReassignToMitra")
@@ -177,6 +178,24 @@ model Mitra {
   updatedAt DateTime @updatedAt
 
   @@map("mitra")
+}
+
+// Saved between wizard steps; tied to the logged-in Field Officer so that a
+// draft can be resumed on another device. Payload is AES-GCM encrypted.
+model FieldOfficerDraft {
+  id        Int      @id @default(autoincrement())
+  mitraId   Int
+  mitra     Mitra    @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  kind      String   @db.VarChar(16) // WORKER / CUSTOMER
+  step      Int      @default(1)
+  label     String?  @db.VarChar(120)
+  payload   String   @db.LongText
+  videoUrl  String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([mitraId, kind, updatedAt])
+  @@map("field_officer_draft")
 }
 
 

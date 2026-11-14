@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>E-MAN Mitra</title>
+  <title>E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
@@ -19,30 +19,34 @@
 
   <main class="scroll-area">
     <div class="mitra-page">
+      <div class="bg-white border border-emerald-100 rounded-2xl px-5 py-4 mb-4 shadow-sm">
+        <p class="text-xs font-bold uppercase tracking-wider text-emerald-600">Logged in as · Field Agent</p>
+        <h1 class="text-xl font-black text-slate-900 mt-1"><%= mitraName %></h1>
+      </div>
       <section class="mitra-stat-grid">
-        <a href="/mitra/conflicts?status=PENDING" class="mitra-stat-card">
+        <a href="/field-agent/conflicts?status=PENDING" class="mitra-stat-card">
           <div class="stat-row"><span class="stat-label">Conflicts</span><span class="stat-icon">!</span></div>
           <div class="stat-value"><%= stats.pendingWorkerRequests %></div>
         </a>
 
-        <a href="/mitra/workers" class="mitra-stat-card">
+        <a href="/field-agent/workers" class="mitra-stat-card">
           <div class="stat-row"><span class="stat-label">Workers</span><span class="stat-icon">♙</span></div>
           <div class="stat-value"><%= stats.totalWorkers %></div>
         </a>
 
-        <a href="/mitra/clients" class="mitra-stat-card">
+        <a href="/field-agent/clients" class="mitra-stat-card">
           <div class="stat-row"><span class="stat-label">Clients</span><span class="stat-icon">▣</span></div>
           <div class="stat-value"><%= stats.totalClients %></div>
         </a>
 
-        <a href="/mitra/nakas" class="mitra-stat-card">
+        <a href="/field-agent/nakas" class="mitra-stat-card">
           <div class="stat-row"><span class="stat-label">My Nakas</span><span class="stat-icon">⌖</span></div>
           <div class="stat-value stat-action-value">Manage</div>
         </a>
       </section>
 
       <% if (Number(stats.pendingWorkerRequests || 0) > 0) { %>
-        <a href="/mitra/conflicts?status=PENDING" class="mitra-attention">
+        <a href="/field-agent/conflicts?status=PENDING" class="mitra-attention">
           <div>
             <strong><%= stats.pendingWorkerRequests %> conflict<%= Number(stats.pendingWorkerRequests) === 1 ? '' : 's' %> pending</strong>
             <span>Review now</span>
@@ -52,16 +56,19 @@
       <% } %>
 
       <section class="mitra-dashboard-actions" aria-label="Quick actions">
-        <a href="/mitra/workers/add" class="mitra-dashboard-action">
+        <a href="/field-agent/workers/add" class="mitra-dashboard-action">
           <span class="action-icon">+</span><span>Add Worker</span>
         </a>
-        <a href="/mitra/clients/add" class="mitra-dashboard-action">
+        <a href="/field-agent/clients/add" class="mitra-dashboard-action">
           <span class="action-icon">+</span><span>Add Client</span>
         </a>
-        <a href="/mitra/nakas/add" class="mitra-dashboard-action">
+        <a href="/field-agent/drafts" class="mitra-dashboard-action">
+          <span class="action-icon">▣</span><span>Saved Drafts</span>
+        </a>
+        <a href="/field-agent/nakas/add" class="mitra-dashboard-action">
           <span class="action-icon">⌖</span><span>Submit Naka</span>
         </a>
-        <a href="/mitra/leaves" class="mitra-dashboard-action">
+        <a href="/field-agent/leaves" class="mitra-dashboard-action">
           <span class="action-icon">▦</span><span>Leaves</span>
         </a>
       </section>

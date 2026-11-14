@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendOtpEmail } = require('../utils/mailer');
 const { randomInt } = require('node:crypto');
+const { uppercaseName, prorateWorkerAmount } = require('../utils/registration');
 const {
     findNearbyVerifiedNakas
 } = require('../utils/nearbyNakas');
@@ -44,7 +45,7 @@ const getNakaVerificationCutoff = () => {
 // 1. Send OTP (For both Login and Register)
 // 1. Send OTP (For both Login and Register)
 const sendOtp = async (req, res) => {
-    const { email, phone, name } = req.body;
+    const { email, phone, name, clientType, businessName, businessType, gstNumber } = req.body;
 
     if (!email && !phone) {
         return res.status(400).json({ success: false, message: "Email ya Phone number zaroori hai" });
@@ -86,8 +87,17 @@ const sendOtp = async (req, res) => {
             }
             
             // Naya customer banao
+            const type = clientType === 'Company' ? 'Company' : 'Individual';
+            if (type === 'Company' && (!String(businessName || '').trim() || !String(businessType || '').trim())) {
+                return res.status(400).json({ success: false, message: 'Company name and industry type are required.' });
+            }
             customer = await prisma.customer.create({
-                data: { name, phone, email, otp: generatedOtp, otpExpiry: expiryTime }
+                data: { name: uppercaseName(name), phone, email: String(email).trim().toLowerCase(),
+                    clientType: type,
+                    businessName: type === 'Company' ? uppercaseName(businessName) : null,
+                    businessType: type === 'Company' ? String(businessType).trim() : null,
+                    gstNumber: type === 'Company' ? String(gstNumber || '').trim().toUpperCase() || null : null,
+                    otp: generatedOtp, otpExpiry: expiryTime }
             });
         } else {
             // Agar account pehle se hai, par user galti se "Create Account" wale form se aaya hai
@@ -674,13 +684,13 @@ const getAvailableWorkers = async (req, res) => {
                         worker.availabilityPoolSlot?.startTime ||
                         bookingSetting.poolDayStart,
                     baseRate,
-                    effectiveRate: applyPoolReduction({
+                    effectiveRate: prorateWorkerAmount(applyPoolReduction({
                         baseRate,
                         poolSortOrder:
                             worker.availabilityPoolSlot?.sortOrder || 0,
                         reductionType: bookingSetting.poolReductionType,
                         reductionValue: bookingSetting.poolReductionValue,
-                    }),
+                    }), worker.availabilityType, worker.availabilityHours),
 
                     nakas: worker.nakas,
                     skills: worker.skills

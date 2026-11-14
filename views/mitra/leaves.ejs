@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Leaves | E-MAN Mitra</title>
+  <title>Leaves | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
@@ -28,7 +28,7 @@
       </div>
 
       <section class="mitra-card mitra-card-pad">
-        <form method="POST" action="/mitra/leaves/apply" class="leave-form">
+        <form method="POST" action="/field-agent/leaves/apply" class="leave-form">
           <% const labels = {CASUAL:'Casual',SICK:'Sick',EMERGENCY:'Emergency',PAID:'Paid',UNPAID:'Unpaid',OTHER:'Other'}; %>
           <label><span class="input-label">Type</span><select name="leaveType" required class="mitra-input"><% leaveTypes.forEach(type => { %><option value="<%= type %>"><%= labels[type] || type %></option><% }) %></select></label>
           <label><span class="input-label">Day</span><select name="dayType" required class="mitra-input"><option value="FULL_DAY">Full Day</option><option value="HALF_DAY">Half Day</option></select></label>
@@ -58,7 +58,7 @@
               <% if (leave.decisionNote) { %><div class="mitra-card-sub" style="margin-top:7px">Admin: <%= leave.decisionNote %></div><% } %>
               <% if (['PENDING','APPROVED'].includes(leave.status) && ['PENDING','UPCOMING','ON_LEAVE'].includes(leave.displayState)) { %>
                 <div class="mitra-card-foot" style="justify-content:flex-end">
-                  <form method="POST" action="/mitra/leaves/<%= leave.id %>/cancel" onsubmit="return confirm('Cancel this leave request?')"><button class="mitra-danger-btn" type="submit">Cancel</button></form>
+                  <form method="POST" action="/field-agent/leaves/<%= leave.id %>/cancel" onsubmit="return confirm('Cancel this leave request?')"><button class="mitra-danger-btn" type="submit">Cancel</button></form>
                 </div>
               <% } %>
             </article>

@@ -4,19 +4,19 @@
 %>
 <footer class="mitra-bottom-nav">
   <div class="mitra-bottom-nav-inner">
-    <a href="/mitra/dashboard" class="<%= bottomNavClass('dashboard') %>"><span class="nav-icon">⌂</span><span>Home</span></a>
-    <a href="/mitra/workers" class="<%= bottomNavClass('workers') %>"><span class="nav-icon">♙</span><span>Workers</span></a>
+    <a href="/field-agent/dashboard" class="<%= bottomNavClass('dashboard') %>"><span class="nav-icon">⌂</span><span>Home</span></a>
+    <a href="/field-agent/workers" class="<%= bottomNavClass('workers') %>"><span class="nav-icon">♙</span><span>Workers</span></a>
     <button type="button" class="mitra-nav-item" onclick="openMitraQuickAdd()" aria-label="Quick add"><span class="mitra-nav-add">+</span><span>Add</span></button>
-    <a href="/mitra/clients" class="<%= bottomNavClass('clients') %>"><span class="nav-icon">▣</span><span>Clients</span></a>
-    <a href="/mitra/conflicts" class="<%= bottomNavClass('conflicts') %>"><span class="nav-icon">!</span><span>Conflicts</span></a>
+    <a href="/field-agent/clients" class="<%= bottomNavClass('clients') %>"><span class="nav-icon">▣</span><span>Clients</span></a>
+    <a href="/field-agent/conflicts" class="<%= bottomNavClass('conflicts') %>"><span class="nav-icon">!</span><span>Conflicts</span></a>
   </div>
 </footer>
 <div id="mitraQuickAdd" class="mitra-quick-overlay" onclick="if(event.target===this) closeMitraQuickAdd()">
   <div class="mitra-quick-sheet">
     <div class="mitra-quick-handle"></div>
-    <a class="mitra-quick-link" href="/mitra/workers/add"><span>Add Worker</span><span>›</span></a>
-    <a class="mitra-quick-link" href="/mitra/clients/add"><span>Add Client</span><span>›</span></a>
-    <a class="mitra-quick-link" href="/mitra/nakas/add"><span>Submit Naka</span><span>›</span></a>
+    <a class="mitra-quick-link" href="/field-agent/workers/add"><span>Add Worker</span><span>›</span></a>
+    <a class="mitra-quick-link" href="/field-agent/clients/add"><span>Add Client</span><span>›</span></a>
+    <a class="mitra-quick-link" href="/field-agent/nakas/add"><span>Submit Naka</span><span>›</span></a>
     <button type="button" class="mitra-quick-close" onclick="closeMitraQuickAdd()">Close</button>
   </div>
 </div>

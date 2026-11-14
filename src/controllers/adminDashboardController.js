@@ -157,7 +157,7 @@ const showDashboard = async (req, res) => {
                 leaveQueue: pendingLeaveRows.map((leave) => ({
                     id: leave.id,
                     name: leave.subjectType === 'MITRA'
-                        ? safeName(leave.mitra?.name, 'Mitra')
+                        ? safeName(leave.mitra?.name, 'Field Agent')
                         : safeName(leave.employee?.name, 'Employee'),
                     subjectType: leave.subjectType,
                     leaveType: leave.leaveType,

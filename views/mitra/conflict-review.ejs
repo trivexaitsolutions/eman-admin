@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Conflict #<%= conflict.id %> | E-MAN Mitra</title>
+  <title>Conflict #<%= conflict.id %> | E-MAN Field Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
   <style>
@@ -18,7 +18,7 @@
 <div class="app">
   <header class="mitra-task-header">
     <div class="mitra-task-header-inner">
-      <a class="mitra-back" href="/mitra/conflicts">←</a>
+      <a class="mitra-back" href="/field-agent/conflicts">←</a>
       <div class="mitra-task-title">
         <h1>Conflict #<%= conflict.id %> · Booking #<%= conflict.bookingId %></h1>
       </div>
@@ -92,7 +92,7 @@
 
         <section class="mitra-card mitra-card-pad decision-card">
           <div class="mitra-card-title" style="margin-bottom:12px">Decision</div>
-          <form id="conflictStatusForm" method="POST" action="/mitra/conflicts/<%= conflict.id %>/status" style="display:grid;gap:10px">
+          <form id="conflictStatusForm" method="POST" action="/field-agent/conflicts/<%= conflict.id %>/status" style="display:grid;gap:10px">
             <label>
               <span class="input-label">Status</span>
               <select id="conflictStatus" name="status" required class="mitra-input">
@@ -111,7 +111,7 @@
             <% } %>
 
             <label>
-              <span class="input-label">Mitra Note</span>
+              <span class="input-label">Field Agent Note</span>
               <textarea name="note" rows="4" required class="mitra-input" style="resize:vertical" placeholder="Add decision note"></textarea>
             </label>
 

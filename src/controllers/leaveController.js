@@ -94,7 +94,7 @@ function decorateLeave(leave, today = getTodayDateOnly()) {
     days,
     isOpenEnded: !leave.toDate && !leave.returnedAt,
     personName: leave.subjectType === 'MITRA'
-      ? leave.mitra?.name || 'Mitra'
+      ? leave.mitra?.name || 'Field Agent'
       : leave.employee?.name || 'Employee',
   };
 }
@@ -184,10 +184,10 @@ async function validateReassignmentTarget(sourceMitraId, targetMitraId) {
   const targetId = Number(targetMitraId);
 
   if (!Number.isInteger(targetId) || targetId <= 0) {
-    return 'Please select the Mitra who should receive the existing conflicts.';
+    return 'Please select the Field Agent who should receive the existing conflicts.';
   }
   if (sourceId === targetId) {
-    return 'Existing conflicts cannot be reassigned to the same Mitra.';
+    return 'Existing conflicts cannot be reassigned to the same Field Agent.';
   }
 
   const target = await prisma.mitra.findFirst({
@@ -195,7 +195,7 @@ async function validateReassignmentTarget(sourceMitraId, targetMitraId) {
     select: { id: true },
   });
 
-  if (!target) return 'Selected reassignment Mitra was not found or is inactive.';
+  if (!target) return 'Selected reassignment Field Agent was not found or is inactive.';
   return null;
 }
 
@@ -226,7 +226,7 @@ async function listLeaves(req, res) {
   }
 
   try {
-    // This only executes handovers to the exact target Mitra selected by Admin.
+    // This only executes handovers to the exact target Field Agent selected by Admin.
     await processCurrentMitraLeaveReassignments();
 
     const today = getTodayDateOnly();
@@ -496,7 +496,7 @@ async function createManagedLeave(req, res) {
     const handover = readWorkHandover(subjectType, subjectId, req.body);
 
     if (!Number.isInteger(subjectId) || subjectId <= 0) {
-      return redirectWithMessage(res, '/admin/leaves', 'error', 'Please select an Employee or Mitra.');
+      return redirectWithMessage(res, '/admin/leaves', 'error', 'Please select an Employee or Field Agent.');
     }
 
     const subjectExists = subjectType === 'MITRA'
@@ -774,8 +774,8 @@ async function reassignManagedLeave(req, res) {
       '/admin/leaves',
       'success',
       current
-        ? 'Handover target saved. Active conflicts are moved only to the Mitra selected by Admin; no automatic substitute is used.'
-        : 'Handover target saved. Existing conflicts will move only to that selected Mitra when this leave starts.'
+        ? 'Handover target saved. Active conflicts are moved only to the Field Agent selected by Admin; no automatic substitute is used.'
+        : 'Handover target saved. Existing conflicts will move only to that selected Field Agent when this leave starts.'
     );
   } catch (error) {
     console.error('Reassign Managed Leave Error:', error);
@@ -885,7 +885,7 @@ async function listMitraLeaves(req, res) {
     return res.render('mitra/leaves', {
       layout: false,
       mitra: req.user,
-      mitraName: req.user?.name || 'Mitra',
+      mitraName: req.user?.name || 'Field Agent',
       activePage: 'leaves',
       leaves: decorated,
       currentLeave,
@@ -895,7 +895,7 @@ async function listMitraLeaves(req, res) {
       error_msg: req.query.error || null,
     });
   } catch (error) {
-    console.error('Mitra Leaves Error:', error);
+    console.error('Field Agent Leaves Error:', error);
     return res.status(500).send('Leaves could not be loaded.');
   }
 }
@@ -923,7 +923,7 @@ async function applyMitraLeave(req, res) {
     });
 
     if (validationError) {
-      return redirectWithMessage(res, '/mitra/leaves', 'error', validationError);
+      return redirectWithMessage(res, '/field-agent/leaves', 'error', validationError);
     }
 
     await prisma.leaveRequest.create({
@@ -940,10 +940,10 @@ async function applyMitraLeave(req, res) {
       },
     });
 
-    return redirectWithMessage(res, '/mitra/leaves', 'success', 'Leave request submitted for approval.');
+    return redirectWithMessage(res, '/field-agent/leaves', 'success', 'Leave request submitted for approval.');
   } catch (error) {
-    console.error('Apply Mitra Leave Error:', error);
-    return redirectWithMessage(res, '/mitra/leaves', 'error', 'Leave request could not be submitted.');
+    console.error('Apply Field Agent Leave Error:', error);
+    return redirectWithMessage(res, '/field-agent/leaves', 'error', 'Leave request could not be submitted.');
   }
 }
 
@@ -962,16 +962,16 @@ async function cancelMitraLeave(req, res) {
     });
 
     if (!leave) {
-      return redirectWithMessage(res, '/mitra/leaves', 'error', 'This leave cannot be cancelled.');
+      return redirectWithMessage(res, '/field-agent/leaves', 'error', 'This leave cannot be cancelled.');
     }
 
     if (leave.status === 'APPROVED') {
       const displayState = getDisplayState(leave);
       if (displayState === 'COMPLETED') {
-        return redirectWithMessage(res, '/mitra/leaves', 'error', 'Completed leave cannot be cancelled.');
+        return redirectWithMessage(res, '/field-agent/leaves', 'error', 'Completed leave cannot be cancelled.');
       }
       if (displayState === 'ON_LEAVE') {
-        return redirectWithMessage(res, '/mitra/leaves', 'error', 'Active leave can only be ended by Admin.');
+        return redirectWithMessage(res, '/field-agent/leaves', 'error', 'Active leave can only be ended by Admin.');
       }
     }
 
@@ -980,10 +980,10 @@ async function cancelMitraLeave(req, res) {
       data: { status: 'CANCELLED', cancelledAt: new Date() },
     });
 
-    return redirectWithMessage(res, '/mitra/leaves', 'success', 'Leave request cancelled.');
+    return redirectWithMessage(res, '/field-agent/leaves', 'success', 'Leave request cancelled.');
   } catch (error) {
-    console.error('Cancel Mitra Leave Error:', error);
-    return redirectWithMessage(res, '/mitra/leaves', 'error', 'Leave could not be cancelled.');
+    console.error('Cancel Field Agent Leave Error:', error);
+    return redirectWithMessage(res, '/field-agent/leaves', 'error', 'Leave could not be cancelled.');
   }
 }
 

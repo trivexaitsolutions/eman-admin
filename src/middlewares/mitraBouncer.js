@@ -2,11 +2,11 @@
 const jwt = require('jsonwebtoken');
 
 const mitraBouncer = (req, res, next) => {
-    // 1. Mitra ki special cookie check karein
+    // 1. Field Agent ki special cookie check karein
     const token = req.cookies ? req.cookies.mitraToken : null;
 
     if (!token) {
-        return res.redirect('/mitra/login');
+        return res.redirect('/field-agent/login');
     }
 
     try {
@@ -14,7 +14,7 @@ const mitraBouncer = (req, res, next) => {
         
         // 2. Check karein ki role MITRA hi hai na
         if (decoded.role !== 'MITRA') {
-            return res.redirect('/mitra/login');
+            return res.redirect('/field-agent/login');
         }
 
         // 3. User data ko request mein daal do dashboard ke liye
@@ -22,7 +22,7 @@ const mitraBouncer = (req, res, next) => {
         next();
     } catch (error) {
         res.clearCookie('mitraToken');
-        return res.redirect('/mitra/login');
+        return res.redirect('/field-agent/login');
     }
 };
 

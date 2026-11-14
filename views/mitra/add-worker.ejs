@@ -15,6 +15,8 @@
       : []
   );
 
+  const draftNakaIds = !editMode && typeof onboardingDraft !== 'undefined' && onboardingDraft
+    ? new Set((onboardingDraft.fields.nakaIds || []).map(Number)) : new Set();
   const initialSelectedNakasJson = JSON.stringify(
     editMode && Array.isArray(formWorker.nakas)
       ? formWorker.nakas.map((naka) => ({
@@ -22,14 +24,15 @@
           name: naka.name || "Selected Naka",
           pincode: naka.pincode || ""
         }))
-      : []
+      : (nakas || []).filter(naka => draftNakaIds.has(Number(naka.id)))
+          .map(naka => ({ id: Number(naka.id), name: naka.name, pincode: naka.pincode || '' }))
   )
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
     .replace(/&/g, "\\u0026");
 
   const hasExistingConsentVideo = Boolean(
-    editMode && formWorker.consentVoiceUrl
+    (editMode && formWorker.consentVoiceUrl) || (!editMode && onboardingDraft && onboardingDraft.videoUrl)
   );
 %>
 <!DOCTYPE html>
@@ -42,7 +45,7 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
 
-  <title><%= editMode ? "Edit Worker" : "Add Worker" %> | E-MAN Mitra</title>
+  <title><%= editMode ? "Edit Worker" : "Add Worker" %> | E-MAN Field Agent</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/mitra-ui.css" />
@@ -235,8 +238,9 @@
   <header class="mitra-task-header">
     <div class="mitra-task-header-inner" style="display:block">
       <div style="display:flex;align-items:center;gap:10px">
-        <a href="/mitra/workers" class="mitra-back">←</a>
+        <a href="/field-agent/workers" class="mitra-back">←</a>
         <div class="mitra-task-title"><h1><%= editMode ? "Edit Worker" : "Add Worker" %></h1></div>
+        <% if (!editMode) { %><a href="/field-agent/drafts" class="ml-auto text-xs text-emerald-700 font-bold">Saved Drafts</a><% } %>
       </div>
       <div class="relative" style="margin:9px 4px 0">
         <div class="absolute left-3 right-3 top-3 h-[2px] bg-gray-100 rounded-full"></div>
@@ -256,6 +260,7 @@
   <main class="scroll-area">
 
     <div class="tablet-container px-5 md:px-8 pt-5 md:pt-8">
+      <% if (!editMode) { %><p id="draftSaveStatus" class="text-xs font-bold text-emerald-700 mb-3">Auto-save is on</p><% } %>
 
       <% if (error) { %>
   <div class="mb-5 rounded-[24px] bg-red-50 border border-red-100 p-4 flex items-center gap-3">
@@ -273,7 +278,7 @@
   </div>
 <% } %>
 
-      <form id="workerForm" action="<%= editMode ? `/mitra/workers/update/${formWorker.id}` : '/mitra/workers/save' %>" method="POST" enctype="multipart/form-data">
+      <form id="workerForm" action="<%= editMode ? `/field-agent/workers/update/${formWorker.id}` : '/field-agent/workers/save' %>" method="POST" enctype="multipart/form-data">
 
         <div class="tablet-grid">
 
@@ -618,6 +623,8 @@
                   <div>
                     <label class="input-label">UPI ID</label>
                     <input type="text" name="upiId" id="upiId" value="<%= editMode ? (formWorker.upiId || '') : '' %>" placeholder="example@paytm" class="app-input" />
+                    <button type="button" id="verifyUpiBtn" class="mt-2 text-xs font-black text-emerald-700 border border-emerald-200 px-3 py-2 rounded-xl">Verify UPI ID</button>
+                    <p id="upiVerifyStatus" class="text-xs mt-2 font-bold text-gray-500">RazorpayX verification requires an enabled merchant account.</p>
                   </div>
 
                   <div>
@@ -754,7 +761,7 @@
                   name="videoConsent"
                   accept="video/*"
                   class="hidden"
-                  <%= !editMode || !hasExistingConsentVideo ? "required" : "" %>
+                  <%= !hasExistingConsentVideo ? "required" : "" %>
                 />
               </div>
 
@@ -837,7 +844,7 @@
           id="nextBtn"
           class="flex-1 h-[58px] rounded-[22px] bg-gray-900 text-white text-base md:text-lg font-black shadow-lg active:bg-black transition"
         >
-          Next Step
+          <%= editMode ? 'Next Step' : 'Save & Next' %>
         </button>
 
         <button
@@ -855,6 +862,7 @@
 
 </div>
 
+<script src="/js/field-officer-drafts.js"></script>
 <script>
   let currentStep = 1;
   const totalSteps = 5;
@@ -866,6 +874,17 @@
   const nextBtn = document.getElementById('nextBtn');
   const submitBtn = document.getElementById('submitBtn');
   const form = document.getElementById('workerForm');
+  const savedRegistration = <%- JSON.stringify(typeof onboardingDraft !== 'undefined' ? onboardingDraft : null).replace(/</g, '\\u003c') %>;
+  let workerDraftWizard = null;
+  if (!isEditMode) {
+    form.insertAdjacentHTML('afterbegin', '<input type="hidden" name="draftId" value="">');
+    workerDraftWizard = window.createFieldOfficerDraft({
+      kind: 'WORKER', form, existing: savedRegistration,
+      currentStep: () => currentStep,
+      // Restore after selectedNakas and the map widgets are initialized below.
+      setStep: step => { window.savedWorkerResumeStep = Math.min(5, Math.max(1, step)); },
+    });
+  }
   const progressLine = document.getElementById('progressLine');
   const summaryStepTitle = document.getElementById('summaryStepTitle');
   const summaryStepText = document.getElementById('summaryStepText');
@@ -1193,8 +1212,12 @@ function validateCurrentStep() {
   return true;
 }
 
-  nextBtn.addEventListener('click', () => {
+  nextBtn.addEventListener('click', async () => {
     if (validateCurrentStep()) {
+      if (workerDraftWizard) {
+        try { await workerDraftWizard.save(currentStep + 1); }
+        catch (err) { alert(err.message || 'Draft save failed. Please retry.'); return; }
+      }
       currentStep++;
       updateUI();
     }
@@ -1223,6 +1246,26 @@ const bmiStatus = document.getElementById('bmiStatus');
 const bmiCard = document.getElementById('bmiCard');
 
 const workerPhone = document.getElementById('workerPhone');
+const verifyUpiBtn = document.getElementById('verifyUpiBtn');
+const upiVerifyStatus = document.getElementById('upiVerifyStatus');
+verifyUpiBtn.addEventListener('click', async () => {
+  const upiId = document.getElementById('upiId').value.trim();
+  if (!upiId) { upiVerifyStatus.textContent = 'Enter a UPI ID first.'; return; }
+  verifyUpiBtn.disabled = true;
+  upiVerifyStatus.textContent = 'Verifying with RazorpayX...';
+  try {
+    const response = await fetch('/field-agent/api/validate-upi', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upiId, name: document.getElementById('workerName').value, phone: workerPhone.value }),
+    });
+    const result = await response.json();
+    upiVerifyStatus.textContent = result.verified
+      ? `Verified ✓ ${result.registeredName || ''}`
+      : result.message || 'Unable to verify UPI ID.';
+    upiVerifyStatus.style.color = result.verified ? '#047857' : '#92400e';
+  } catch (_) { upiVerifyStatus.textContent = 'Verification service unavailable.'; }
+  finally { verifyUpiBtn.disabled = false; }
+});
 const workerPincode = document.getElementById('workerPincode');
 
 const nakaSearchPincode = document.getElementById("nakaSearchPincode");
@@ -1437,7 +1480,7 @@ async function updateNakaSearchResults() {
 
   try {
     const response = await fetch(
-      `/mitra/api/nakas/search?pincode=${encodeURIComponent(enteredPincode)}`,
+      `/field-agent/api/nakas/search?pincode=${encodeURIComponent(enteredPincode)}`,
       {
         credentials: "same-origin",
         headers: {
@@ -1536,6 +1579,24 @@ function updateAgePreview() {
 
   workerAge.value = age > 0 ? age : '';
 }
+
+function updateDobFromAge() {
+  const age = Number(workerAge.value);
+  if (!Number.isInteger(age) || age < 18 || age > 100) return;
+  const today = new Date();
+  const juneAlreadyPassed = today.getMonth() > 5 || (today.getMonth() === 5 && today.getDate() >= 1);
+  const year = today.getFullYear() - age - (juneAlreadyPassed ? 0 : 1);
+  workerDob.value = `${year}-06-01`;
+}
+workerAge.removeAttribute('readonly');
+workerAge.removeAttribute('tabindex');
+workerAge.placeholder = 'Enter age';
+workerAge.min = '18';
+workerAge.max = '100';
+workerAge.addEventListener('input', updateDobFromAge);
+document.getElementById('workerName').addEventListener('input', event => {
+  event.target.value = event.target.value.toLocaleUpperCase('en-IN');
+});
 
 function getBmiStatus(value) {
   if (value < 18.5) return 'Underweight range';
@@ -1844,8 +1905,9 @@ refreshSelectedNakaSummary();
 
   async function requestCameraStream(facingMode) {
     const baseVideoConstraints = {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
+      width: { ideal: 320, max: 640 },
+      height: { ideal: 240, max: 480 },
+      frameRate: { ideal: 12, max: 15 },
     };
 
     /*
@@ -1989,12 +2051,12 @@ refreshSelectedNakaSummary();
 
     recordedChunks = [];
 
-    let options = {};
+    let options = { videoBitsPerSecond: 120000, audioBitsPerSecond: 24000 };
 
     if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-      options = { mimeType: 'video/webm;codecs=vp9' };
+      options = { ...options, mimeType: 'video/webm;codecs=vp9' };
     } else if (MediaRecorder.isTypeSupported('video/webm')) {
-      options = { mimeType: 'video/webm' };
+      options = { ...options, mimeType: 'video/webm' };
     }
 
     try {
@@ -2012,45 +2074,88 @@ refreshSelectedNakaSummary();
       }
     };
 
-    mediaRecorder.onstop = () => {
-      const recordedType =
-        mediaRecorder.mimeType ||
-        recordedChunks[0]?.type ||
-        'video/webm';
+    
+mediaRecorder.onstop = async () => {
+    // Prefer the actual MIME type reported by recorded video chunks.
+    const normalizeVideoMime = (value) => {
+        const mime = String(value || '')
+            .split(';', 1)[0]
+            .trim()
+            .toLowerCase();
 
-      const extension = recordedType.includes('mp4')
-        ? 'mp4'
-        : recordedType.includes('ogg')
-          ? 'ogv'
-          : 'webm';
+        return mime.startsWith('video/') ? mime : '';
+    };
 
-      const blob = new Blob(recordedChunks, {
-        type: recordedType,
-      });
+    const chunkMime = recordedChunks
+        .map(chunk => normalizeVideoMime(chunk.type))
+        .find(Boolean);
 
-      const file = new File(
+    const recorderMime = normalizeVideoMime(mediaRecorder.mimeType);
+
+    const recordedType = chunkMime || recorderMime;
+
+    console.log('Consent recording diagnostics:', {
+        recorderMime: mediaRecorder.mimeType,
+        chunkTypes: recordedChunks.map(chunk => chunk.type),
+        selectedMime: recordedType,
+        chunks: recordedChunks.length
+    });
+
+    // Never disguise a text file as a video.
+    if (!recordedType || recordedChunks.length === 0) {
+        console.error('Invalid video recording:', recordedChunks);
+        alert(
+            'Browser did not produce a valid video. Please refresh and record again.'
+        );
+        return;
+    }
+
+    const extension =
+        recordedType === 'video/mp4' ? 'mp4' :
+        recordedType === 'video/quicktime' ? 'mov' :
+        recordedType === 'video/ogg' ? 'ogv' :
+        recordedType === 'video/3gpp' ? '3gp' :
+        'webm';
+
+    const blob = new Blob(recordedChunks, {
+        type: recordedType
+    });
+
+    if (!blob.size) {
+        alert('Video recording is empty. Please record again.');
+        return;
+    }
+
+    const file = new File(
         [blob],
         'consent-' + Date.now() + '.' + extension,
-        {
-          type: recordedType,
+        { type: recordedType }
+    );
+
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    videoConsentFile.files = dataTransfer.files;
+
+    if (workerDraftWizard) {
+        try {
+            await workerDraftWizard.uploadVideo(file);
+        } catch (error) {
+            console.error('Consent draft upload failed:', error);
         }
-      );
+    }
 
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      videoConsentFile.files = dataTransfer.files;
+    stopCurrentStream();
 
-      stopCurrentStream();
+    cameraPreview.srcObject = null;
+    cameraPreview.style.transform = 'scaleX(1)';
+    cameraPreview.src = URL.createObjectURL(blob);
+    cameraPreview.muted = false;
+    cameraPreview.controls = true;
+    cameraPreview.play();
 
-      cameraPreview.srcObject = null;
-      cameraPreview.style.transform = 'scaleX(1)';
-      cameraPreview.src = URL.createObjectURL(blob);
-      cameraPreview.muted = false;
-      cameraPreview.controls = true;
-      cameraPreview.play();
+    cameraUtilityControls.classList.add('hidden');
+};
 
-      cameraUtilityControls.classList.add('hidden');
-    };
 
     mediaRecorder.start();
 
@@ -2100,7 +2205,7 @@ refreshSelectedNakaSummary();
   });
 
   /*
-   * Camera must be released when the Mitra leaves/reloads the page.
+   * Camera must be released when the Field Agent leaves/reloads the page.
    */
   window.addEventListener('beforeunload', () => {
     stopCurrentStream();
@@ -2120,6 +2225,10 @@ refreshSelectedNakaSummary();
     submitButton.textContent = isEditMode ? "Updating Worker..." : "Saving Worker...";
     submitButton.classList.add("opacity-70", "cursor-wait");
   });
+  if (!isEditMode && window.savedWorkerResumeStep > 1) {
+    currentStep = window.savedWorkerResumeStep;
+    updateUI();
+  }
 </script>
 
 </body>

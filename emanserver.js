@@ -46,7 +46,15 @@ app.use((req, res, next) => {
 const adminRoutes = require('./src/routes/adminRoutes');
 const mitraPortalRoutes = require('./src/routes/mitraPortalRoutes');
 app.use('/admin', adminRoutes);
-app.use('/mitra', mitraPortalRoutes);
+// Public branding uses Field Agent; internal Mitra models/controllers stay unchanged.
+app.use('/field-agent', mitraPortalRoutes);
+// Existing bookmarks: redirect old GET/HEAD URLs, but accept legacy POST uploads/forms.
+app.use('/mitra', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        return res.redirect(302, req.originalUrl.replace(/^\/mitra(?=\/|\?|$)/, '/field-agent'));
+    }
+    next();
+}, mitraPortalRoutes);
 
 // If someone just types localhost:3000, send them to the admin login
 app.get('/', (req, res) => {
@@ -57,7 +65,7 @@ app.get('/', (req, res) => {
 app.use('/api/worker', require('./src/routes/api/workerRoutes'));
 app.use('/api/user', require('./src/routes/api/userRoutes'));
 
-// Keep approved Mitra leaves in sync with conflict assignment/reassignment.
+// Keep approved Field Agent leaves in sync with conflict assignment/reassignment.
 startLeaveReassignmentWatcher();
 
 // --- 4. START SERVER ---

@@ -367,7 +367,7 @@ const assignConflictMitra = async (req, res) => {
     const mitraId = Number(req.body.mitraId);
 
     if (!Number.isInteger(mitraId) || mitraId <= 0) {
-      return res.status(400).send("Please select a valid Mitra.");
+      return res.status(400).send("Please select a valid Field Agent.");
     }
 
     const conflict = await prisma.conflict.findUnique({
@@ -391,7 +391,7 @@ const assignConflictMitra = async (req, res) => {
     });
 
     if (!mitra) {
-      return res.status(400).send("Selected Mitra is unavailable, on leave, or not assigned to this Naka.");
+      return res.status(400).send("Selected Field Agent is unavailable, on leave, or not assigned to this Naka.");
     }
 
     const oldMitraId = conflict.mitraId;
@@ -409,15 +409,15 @@ const assignConflictMitra = async (req, res) => {
           updatedById: req.user?.id ? Number(req.user.id) : null,
           oldStatus: conflict.status,
           newStatus: conflict.status,
-          note: `Conflict manually assigned ${oldMitraId ? `from Mitra #${oldMitraId}` : "from Admin queue"} to ${mitra.name} (Mitra #${mitra.id}).`,
+          note: `Conflict manually assigned ${oldMitraId ? `from Field Agent #${oldMitraId}` : "from Admin queue"} to ${mitra.name} (Field Agent #${mitra.id}).`,
         },
       });
     });
 
     return res.redirect(`/admin/conflicts/${conflictId}`);
   } catch (error) {
-    console.error("Assign Conflict Mitra Error:", error);
-    return res.status(500).send("Conflict could not be assigned to Mitra.");
+    console.error("Assign Conflict Field Agent Error:", error);
+    return res.status(500).send("Conflict could not be assigned to Field Agent.");
   }
 };
 

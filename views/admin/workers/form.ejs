@@ -17,7 +17,7 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
                         <label class="block text-stone-700 text-xs font-bold mb-2">Full Name *</label>
-                        <input type="text" name="name" value="<%= isEdit ? worker.name : '' %>" required class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
+                        <input type="text" name="name" value="<%= isEdit ? worker.name : '' %>" required oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:border-emerald-500">
                     </div>
                     
                     <div>
@@ -38,7 +38,7 @@
                     </div>
                     <div>
                         <label class="block text-stone-700 text-xs font-bold mb-2">Age (Auto-calculated)</label>
-                        <input type="number" name="age" id="age" value="<%= isEdit ? worker.age : '' %>" readonly class="w-full px-4 py-2.5 bg-stone-100 border border-stone-200 rounded-lg text-stone-500 cursor-not-allowed">
+                        <input type="number" name="age" id="age" min="18" max="100" value="<%= isEdit ? worker.age : '' %>" class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-stone-700">
                     </div>
                 </div>
 
@@ -164,6 +164,13 @@
             const ageDate = new Date(ageDifMs);
             document.getElementById('age').value = Math.abs(ageDate.getUTCFullYear() - 1970);
         }
+    });
+    document.getElementById('age').addEventListener('input', function () {
+        const age = Number(this.value);
+        if (!Number.isInteger(age) || age < 18 || age > 100) return;
+        const now = new Date();
+        const passedJune = now.getMonth() > 5 || (now.getMonth() === 5 && now.getDate() >= 1);
+        document.getElementById('dob').value = `${now.getFullYear() - age - (passedJune ? 0 : 1)}-06-01`;
     });
 
     // 2. Fetch Nakas by Pincode & Limit to 3 Checkboxes
