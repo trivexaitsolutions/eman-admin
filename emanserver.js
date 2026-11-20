@@ -8,6 +8,7 @@ const session = require('express-session');
 const flash = require('connect-flash');
 require('dotenv').config();
 const { startLeaveReassignmentWatcher } = require('./src/services/leaveService');
+const { startBookingReservationWatcher } = require('./src/services/bookingReservationWatcher');
 
 
 const app = express();
@@ -67,6 +68,7 @@ app.use('/api/user', require('./src/routes/api/userRoutes'));
 
 // Keep approved Field Agent leaves in sync with conflict assignment/reassignment.
 startLeaveReassignmentWatcher();
+startBookingReservationWatcher();
 
 // --- 4. START SERVER ---
 app.listen(PORT,"0.0.0.0", () => {

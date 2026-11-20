@@ -2,7 +2,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
-const { getActivePoolContext } = require('../utils/bookingSettings');
+const { getActivePoolContext, getBookingSetting, calculatePoolTimer } = require('../utils/bookingSettings');
 const { uppercaseName, prorateWorkerAmount, dobFromAge } = require('../utils/registration');
 const draftController = require('./fieldOfficerDraftController');
 const { compressConsentVideo } = require('../utils/consentVideo');
@@ -584,8 +584,11 @@ const getPoolStatus = async (req, res) => {
             });
         }
 
+        const setting = await getBookingSetting(prisma);
+        const poolTimer = calculatePoolTimer(setting, worker.availabilityStart, new Date());
         return res.json({
             success: true,
+            ...poolTimer,
             isAvailable: worker.isAvailable,
             availabilityType: worker.availabilityType,
             availabilityStart: worker.availabilityStart,
@@ -595,7 +598,6 @@ const getPoolStatus = async (req, res) => {
                 ? Number(worker.availabilityPoolSlot.sortOrder || 0) + 1
                 : null,
             poolStartTime: worker.availabilityPoolSlot?.startTime || null,
-            elapsedSeconds: getElapsedSeconds(worker.availabilityStart),
             remainingSeconds: getRemainingSeconds(worker.availabilityUntil),
             serverTime: new Date().toISOString(),
         });

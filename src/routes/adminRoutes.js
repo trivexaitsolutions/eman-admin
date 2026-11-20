@@ -14,6 +14,7 @@ const nakaRoutes = require('./nakaRoutes');
 const skillRoutes = require('./skillRoutes');
 const workerRoutes = require('./workerRoutes');
 const bookingSettingRoutes = require('./bookingSettingRoutes');
+const apiIntegrationsRoutes = require('./apiIntegrationsRoutes');
 const adminBookingRoutes = require('./adminBookingRoutes');
 const adminDashboardController = require('../controllers/adminDashboardController');
 const leaveRoutes = require('./leaveRoutes');
@@ -41,6 +42,7 @@ router.use('/nakas', authBouncer(['superadmin', 'admin']), nakaRoutes);
 router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
 router.use('/simulator', authBouncer(['superadmin', 'admin']), adminSimulatorRoutes);
 router.use('/booking-settings', authBouncer(['superadmin', 'admin']), bookingSettingRoutes);
+router.use('/api-integrations', authBouncer(['superadmin', 'admin']), apiIntegrationsRoutes);
 router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminBookingRoutes);
 
 router.get('/clients', authBouncer(['superadmin', 'admin', 'employee']), adminClientController.listClients);

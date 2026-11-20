@@ -1,0 +1,81 @@
+<%- include('../../partials/toast') %>
+<div class="max-w-5xl mx-auto pb-16">
+  <div class="mb-7 flex items-start gap-3">
+    <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center text-xl">⚙</div>
+    <div>
+      <h1 class="text-2xl md:text-3xl font-bold text-stone-900">API Integrations</h1>
+      <p class="text-sm text-stone-500 mt-1">OTP provider, messaging credentials, payment gateway aur payouts ka control ek jagah.</p>
+    </div>
+  </div>
+  <% if (saved) { %><div role="status" class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800">Settings securely saved. Naye OTP aur payment requests par immediately apply hongi.</div><% } %>
+  <% if (errorText) { %><div role="alert" class="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-800"><%= errorText %></div><% } %>
+  <% if (!encryptionReady) { %><div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Saving disabled: first configure <code class="font-mono font-semibold">API_SETTINGS_ENCRYPTION_KEY</code> in backend .env and restart Node. Existing .env credentials keep working until Admin settings are saved.</div><% } %>
+  <form action="/admin/api-integrations" method="post" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="rounded-2xl border border-stone-200 bg-white p-5 mb-5 shadow-sm">
+      <h2 class="text-lg font-bold">Active OTP Provider</h2>
+      <p class="text-sm text-stone-500 mt-1">Mobile registration aur login ke liye ek provider choose karein. Existing OTPs expiry tak valid rahenge.</p>
+      <div class="grid sm:grid-cols-3 gap-3 mt-4">
+        <% for (const item of [{v:'MSG91_SMS',title:'MSG91 SMS',sub:'OTP mobile SMS par'},{v:'MSG91_WHATSAPP',title:'MSG91 WhatsApp',sub:'OTP WhatsApp par'},{v:'MAIL',title:'MAIL OTP',sub:'Current email system'}]) { %>
+          <label class="cursor-pointer">
+            <input type="radio" name="otpProvider" value="<%= item.v %>" class="peer sr-only" <%= config.otpProvider === item.v ? 'checked' : '' %>>
+            <div class="rounded-xl border-2 border-stone-200 p-4 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
+              <p class="text-sm font-bold"><%= item.title %></p><p class="text-xs text-stone-500 mt-1"><%= item.sub %></p>
+            </div>
+          </label>
+        <% } %>
+      </div>
+    </div>
+    <% const inp = (name,label,value,hint) => { %><label class="block"><span class="block text-xs font-semibold text-stone-700 mb-1"><%= label %></span><input class="w-full rounded-xl border border-stone-300 p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400" name="<%= name %>" value="<%= value || '' %>" placeholder="<%= hint || label %>" autocomplete="off" /></label><% }; %>
+    <% const secret = (name,label,isSet) => { %><div><label class="block text-xs font-semibold text-stone-700 mb-1" for="<%= name %>"><%= label %></label><input id="<%= name %>" class="w-full rounded-xl border border-stone-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" name="<%= name %>" type="password" placeholder="<%= isSet ? 'Saved •••••• (leave empty to keep)' : 'Enter secret' %>" autocomplete="new-password" /><p class="text-[11px] text-stone-500 mt-1"><%= isSet ? 'Saved securely. Leave blank to keep current value.' : 'Not configured.' %></p><label class="mt-1 inline-flex gap-1.5 items-center text-xs text-red-700"><input type="checkbox" name="clear_<%= name %>"> Clear saved secret</label></div><% }; %>
+    <div class="space-y-4">
+      <details class="group bg-white border border-stone-200 rounded-2xl shadow-sm" open>
+        <summary class="cursor-pointer p-5 flex items-center justify-between text-base font-bold">01 · MSG91 SMS OTP <span class="text-stone-500 text-xs group-open:rotate-180 transition">⌄</span></summary>
+        <div class="border-t border-stone-100 p-5 grid md:grid-cols-2 gap-5">
+          <% secret('smsAuthKey','MSG91 SMS Auth Key',config.smsAuthKeyConfigured); %>
+          <% inp('smsTemplateId','OTP Template ID',config.smsTemplateId,'MSG91 approved OTP template ID'); %>
+          <p class="md:col-span-2 text-xs text-stone-500">MSG91 OTP template mein <code>##OTP##</code> variable required hai. Recipient number country code 91 ke saath jayega. DLT/SMS activation MSG91 dashboard se complete karein.</p>
+        </div>
+      </details>
+      <details class="group bg-white border border-stone-200 rounded-2xl shadow-sm">
+        <summary class="cursor-pointer p-5 flex items-center justify-between text-base font-bold">02 · MSG91 WhatsApp OTP <span class="text-stone-500 text-xs group-open:rotate-180 transition">⌄</span></summary>
+        <div class="border-t border-stone-100 p-5 grid md:grid-cols-2 gap-5">
+          <label class="md:col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" name="whatsappReuseSmsKey" <%= config.whatsappReuseSmsKey ? 'checked' : '' %> /> Use same Auth Key as MSG91 SMS</label>
+          <% secret('whatsappAuthKey','Separate WhatsApp Auth Key (optional)',config.whatsappAuthKeyConfigured); %>
+          <% inp('whatsappSenderNumber','Integrated sender number',config.whatsappSenderNumber,'919876543210'); %>
+          <% inp('whatsappTemplateName','Approved WhatsApp template name',config.whatsappTemplateName,'login_otp'); %>
+          <% inp('whatsappLanguage','Template language code',config.whatsappLanguage,'en'); %>
+          <p class="md:col-span-2 text-xs text-stone-500">Approved WhatsApp template ke first BODY variable mein 6-digit OTP send hoga (body_1). Template language aur sender number MSG91 account se match karna chahiye.</p>
+        </div>
+      </details>
+      <details class="group bg-white border border-stone-200 rounded-2xl shadow-sm">
+        <summary class="cursor-pointer p-5 flex items-center justify-between text-base font-bold">03 · MAIL OTP (existing system) <span class="text-stone-500 text-xs group-open:rotate-180 transition">⌄</span></summary>
+        <div class="border-t border-stone-100 p-5 grid md:grid-cols-2 gap-5">
+          <% inp('mailUser','Gmail Sender Address',config.mailUser,'your-email@gmail.com'); %>
+          <% secret('mailAppPassword','Gmail App Password',config.mailAppPasswordConfigured); %>
+          <p class="md:col-span-2 text-xs text-stone-500">Existing Gmail/Nodemailer flow continue rahega. Gmail App Password use karein, normal password nahi.</p>
+        </div>
+      </details>
+      <details class="group bg-white border border-stone-200 rounded-2xl shadow-sm">
+        <summary class="cursor-pointer p-5 flex items-center justify-between text-base font-bold">04 · Razorpay Payment Gateway <span class="text-stone-500 text-xs group-open:rotate-180 transition">⌄</span></summary>
+        <div class="border-t border-stone-100 p-5 grid md:grid-cols-2 gap-5">
+          <% inp('razorpayKeyId','Razorpay Key ID',config.razorpayKeyId,'rzp_test_... or rzp_live_...'); %>
+          <% secret('razorpayKeySecret','Razorpay Key Secret',config.razorpayKeySecretConfigured); %>
+          <p class="md:col-span-2 text-xs text-amber-700">Security: pending bookings rehte hue merchant keys change nahi ho sakti. Pehle pending payments reconcile karein. Live/Test switch se pehle Razorpay account verify karein.</p>
+        </div>
+      </details>
+      <details class="group bg-white border border-stone-200 rounded-2xl shadow-sm">
+        <summary class="cursor-pointer p-5 flex items-center justify-between text-base font-bold">05 · RazorpayX (UPI Validation / Payouts) <span class="text-stone-500 text-xs group-open:rotate-180 transition">⌄</span></summary>
+        <div class="border-t border-stone-100 p-5 grid md:grid-cols-2 gap-5">
+          <% inp('razorpayxKeyId','RazorpayX Key ID',config.razorpayxKeyId,'RazorpayX enabled account key'); %>
+          <% secret('razorpayxKeySecret','RazorpayX Key Secret',config.razorpayxKeySecretConfigured); %>
+          <% inp('razorpayxSourceAccountNumber','Source Account Number',config.razorpayxSourceAccountNumber,'Payout account number'); %>
+          <p class="md:col-span-2 text-xs text-stone-500">RazorpayX credentials checkout credentials se alag ho sakte hain. Account mein fund-account validation / payout permissions enabled hone chahiye.</p>
+        </div>
+      </details>
+    </div>
+    <div class="sticky bottom-3 z-10 mt-6 flex justify-end p-3 rounded-2xl border bg-white/95 shadow-lg backdrop-blur">
+      <button type="submit" <%= encryptionReady ? '' : 'disabled' %> class="rounded-xl px-8 py-3 font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed">Save API Settings</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,1 @@
+ALTER TABLE `bookingsetting` ADD COLUMN `poolTimerMode` VARCHAR(191) NOT NULL DEFAULT 'USER_ENTRY';

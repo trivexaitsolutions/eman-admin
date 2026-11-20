@@ -1,17 +1,19 @@
 // src/controllers/userController.js
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sendOtpEmail } = require('../utils/mailer');
+const { sendOtpViaConfiguredProvider } = require('../services/otpDelivery');
+const { getSettings } = require('../services/apiIntegrations');
+const { reserveOtp } = require('../utils/otpRateLimit');
 const { randomInt } = require('node:crypto');
-const { uppercaseName, prorateWorkerAmount } = require('../utils/registration');
+const { uppercaseName } = require('../utils/registration');
 const {
     findNearbyVerifiedNakas
 } = require('../utils/nearbyNakas');
 const {
-    applyPoolReduction,
     getBookingSetting,
     toPublicMapSettings
 } = require('../utils/bookingSettings');
+const { normalizeDuration, durationRate, workerDayBaseRate } = require('../utils/workerDuration');
 
 // Foreground-only heartbeat; inactivity is determined using a two-minute TTL.
 const updateCustomerPresence = async (req, res) => {
@@ -42,147 +44,223 @@ const getNakaVerificationCutoff = () => {
     return cutoff;
 };
 
-// 1. Send OTP (For both Login and Register)
-// 1. Send OTP (For both Login and Register)
+// Customer login and registration OTP flow.
+// Never create an account until the email provider accepts the OTP message.
+// A pending (unverified) account can retry with its original phone/email.
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+const normalizePhone = (value) => String(value || '').trim();
+
 const sendOtp = async (req, res) => {
-    const { email, phone, name, clientType, businessName, businessType, gstNumber } = req.body;
+    const {
+        name, clientType, businessName, businessType, gstNumber
+    } = req.body || {};
+    const email = normalizeEmail(req.body?.email);
+    const phone = normalizePhone(req.body?.phone);
+    const isRegistration = Boolean(String(name || '').trim());
 
     if (!email && !phone) {
-        return res.status(400).json({ success: false, message: "Email ya Phone number zaroori hai" });
+        return res.status(400).json({ success: false, message: 'Email ya Phone number zaroori hai.' });
     }
 
     try {
-        // Database me check karo ki kya yeh user exist karta hai
-        let customer = await prisma.customer.findFirst({
-            where: {
-                OR: [
-                    { email: email || '' },
-                    { phone: phone || '' }
-                ]
-            }
-        });
+        let customer = null;
+        let registrationData = null;
 
-        // const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        // Fixed OTP is permitted only for explicitly marked demo customers and
-        // only when the operator enables it in a non-production test environment.
-        // Real customer OTPs must remain unpredictable.
-        const demoOtp = process.env.DEMO_OTP_ENABLED === 'true' &&
-            process.env.NODE_ENV !== 'production' && customer?.isDemo === true;
-        const generatedOtp = demoOtp ? '123456' : String(randomInt(100000, 1000000));
-        const expiryTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
-
-        if (!customer) {
-            // ----- NAYA LOGIC YAHAN HAI -----
-            // Agar 'name' nahi aaya, matlab user Login screen se naya email daal raha hai
-            if (!name) {
-                return res.status(404).json({ 
-                    success: false, 
-                    message: "Account nahi mila! Kripya niche 'Create Account' par click karke pehle register karein." 
-                });
-            }
-
-            // Agar 'name' aaya hai, matlab sahi me naya registration hai
+        if (isRegistration) {
             if (!email || !phone) {
-                return res.status(400).json({ success: false, message: "Naye account ke liye Name, Email, aur Phone sab zaruri hai!" });
+                return res.status(400).json({ success: false, message: 'Registration ke liye Name, Email aur Phone sab zaroori hain.' });
             }
-            
-            // Naya customer banao
+            if (!/^\S+@\S+\.\S+$/.test(email)) {
+                return res.status(400).json({ success: false, message: 'Valid email address daalein.' });
+            }
+
             const type = clientType === 'Company' ? 'Company' : 'Individual';
             if (type === 'Company' && (!String(businessName || '').trim() || !String(businessType || '').trim())) {
                 return res.status(400).json({ success: false, message: 'Company name and industry type are required.' });
             }
-            customer = await prisma.customer.create({
-                data: { name: uppercaseName(name), phone, email: String(email).trim().toLowerCase(),
-                    clientType: type,
-                    businessName: type === 'Company' ? uppercaseName(businessName) : null,
-                    businessType: type === 'Company' ? String(businessType).trim() : null,
-                    gstNumber: type === 'Company' ? String(gstNumber || '').trim().toUpperCase() || null : null,
-                    otp: generatedOtp, otpExpiry: expiryTime }
-            });
-        } else {
-            // Agar account pehle se hai, par user galti se "Create Account" wale form se aaya hai
-            if (name) {
-                // YAHAN HUM CHECK KARENGE KYA DUPLICATE HAI
-                if (customer.phone === phone && customer.email === email) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: "Yeh Phone Number aur Email dono pehle se registered hain! Kripya Login karein." 
+
+            // Check both unique identifiers independently. An OR query alone can
+            // pick an arbitrary matching account and misreport which field conflicts.
+            const [phoneMatch, emailMatch] = await Promise.all([
+                prisma.customer.findUnique({ where: { phone } }),
+                prisma.customer.findUnique({ where: { email } })
+            ]);
+            if (phoneMatch && emailMatch && phoneMatch.id !== emailMatch.id) {
+                return res.status(409).json({ success: false, message: 'Phone aur Email alag accounts se linked hain. Kripya support se sampark karein.' });
+            }
+            customer = phoneMatch || emailMatch;
+
+            if (customer) {
+                if (customer.isVerified) {
+                    const samePhone = customer.phone === phone;
+                    const sameEmail = normalizeEmail(customer.email) === email;
+                    const message = samePhone && sameEmail
+                        ? 'Yeh Phone Number aur Email pehle se registered hain. Kripya Login karein.'
+                        : samePhone
+                            ? 'Yeh Phone Number pehle se registered hai. Kripya Login karein.'
+                            : 'Yeh Email ID pehle se registered hai. Kripya Login karein.';
+                    return res.status(409).json({ success: false, message });
+                }
+
+                // Historical customers may be unverified in the DB because
+                // older login code never set isVerified=true. Do not treat
+                // those accounts as editable registrations without a pending OTP.
+                if (!customer.otp) {
+                    return res.status(409).json({
+                        success: false,
+                        message: 'Is Phone ya Email ka account pehle se hai. Kripya Login karein.'
                     });
-                } else if (customer.phone === phone) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: "Yeh Phone Number kisi aur account se juda hai. Kripya dusra number use karein." 
-                    });
-                } else if (customer.email === email) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: "Yeh Email ID pehle se registered hai. Kripya dusri email daalein." 
+                }
+
+                // Only the original phone/email pair may resume an unverified
+                // registration. Never overwrite another account's identifiers.
+                if (customer.phone !== phone || normalizeEmail(customer.email) !== email) {
+                    return res.status(409).json({
+                        success: false,
+                        message: 'Is Phone ya Email par pehle se incomplete registration hai. Wahi Phone aur Email se OTP dobara bhejein, ya support se correction karvayein.'
                     });
                 }
             }
 
-            // Purane customer ka OTP update karo (Login process)
-            customer = await prisma.customer.update({
-                where: { id: customer.id },
-                data: { otp: generatedOtp, otpExpiry: expiryTime }
+            registrationData = {
+                name: uppercaseName(name),
+                phone,
+                email,
+                clientType: type,
+                businessName: type === 'Company' ? uppercaseName(businessName) : null,
+                businessType: type === 'Company' ? String(businessType).trim() : null,
+                gstNumber: type === 'Company' ? String(gstNumber || '').trim().toUpperCase() || null : null
+            };
+        } else {
+            customer = await prisma.customer.findFirst({
+                where: { OR: [
+                    ...(email ? [{ email }] : []),
+                    ...(phone ? [{ phone }] : [])
+                ] }
+            });
+            if (!customer) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Account nahi mila! Kripya Create Account par click karke register karein.'
+                });
+            }
+        }
+
+        const demoOtp = process.env.DEMO_OTP_ENABLED === 'true' &&
+            process.env.NODE_ENV !== 'production' && customer?.isDemo === true;
+        const generatedOtp = demoOtp ? '123456' : String(randomInt(100000, 1000000));
+        const expiryTime = new Date(Date.now() + 10 * 60 * 1000);
+        const otpSettings = await getSettings();
+        const destination = registrationData?.email || normalizeEmail(customer?.email);
+        if (otpSettings.otpProvider === 'MAIL' && !destination) {
+            return res.status(400).json({ success: false, message: 'OTP bhejne ke liye account par email address zaroori hai.' });
+        }
+
+        // Single-process rate guard for chargeable OTP channels; after a failed provider
+        // response users can retry, but successful sends have a 60-second cooldown.
+        const limit = demoOtp ? null : reserveOtp(registrationData?.phone || customer?.phone || destination, req.ip);
+        if (limit && !limit.allowed) {
+            return res.status(429).json({ success: false, message: limit.message });
+        }
+        // Send BEFORE inserting/updating OTP details. Failed provider calls must
+        // never create a new customer record that blocks the next attempt.
+        let delivery;
+        try {
+            delivery = demoOtp ? { sent: true, channel: 'demo' } : await sendOtpViaConfiguredProvider({
+                email: destination, phone: registrationData?.phone || customer?.phone, otp: generatedOtp, settings: otpSettings
+            });
+        } catch (sendError) {
+            limit?.finish(false);
+            throw sendError;
+        }
+        limit?.finish(delivery.sent);
+        if (!delivery.sent) {
+            return res.status(503).json({
+                success: false,
+                message: delivery.error || 'OTP abhi nahi bhej pa rahe. API provider settings check karke dobara try karein.'
             });
         }
 
-        // Email par OTP bhejien
-        const emailSent = demoOtp ? true : await sendOtpEmail(customer.email, generatedOtp);
-
-        if (emailSent) {
-            res.json({ success: true, message: demoOtp ? 'Demo OTP is 123456 (staging only).' : `OTP ${customer.email} par bhej diya gaya hai!`, customerId: customer.id });
+        if (isRegistration && !customer) {
+            customer = await prisma.customer.create({
+                data: { ...registrationData, isVerified: false, otp: generatedOtp, otpExpiry: expiryTime }
+            });
         } else {
-            res.status(500).json({ success: false, message: "Email bhejne me problem aayi." });
+            customer = await prisma.customer.update({
+                where: { id: customer.id },
+                data: {
+                    ...(isRegistration ? registrationData : {}),
+                    otp: generatedOtp,
+                    otpExpiry: expiryTime
+                }
+            });
         }
 
+        return res.json({
+            success: true,
+            message: demoOtp ? 'Demo OTP is 123456 (staging only).' : `OTP aapke ${delivery.channel} par bhej diya gaya hai.`,
+            otpChannel: delivery.channel,
+            customerId: customer.id
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Server error" });
+        if (error?.code === 'P2002') {
+            return res.status(409).json({
+                success: false,
+                message: 'Phone ya Email pehle se account se linked hai. Kripya Login karein.'
+            });
+        }
+        console.error('Customer OTP request failed:', error);
+        return res.status(500).json({ success: false, message: 'Server error. Kripya dobara try karein.' });
     }
 };
 
-// 2. Verify OTP
 const verifyOtp = async (req, res) => {
-    const { customerId, otp, pushToken } = req.body;
+    const customerId = Number(req.body?.customerId);
+    const otp = String(req.body?.otp || '').trim();
+    const pushToken = req.body?.pushToken;
+
+    if (!Number.isSafeInteger(customerId) || customerId < 1 || !/^\d{6}$/.test(otp)) {
+        return res.status(400).json({ success: false, message: 'Valid Customer ID aur 6-digit OTP daalein.' });
+    }
 
     try {
         const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-
         if (!customer) {
-            return res.status(404).json({ success: false, message: "Customer nahi mila" });
+            return res.status(404).json({ success: false, message: 'Customer nahi mila.' });
+        }
+        if (!customer.otp || customer.otp !== otp) {
+            return res.status(400).json({ success: false, message: 'Galat OTP!' });
+        }
+        if (!customer.otpExpiry || new Date() > new Date(customer.otpExpiry)) {
+            return res.status(400).json({ success: false, message: 'OTP expire ho chuka hai!' });
         }
 
-        // Check if OTP matches and is not expired
-        if (customer.otp !== otp) {
-            return res.status(400).json({ success: false, message: "Galat OTP!" });
-        }
-
-        if (new Date() > customer.otpExpiry) {
-            return res.status(400).json({ success: false, message: "OTP expire ho chuka hai!" });
-        }
-
-        // OTP verify ho gaya, ab usko database se hata do security ke liye
-        await prisma.customer.update({
+        // A customer becomes verified only after successful OTP verification.
+        const updatedUser = await prisma.customer.update({
             where: { id: customerId },
-            data: { otp: null, otpExpiry: null }
-        });
-
-
-        const updatedUser = await prisma.customer.update({ // Ya prisma.user
-            where: { id: customerId },
-            data: { 
-                pushToken: pushToken || null // Agar token mila toh save karo, warna null
+            data: {
+                otp: null,
+                otpExpiry: null,
+                isVerified: true,
+                ...(pushToken ? { pushToken: String(pushToken) } : {})
             }
         });
-        res.json({ success: true, message: "Login Successful!", customer: { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone } });
-
+        return res.json({
+            success: true,
+            message: 'Login Successful!',
+            customer: {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                phone: updatedUser.phone
+            }
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Server error" });
+        console.error('Customer OTP verification failed:', error);
+        return res.status(500).json({ success: false, message: 'Server error.' });
     }
 };
+
 const getBookingOptions = async (req, res) => {
     try {
         const verificationCutoff = getNakaVerificationCutoff();
@@ -355,7 +433,8 @@ const getAvailableWorkers = async (req, res) => {
             workLatitude,
             workLongitude,
             skillId,
-            minRating = 0
+            minRating = 0,
+            duration = 'FULL_DAY'
         } = req.body;
 
         /*
@@ -383,6 +462,8 @@ const getAvailableWorkers = async (req, res) => {
         |--------------------------------------------------------------------------
         */
 
+        const selectedDuration = normalizeDuration(duration);
+        if (!selectedDuration) return res.status(400).json({ success: false, code: "INVALID_DURATION", message: "Choose Full Day, 2, 3 or 4 Hours." });
         const parsedSkillId = Number(skillId);
         const parsedMinRating = Number(minRating || 0);
 
@@ -475,11 +556,12 @@ const getAvailableWorkers = async (req, res) => {
                     }
                 },
 
-                skills: {
-                    some: {
-                        id: parsedSkillId
-                    }
-                }
+                skills: { some: { id: parsedSkillId } },
+                // Hide workers held by another unpaid or confirmed booking.
+                bookings: { none: { status: { in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS'] } } },
+                ...(selectedDuration === 'FULL_DAY'
+                    ? { availabilityType: 'FULL_DAY' }
+                    : { availabilityType: 'SHORT_PERIOD', availabilityHours: Number(selectedDuration) })
             },
 
             select: {
@@ -524,13 +606,7 @@ const getAvailableWorkers = async (req, res) => {
                 },
 
                 skills: {
-                    where: {
-                        id: parsedSkillId
-                    },
-                    select: {
-                        id: true,
-                        name: true
-                    }
+                    select: { id: true, name: true, rates: { select: { rate: true } } }
                 }
             },
 
@@ -609,22 +685,6 @@ const getAvailableWorkers = async (req, res) => {
             });
         });
 
-        let selectedPoolBaseRate = null;
-
-        if (Array.isArray(skill.rates) && skill.rates.length > 0) {
-            if (parsedMinRating === 0) {
-                selectedPoolBaseRate = [...skill.rates].sort(
-                    (first, second) => Number(first.rate) - Number(second.rate)
-                )[0] || null;
-            } else {
-                selectedPoolBaseRate = skill.rates.find(
-                    (rate) => Number(rate.star) === parsedMinRating
-                ) || null;
-            }
-        }
-
-        const baseRate = Number(selectedPoolBaseRate?.rate || 0);
-
         /*
         |--------------------------------------------------------------------------
         | 6. Safe response + minimum rating filter
@@ -683,20 +743,16 @@ const getAvailableWorkers = async (req, res) => {
                     poolStartTime:
                         worker.availabilityPoolSlot?.startTime ||
                         bookingSetting.poolDayStart,
-                    baseRate,
-                    effectiveRate: prorateWorkerAmount(applyPoolReduction({
-                        baseRate,
-                        poolSortOrder:
-                            worker.availabilityPoolSlot?.sortOrder || 0,
-                        reductionType: bookingSetting.poolReductionType,
-                        reductionValue: bookingSetting.poolReductionValue,
-                    }), worker.availabilityType, worker.availabilityHours),
+                    baseRate: workerDayBaseRate(worker),
+                    effectiveRate: durationRate(worker, selectedDuration),
+                    duration: selectedDuration,
 
                     nakas: worker.nakas,
                     skills: worker.skills
                 };
             })
             .filter((worker) => {
+                if (worker.effectiveRate == null || worker.effectiveRate <= 0) return false;
                 if (parsedMinRating === 0) {
                     return true;
                 }

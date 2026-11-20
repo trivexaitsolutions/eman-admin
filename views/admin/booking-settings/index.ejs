@@ -110,7 +110,7 @@
                     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
                         <div>
                             <h2 class="text-lg font-bold text-stone-900">Worker Pool & Pricing</h2>
-                            <p class="text-sm text-stone-500 mt-1">Set the daily pool window, add as many pool start-times as required, and control rate reduction for each next pool.</p>
+                            <p class="text-sm text-stone-500 mt-1">Set daily pool timings and the worker timer. Existing pool reductions are retained for compatibility; customer bookings now charge the worker duration price.</p>
                         </div>
                         <span class="inline-flex self-start items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 text-xs font-bold">Asia/Kolkata</span>
                     </div>
@@ -176,13 +176,23 @@
                         <div class="mt-3 flex items-center gap-2">
                             <input type="number" min="0" step="0.01" name="poolReductionValue" required value="<%= Number(setting.poolReductionValue ?? 100) %>" class="w-full rounded-xl border border-stone-300 px-4 py-3 text-stone-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none">
                         </div>
-                        <span class="block text-xs text-stone-500 mt-2">Pool 1 = full base rate. Pool 2 onward reduces one step per pool.</span>
+                        <span class="block text-xs text-stone-500 mt-2">Legacy pool-rate setting: retained for compatibility. Customer checkout uses the worker duration-wise rate instead.</span>
                     </label>
                 </div>
 
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
                     <p class="text-sm font-bold text-emerald-900">Example</p>
-                    <p class="text-sm text-emerald-800 mt-1 leading-6">Base ₹1000 + Fixed ₹100: Pool 1 ₹1000, Pool 2 ₹900, Pool 3 ₹800. Percentage mode applies the selected percentage step against the original base rate.</p>
+                    <p class="text-sm text-emerald-800 mt-1 leading-6">The legacy pool reduction may be used by older reports; it does not override worker duration pricing in new Customer Bookings. Example: a worker with an ₹400 full-day tariff costs ₹100 for 2 hours, regardless of Pool number.</p>
+                </div>
+
+                <div class="rounded-2xl border border-stone-200 p-5">
+                    <label for="poolTimerMode" class="block text-sm font-bold text-stone-800">Worker Pool Timer Mode</label>
+                    <p class="mt-1 text-xs text-stone-500">Changes the timer shown to workers, not matching or pool expiry.</p>
+                    <select id="poolTimerMode" name="poolTimerMode" class="mt-3 w-full rounded-xl border border-stone-300 px-4 py-3 text-stone-900 bg-white focus:border-emerald-500 outline-none">
+                        <option value="USER_ENTRY" <%= (setting.poolTimerMode || 'USER_ENTRY') === 'USER_ENTRY' ? 'selected' : '' %>>User Entry Time — since worker joined</option>
+                        <option value="FIRST_POOL" <%= setting.poolTimerMode === 'FIRST_POOL' ? 'selected' : '' %>>First Pool Starting Time — same daily start for all</option>
+                        <option value="CURRENT_POOL" <%= setting.poolTimerMode === 'CURRENT_POOL' ? 'selected' : '' %>>Current Pool Starting Time — resets at each new scheduled pool</option>
+                    </select>
                 </div>
 
                 <div class="pt-3 border-t border-stone-100">

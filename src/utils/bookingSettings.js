@@ -9,6 +9,7 @@ const DEFAULT_POOL_DAY_END = "20:00";
 const DEFAULT_POOL_REDUCTION_TYPE = "FIXED";
 const DEFAULT_POOL_REDUCTION_VALUE = 100;
 const ALLOWED_POOL_REDUCTION_TYPES = ["FIXED", "PERCENTAGE"];
+const POOL_TIMER_MODES = ["USER_ENTRY", "FIRST_POOL", "CURRENT_POOL"];
 
 const normalizeRadiusMeters = (value) => {
     const radius = Number(value);
@@ -85,6 +86,7 @@ const getBookingSetting = async (prisma) => {
         poolReductionValue: Number.isFinite(Number(setting?.poolReductionValue))
             ? Number(setting.poolReductionValue)
             : DEFAULT_POOL_REDUCTION_VALUE,
+        poolTimerMode: POOL_TIMER_MODES.includes(setting?.poolTimerMode) ? setting.poolTimerMode : "USER_ENTRY",
         poolSlots:
             Array.isArray(setting?.poolSlots) && setting.poolSlots.length
                 ? setting.poolSlots
@@ -150,6 +152,24 @@ const applyPoolReduction = ({
     return Math.max(0, Number((rate - reduction).toFixed(2)));
 };
 
+const calculatePoolTimer = (setting, availabilityStart, now = new Date()) => {
+    const started = availabilityStart ? new Date(availabilityStart) : now;
+    const mode = POOL_TIMER_MODES.includes(setting?.poolTimerMode) ? setting.poolTimerMode : 'USER_ENTRY';
+    const activeSlots = [...(setting?.poolSlots || [])]
+        .filter(slot => slot.isActive !== false)
+        .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+    let base = started;
+    if (mode === 'FIRST_POOL') {
+        base = buildIndiaDateForToday(activeSlots[0]?.startTime || setting?.poolDayStart || '08:00', now);
+    } else if (mode === 'CURRENT_POOL') {
+        const current = activeSlots.filter(slot => buildIndiaDateForToday(slot.startTime, now) <= now);
+        const chosen = current[current.length - 1] || activeSlots[0];
+        base = chosen ? buildIndiaDateForToday(chosen.startTime, now) : started;
+    }
+    const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - base.getTime()) / 1000));
+    return { poolTimerMode: mode, timerBaseTime: base.toISOString(), elapsedSeconds };
+};
+
 const toPublicMapSettings = (setting) => ({
     showMap: Boolean(setting.showMapToCustomer),
     radiusMeters: normalizeRadiusMeters(setting.nearbyNakaRadiusMeters),
@@ -158,6 +178,8 @@ const toPublicMapSettings = (setting) => ({
 
 module.exports = {
     ALLOWED_POOL_REDUCTION_TYPES,
+    POOL_TIMER_MODES,
+    calculatePoolTimer,
     DEFAULT_ASSIGNMENT_MODE,
     DEFAULT_SHOW_MAP_TO_CUSTOMER,
     DEFAULT_NEARBY_NAKA_RADIUS_METERS,

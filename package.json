@@ -21,6 +21,9 @@
     "razorpay": "^2.9.6"
   },
   "scripts": {
-    "dev": "tailwindcss -i ./public/css/input.css -o ./public/css/style.css --watch & node server.js"
+    "dev": "node emanserver.js",
+    "start": "node emanserver.js",
+    "css:watch": "tailwindcss -i ./public/css/input.css -o ./public/css/style.css --watch",
+    "css:build": "tailwindcss -i ./public/css/input.css -o ./public/css/style.css"
   }
 }

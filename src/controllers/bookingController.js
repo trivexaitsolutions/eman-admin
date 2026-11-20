@@ -2,14 +2,16 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendPushNotification } = require('../utils/sendNotification');
-const Razorpay = require('razorpay');
+const { getRazorpayGateway, getRazorpayCredentials } = require('../services/apiIntegrations');
 const crypto = require('crypto');
 const { issueArrivalCodes, verifyArrivalCode } = require('../utils/arrivalCodes');
 const {
     findNearbyVerifiedNakas
 } = require('../utils/nearbyNakas');
-const { applyPoolReduction, getBookingSetting } = require('../utils/bookingSettings');
+const { getBookingSetting } = require('../utils/bookingSettings');
 const { bookingPricePresentation } = require('../utils/bookingPricing');
+const { normalizeDuration, matchesWorkerDuration, workerDayBaseRate, durationRate } = require('../utils/workerDuration');
+const { paymentCheck, releaseUnpaidBooking, confirmCapturedBooking } = require('../utils/bookingReservation');
 
 const NAKA_VERIFIED_STATUS = 'VERIFIED';
 
@@ -98,30 +100,20 @@ const buildWorkerDurationSnapshot = (workers = []) => {
     }, {});
 };
 
-const { prorateWorkerAmount } = require('../utils/registration');
 
-const buildWorkerPriceSnapshot = (workers = [], baseRate, bookingSetting) => {
+const buildWorkerPriceSnapshot = (workers = [], duration, bookingSetting) => {
     return workers.reduce((snapshot, worker) => {
         const workerId = Number(worker.id);
         if (!Number.isInteger(workerId) || workerId <= 0) return snapshot;
-
         const poolSortOrder = Number(worker.availabilityPoolSlot?.sortOrder || 0);
-        const effectiveRate = applyPoolReduction({
-            baseRate,
-            poolSortOrder,
-            reductionType: bookingSetting.poolReductionType,
-            reductionValue: bookingSetting.poolReductionValue,
-        });
-
         snapshot[String(workerId)] = {
-            baseRate: Number(baseRate),
-            amount: prorateWorkerAmount(effectiveRate, worker.availabilityType, worker.availabilityHours),
-            availabilityType: worker.availabilityType === 'SHORT_PERIOD' ? 'SHORT_PERIOD' : 'FULL_DAY',
-            hours: worker.availabilityType === 'SHORT_PERIOD' ? Number(worker.availabilityHours) : 8,
+            baseRate: workerDayBaseRate(worker),
+            amount: durationRate(worker, duration),
+            availabilityType: duration === 'FULL_DAY' ? 'FULL_DAY' : 'SHORT_PERIOD',
+            hours: duration === 'FULL_DAY' ? 8 : Number(duration),
             poolNumber: poolSortOrder + 1,
             poolStartTime: worker.availabilityPoolSlot?.startTime || bookingSetting.poolDayStart || null,
         };
-
         return snapshot;
     }, {});
 };
@@ -142,10 +134,6 @@ const getWorkerBookedAmount = (booking, workerId) => {
 };
 
 
-// Credentials stay in the server's .env, never in distributable source code.
-const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
-    ? new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
-    : null;
 
 const initiateBooking = async (req, res) => {
     const {
@@ -157,7 +145,8 @@ const initiateBooking = async (req, res) => {
         workLatitude,
         workLongitude,
         workLocationText,
-        selectedWorkerIds = []
+        selectedWorkerIds = [],
+        duration = "FULL_DAY"
     } = req.body;
 
     let lockedWorkerIds = [];
@@ -167,6 +156,8 @@ const initiateBooking = async (req, res) => {
     let confirmedWorkLocation = null;
 
     try {
+        // Resolve live Admin-managed keys per booking, not once at server startup.
+        const razorpay = await getRazorpayGateway();
         /*
         |--------------------------------------------------------------------------
         | 1. Basic request validation
@@ -178,6 +169,8 @@ const initiateBooking = async (req, res) => {
         const parsedWorkerCount = Number(workerCount);
         const parsedMinRating = Number(minRating || 0);
         const parsedAddressId = Number(addressId);
+        const selectedDuration = normalizeDuration(duration);
+        if (!selectedDuration) return res.status(400).json({ success: false, code: "INVALID_DURATION", message: "Choose Full Day, 2, 3 or 4 Hours." });
 
         if (
             !Number.isInteger(parsedCustomerId) ||
@@ -353,42 +346,8 @@ const initiateBooking = async (req, res) => {
             });
         }
 
-        let selectedRate = null;
-
-        // Rating 0 means Any Rating, therefore use lowest available rate.
-        if (parsedMinRating === 0) {
-            selectedRate = [...skill.rates].sort(
-                (a, b) =>
-                    Number(a.rate) - Number(b.rate)
-            )[0];
-        } else {
-            selectedRate = skill.rates.find(
-                (rate) =>
-                    Number(rate.star) ===
-                    parsedMinRating
-            );
-        }
-
-        if (!selectedRate) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Rate is not configured for the selected worker rating."
-            });
-        }
-
-        const unitPrice = Number(selectedRate.rate);
-
-        if (
-            !Number.isFinite(unitPrice) ||
-            unitPrice <= 0
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Invalid rate configured for this skill."
-            });
-        }
+        // The worker's own duration-wise tariff is authoritative.
+        // Skill/rating are eligibility filters, not a separate customer price.
 
         /*
         |--------------------------------------------------------------------------
@@ -417,10 +376,13 @@ const initiateBooking = async (req, res) => {
                     },
 
                     skills: {
-                        some: {
-                            id: parsedSkillId
-                        }
-                    }
+                        some: { id: parsedSkillId }
+                    },
+                    // A pending/paid booking wins even if a worker re-enables their pool.
+                    bookings: { none: { status: { in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS'] } } },
+                    ...(selectedDuration === 'FULL_DAY'
+                        ? { availabilityType: 'FULL_DAY' }
+                        : { availabilityType: 'SHORT_PERIOD', availabilityHours: Number(selectedDuration) })
                 },
 
                 take: 100,
@@ -432,6 +394,7 @@ const initiateBooking = async (req, res) => {
                     lastActive: true,
                     availabilityType: true,
                     availabilityHours: true,
+                    skills: { select: { rates: { select: { rate: true } } } },
                     availabilityPoolSlot: {
                         select: { id: true, startTime: true, sortOrder: true },
                     },
@@ -560,7 +523,7 @@ const initiateBooking = async (req, res) => {
 
         const workerPriceSnapshot = buildWorkerPriceSnapshot(
             workersToBook,
-            unitPrice,
+            selectedDuration,
             bookingSetting
         );
 
@@ -571,11 +534,12 @@ const initiateBooking = async (req, res) => {
             poolStartTime: workerPriceSnapshot[String(worker.id)]?.poolStartTime || null,
         }));
 
-        if (workerPrices.some((item) => !Number.isFinite(item.amount) || item.amount <= 0)) {
+        if (workersToBook.some(worker => !matchesWorkerDuration(worker, selectedDuration)) ||
+            workerPrices.some((item) => !Number.isFinite(item.amount) || item.amount <= 0)) {
             return res.status(400).json({
                 success: false,
-                code: "POOL_RATE_INVALID",
-                message: "Pool reduction settings make the worker rate zero or invalid. Please contact Admin.",
+                code: "WORKER_RATE_INVALID",
+                message: "Worker duration/rate changed. Please refresh workers and try again.",
             });
         }
 
@@ -598,9 +562,11 @@ const initiateBooking = async (req, res) => {
                                 in: lockedWorkerIds
                             },
                             isAvailable: true,
-                            availabilityUntil: {
-                                gt: now
-                            }
+                            availabilityUntil: { gt: now },
+                            bookings: { none: { status: { in: ['PENDING', 'ASSIGNED', 'IN_PROGRESS'] } } },
+                            ...(selectedDuration === 'FULL_DAY'
+                                ? { availabilityType: 'FULL_DAY' }
+                                : { availabilityType: 'SHORT_PERIOD', availabilityHours: Number(selectedDuration) })
                         },
                         data: {
                             isAvailable: false
@@ -700,33 +666,8 @@ const initiateBooking = async (req, res) => {
                         `receipt_booking_${pendingBooking.id}`
                 });
         } catch (razorpayError) {
-            /*
-             * Razorpay order failed, therefore undo worker lock
-             * and remove pending booking.
-             */
-
-            await prisma.$transaction([
-                prisma.worker.updateMany({
-                    where: {
-                        id: {
-                            in: lockedWorkerIds
-                        }
-                    },
-                    data: {
-                        isAvailable: true
-                    }
-                }),
-
-                prisma.booking.delete({
-                    where: {
-                        id: pendingBooking.id
-                    }
-                })
-            ]);
-
-            pendingBooking = null;
-            lockedWorkerIds = [];
-
+            // Outer catch releases the pending booking, including failures
+            // *after* Razorpay order creation / before the response is sent.
             throw razorpayError;
         }
 
@@ -760,21 +701,38 @@ const initiateBooking = async (req, res) => {
             bookingId:
                 pendingBooking.id,
 
-            unitPrice,
+            // Backward-compatible average; individual worker prices are authoritative.
+            unitPrice: Number((totalAmount / parsedWorkerCount).toFixed(2)),
             totalAmount,
             workerPrices,
 
             selectedNakas:
                 verifiedNakas,
 
-            razorpayOrder
+            razorpayOrder,
+            razorpayKeyId: (await getRazorpayCredentials()).keyId
         });
 
     } catch (error) {
-        console.error(
-            "Initiate Booking Error:",
-            error
-        );
+        console.error("Initiate Booking Error:", error);
+
+        // The API has not returned a checkout order yet; the customer cannot
+        // have paid this attempt. Roll back ANY post-lock failure, not only
+        // Razorpay order creation errors. No dangling PENDING booking survives.
+        if (pendingBooking?.id) {
+            try {
+                await releaseUnpaidBooking(prisma, pendingBooking.id);
+            } catch (releaseError) {
+                console.error(`CRITICAL: booking #${pendingBooking.id} rollback failed:`, releaseError);
+                return res.status(500).json({
+                    success: false,
+                    code: 'BOOKING_ROLLBACK_FAILED',
+                    bookingId: pendingBooking.id,
+                    message: 'Booking failed and the worker hold is being reviewed. Please do not retry payment immediately.'
+                });
+            }
+        }
+
 
         if (error.code === "INVALID_WORK_LOCATION") {
             return res.status(400).json({
@@ -808,151 +766,123 @@ const initiateBooking = async (req, res) => {
     }
 };
 
+const notifyBookedWorkers = async (bookingId) => {
+    const booking = await prisma.booking.findUnique({
+        where: { id: Number(bookingId) },
+        include: { workers: { select: { id: true, name: true, pushToken: true } } },
+    });
+    if (!booking || booking.status !== 'ASSIGNED') return;
+    // Push failure must NEVER turn a captured payment into a failed booking.
+    for (const worker of booking.workers) {
+        if (!worker.pushToken) continue;
+        try {
+            await sendPushNotification(worker.pushToken, '🎉 NAYA KAAM MIL GAYA!',
+                'Customer ka payment confirm ho gaya hai. Jaldi location check karein!',
+                { bookingId: booking.id, action: 'OPEN_ACTIVE_DUTY' });
+        } catch (error) {
+            console.error(`Worker #${worker.id} notification failed:`, error?.message || error);
+        }
+    }
+};
+
 const cancelPendingBooking = async (req, res) => {
-    const { bookingId, customerId } = req.body;
-
+    const parsedBookingId = Number(req.body.bookingId);
+    const parsedCustomerId = Number(req.body.customerId);
+    if (!Number.isInteger(parsedBookingId) || parsedBookingId <= 0 ||
+        !Number.isInteger(parsedCustomerId) || parsedCustomerId <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid booking details.' });
+    }
     try {
-        const parsedBookingId = Number(bookingId);
-        const parsedCustomerId = Number(customerId);
-
-        if (
-            !Number.isInteger(parsedBookingId) ||
-            parsedBookingId <= 0 ||
-            !Number.isInteger(parsedCustomerId) ||
-            parsedCustomerId <= 0
-        ) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid booking details."
-            });
-        }
-
-        const pendingBooking = await prisma.booking.findFirst({
+        const booking = await prisma.booking.findFirst({
             where: {
-                id: parsedBookingId,
-                customerId: parsedCustomerId,
-                status: "PENDING",
-                razorpayPaymentId: null
+                id: parsedBookingId, customerId: parsedCustomerId,
+                status: 'PENDING', razorpayPaymentId: null,
             },
-            include: {
-                workers: {
-                    select: {
-                        id: true
-                    }
-                }
-            }
+            select: { id: true, amount: true, razorpayOrderId: true },
         });
-
-        if (!pendingBooking) {
-            return res.status(404).json({
-                success: false,
-                message: "Pending booking not found."
-            });
+        if (!booking) {
+            return res.status(409).json({ success: false, code: 'BOOKING_NOT_PENDING',
+                message: 'Booking is already paid/cancelled or not found.' });
         }
 
-        const workerIds = pendingBooking.workers.map(
-            (worker) => worker.id
-        );
-
-        const now = new Date();
-
-        await prisma.$transaction(async (tx) => {
-            /*
-             * Sirf un workers ko available karo
-             * jinki availability abhi expire nahi hui.
-             */
-            if (workerIds.length > 0) {
-                await tx.worker.updateMany({
-                    where: {
-                        id: {
-                            in: workerIds
-                        },
-                        availabilityUntil: {
-                            gt: now
-                        }
-                    },
-                    data: {
-                        isAvailable: true
-                    }
-                });
-            }
-
-            /*
-             * Pending unpaid booking delete kar do.
-             */
-            await tx.booking.delete({
-                where: {
-                    id: parsedBookingId
-                }
-            });
-        });
-
-        return res.json({
-            success: true,
-            message: "Pending booking cancelled and workers released."
-        });
-
+        // Checkout might already have captured money while the mobile app
+        // timed out. Check gateway before releasing anyone.
+        const razorpay = await getRazorpayGateway();
+        const gateway = await paymentCheck(razorpay, booking.razorpayOrderId);
+        if (gateway.state === 'CAPTURED') {
+            const result = await confirmCapturedBooking(prisma, booking, gateway.payment);
+            if (result.confirmed) await notifyBookedWorkers(booking.id);
+            return res.status(409).json({ success: false, code: 'PAYMENT_RECEIVED',
+                message: 'Payment received at gateway. Booking cannot be cancelled automatically; please view your booking.' });
+        }
+        if (gateway.state !== 'UNPAID') {
+            return res.status(409).json({ success: false, code: 'PAYMENT_RECONCILIATION_REQUIRED',
+                message: 'Payment status is not confirmed. Please do not pay twice; retry status check or contact support.' });
+        }
+        const result = await releaseUnpaidBooking(prisma, parsedBookingId, { customerId: parsedCustomerId });
+        if (!result.released) {
+            return res.status(409).json({ success: false, code: 'BOOKING_NOT_PENDING',
+                message: 'Booking has already changed status.' });
+        }
+        return res.json({ success: true, message: 'Unpaid booking cancelled and eligible workers released.',
+            releasedWorkers: result.workerCount });
     } catch (error) {
-        console.error(
-            "Cancel Pending Booking Error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message: "Pending booking cancel nahi ho payi."
-        });
+        console.error('Cancel Pending Booking Error:', error);
+        return res.status(500).json({ success: false, code: 'CANCEL_FAILED',
+            message: 'Unable to confirm cancellation. Please do not make a duplicate payment.' });
     }
 };
 
 const verifyPayment = async (req, res) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId } = req.body;
-
+    const id = Number(bookingId);
+    if (!Number.isInteger(id) || id <= 0 || !razorpay_order_id ||
+        !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ success: false, message: 'Invalid payment verification request.' });
+    }
     try {
-        // 1. Signature Verify Karein (Security Check)
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
-        const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-                                        .update(body.toString())
-                                        .digest('hex');
-
-        if (expectedSignature === razorpay_signature) {
-            // ✅ PAYMENT SUCCESS!
-
-            // 2. Booking status "ASSIGNED" karein aur payment ID save karein
-            const confirmedBooking = await prisma.booking.update({
-                where: { id: parseInt(bookingId) },
-                data: {
-                    status: "ASSIGNED",
-                    razorpayPaymentId: razorpay_payment_id
-                },
-                include: { workers: true } // Workers ka data (Push token) laane ke liye
-            });
-
-            // 3. 🪄 PUSH NOTIFICATION KA MAGIC YAHAN AAYEGA!
-            for (const worker of confirmedBooking.workers) {
-                if (worker.pushToken) {
-                    const title = "🎉 NAYA KAAM MIL GAYA!";
-                    const body = "Customer ka payment ho gaya hai. Jaldi location check karein!";
-                    const data = { bookingId: confirmedBooking.id, action: "OPEN_ACTIVE_DUTY" };
-
-                    await sendPushNotification(worker.pushToken, title, body, data);
-                    console.log(`Worker ${worker.name} ko Payment Success Notification bhej di gayi hai.`);
-                }
-            }
-
-            res.json({ success: true, message: "Payment verified & Booking Confirmed!" });
-
-        } else {
-            // ❌ PAYMENT FAKE HAI YA FAIL HUI
-            res.status(400).json({ success: false, message: "Invalid Signature" });
+        const { keySecret } = await getRazorpayCredentials();
+        const razorpay = await getRazorpayGateway();
+        if (!razorpay || !keySecret) {
+            return res.status(503).json({ success: false, message: 'Payment gateway not configured.' });
         }
-
+        const booking = await prisma.booking.findUnique({
+            where: { id },
+            select: { id: true, amount: true, status: true, razorpayOrderId: true, razorpayPaymentId: true },
+        });
+        if (!booking || booking.razorpayOrderId !== razorpay_order_id) {
+            return res.status(400).json({ success: false, message: 'Payment order does not belong to booking.' });
+        }
+        const expected = crypto.createHmac('sha256', keySecret)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
+        const a = Buffer.from(expected, 'utf8');
+        const b = Buffer.from(String(razorpay_signature), 'utf8');
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+            return res.status(400).json({ success: false, message: 'Invalid payment signature.' });
+        }
+        if (booking.status === 'ASSIGNED' && booking.razorpayPaymentId === razorpay_payment_id) {
+            return res.json({ success: true, message: 'Payment already verified.' });
+        }
+        if (booking.status !== 'PENDING' || booking.razorpayPaymentId) {
+            return res.status(409).json({ success: false, code: 'BOOKING_NOT_PENDING',
+                message: 'Booking is no longer awaiting payment. Contact support if you were charged.' });
+        }
+        // A signed checkout result is not sufficient to confirm capture.
+        // Ask Razorpay itself and match the order, currency and exact amount.
+        const payment = await razorpay.payments.fetch(razorpay_payment_id);
+        const result = await confirmCapturedBooking(prisma, booking, payment);
+        if (!result.confirmed) {
+            return res.status(409).json({ success: false, code: 'PAYMENT_NOT_CAPTURED',
+                message: 'Payment is not captured yet. Please do not pay again; it will be reconciled.' });
+        }
+        await notifyBookedWorkers(booking.id);
+        return res.json({ success: true, message: 'Payment verified and booking confirmed!' });
     } catch (error) {
-        console.error("Payment Verification Error:", error);
-        res.status(500).json({ success: false, message: "Server Error during verification" });
+        console.error('Payment Verification Error:', error);
+        return res.status(503).json({ success: false, code: 'PAYMENT_VERIFICATION_PENDING',
+            message: 'Payment verification temporarily unavailable. Please do not retry payment.' });
     }
 };
-
 
 const bookWorkers = async (req, res) => {
     const { customerId, nakaId, skillId, workerCount } = req.body;
@@ -1052,6 +982,8 @@ const bookWorkers = async (req, res) => {
     }
 };
 
+const { resolveBookingFieldAgents } = require('../utils/bookingFieldAgents');
+
 const getCurrentBooking = async (req, res) => {
   try {
     const { customerId } = req.params;
@@ -1083,6 +1015,7 @@ const getCurrentBooking = async (req, res) => {
                 id: true,
                 name: true,
                 phone: true,
+                isActive: true,
               },
             },
           },
@@ -1110,6 +1043,48 @@ const getCurrentBooking = async (req, res) => {
       });
     }
 
+    // Worker-linked Field Agent is the primary call contact. Customer's
+    // onboarding agent is only a fallback; a Naka agent is the final fallback.
+    let cancelledWorkerIds = [];
+    try {
+      const ids = JSON.parse(activeBooking.cancelledWorkerIds || '[]');
+      cancelledWorkerIds = Array.isArray(ids) ? ids : [];
+    } catch (_) { /* Old invalid JSON: default to no cancelled workers. */ }
+
+    const workerIds = activeBooking.workers.map((worker) => Number(worker.id));
+    const workersWithMitra = workerIds.length
+      ? await prisma.worker.findMany({
+          where: { id: { in: workerIds } },
+          select: {
+            id: true,
+            mitra: { select: { id: true, name: true, phone: true, isActive: true } },
+          },
+        })
+      : [];
+
+    let fieldAgents = resolveBookingFieldAgents({
+      bookedWorkers: activeBooking.workers,
+      workersWithMitra,
+      cancelledWorkerIds,
+      customerMitra: activeBooking.customer?.mitra,
+    });
+    if (!fieldAgents.length && activeBooking.nakaId) {
+      const nearbyAgent = await prisma.mitra.findFirst({
+        where: {
+          isActive: true,
+          nakas: { some: { id: Number(activeBooking.nakaId) } },
+        },
+        select: { id: true, name: true, phone: true, isActive: true },
+        orderBy: { id: 'asc' },
+      });
+      fieldAgents = resolveBookingFieldAgents({
+        bookedWorkers: activeBooking.workers,
+        workersWithMitra,
+        cancelledWorkerIds,
+        nakaMitra: nearbyAgent,
+      });
+    }
+
     const cancelledConflictInfo = activeBooking.conflicts.map((conflict) => {
       const worker = activeBooking.workers.find(
         (w) => Number(w.id) === Number(conflict.workerId)
@@ -1131,6 +1106,8 @@ const getCurrentBooking = async (req, res) => {
       booking: {
         ...activeBooking,
         cancelledConflictInfo,
+        fieldAgent: fieldAgents[0] || null,
+        fieldAgents,
       },
     });
   } catch (error) {

@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { processCurrentMitraLeaveReassignments } = require('../services/leaveService');
 const { uppercaseName } = require('../utils/registration');
 const draftController = require('./fieldOfficerDraftController');
+const clientOtp = require('../services/fieldAgentClientOtp');
 
 const login = async (req, res) => {
     const { email, password } = req.body;
@@ -134,8 +135,11 @@ const getAddClient = async (req, res) => {
 // POST: Naye Client ka data database me save karne ke liye
 const postAddClient = async (req, res) => {
     const redirectWithError = (message) => {
+        // Preserve the in-progress draft, including after OTP or duplicate errors.
+        const id = Number(req.body?.draftId);
+        const draftQuery = Number.isSafeInteger(id) && id > 0 ? `draft=${id}&` : '';
         return res.redirect(
-            `/field-agent/clients/add?error=${encodeURIComponent(message)}`
+            `/field-agent/clients/add?${draftQuery}error=${encodeURIComponent(message)}`
         );
     };
 
@@ -284,16 +288,15 @@ const postAddClient = async (req, res) => {
             );
         }
 
-        const existingCustomer = await prisma.customer.findUnique({
-            where: {
-                phone: finalPhone,
-            },
-        });
-
-        const finalCustomerEmail =
-            finalEmail ||
-            existingCustomer?.email ||
-            `${finalPhone}@eman-b2b.com`;
+        // A Field Agent cannot turn an unverified/existing account into a
+        // verified customer. An authenticated server-side OTP challenge is required.
+        const draft = await draftController.getOwnedDraft(req, req.body?.draftId, 'CUSTOMER');
+        if (!draft) return redirectWithError('Registration draft missing. Save & Next and send OTP again.');
+        const draftIdentity = clientOtp.getDraftIdentity(draft);
+        if (draftIdentity.phone !== finalPhone || draftIdentity.email !== (finalEmail || '')) {
+            return redirectWithError('Client Phone/Email changed. Save the draft and request a fresh OTP.');
+        }
+        const finalCustomerEmail = finalEmail || `${finalPhone}@eman-b2b.com`;
 
         const customerPayload = {
             clientType: finalClientType,
@@ -320,28 +323,33 @@ const postAddClient = async (req, res) => {
 
             // Historical field remains in DB; new registrations do not collect it.
             workerRequirement: null,
-            isVerified: true,
+            isVerified: true, // Only set after consuming a verified server-side OTP.
             mitraId,
         };
 
         await prisma.$transaction(async (tx) => {
-            let savedCustomer;
+            const challenge = await clientOtp.getVerifiedChallenge(tx, {
+                mitraId, draftId: draft.id, phone: finalPhone, email: finalEmail || null,
+            });
+            if (!challenge) throw new Error('OTP not verified or expired. Please send/verify OTP again.');
+            // Claim the proof exactly once, in the same transaction as Client save.
+            const claim = await tx.fieldAgentClientOtp.updateMany({
+                where: { id: challenge.id, consumedAt: null, verifiedAt: { not: null },
+                    expiresAt: { gt: new Date() } },
+                data: { consumedAt: new Date() },
+            });
+            if (claim.count !== 1) throw new Error('OTP verification already used. Send a new OTP.');
 
-            if (existingCustomer) {
-                savedCustomer = await tx.customer.update({
-                    where: {
-                        id: existingCustomer.id,
-                    },
-                    data: customerPayload,
-                });
-            } else {
-                savedCustomer = await tx.customer.create({
-                    data: {
-                        phone: finalPhone,
-                        ...customerPayload,
-                    },
-                });
-            }
+            // Do not overwrite existing verified or pending accounts by knowing
+            // their phone number. Customer edits have a separate authenticated route.
+            const duplicate = await tx.customer.findFirst({
+                where: { OR: [ { phone: finalPhone }, { email: finalCustomerEmail } ] },
+                select: { id: true },
+            });
+            if (duplicate) throw new Error('This phone/email belongs to an existing Client. Use existing Client instead.');
+            const savedCustomer = await tx.customer.create({
+                data: { phone: finalPhone, ...customerPayload },
+            });
 
             const existingPrimaryWorkSite =
                 await tx.customerAddress.findFirst({

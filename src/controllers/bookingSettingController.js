@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const {
     ALLOWED_POOL_REDUCTION_TYPES,
+    POOL_TIMER_MODES,
     buildIndiaDateForToday,
     DEFAULT_NEARBY_NAKA_RADIUS_METERS,
     DEFAULT_POOL_DAY_END,
@@ -138,6 +139,12 @@ const updateBookingSettings = async (req, res) => {
             return res.redirect('/admin/booking-settings');
         }
 
+        const poolTimerMode = String(req.body.poolTimerMode || "USER_ENTRY").toUpperCase();
+        if (!POOL_TIMER_MODES.includes(poolTimerMode)) {
+            req.flash("error_msg", "Please choose a valid Pool Timer Mode.");
+            return res.redirect("/admin/booking-settings");
+        }
+
         const poolReductionType = String(req.body.poolReductionType || '')
             .trim()
             .toUpperCase();
@@ -203,6 +210,7 @@ const updateBookingSettings = async (req, res) => {
                     poolDayEnd,
                     poolReductionType,
                     poolReductionValue,
+                    poolTimerMode,
                 },
                 create: {
                     id: 1,
@@ -214,6 +222,7 @@ const updateBookingSettings = async (req, res) => {
                     poolDayEnd,
                     poolReductionType,
                     poolReductionValue,
+                    poolTimerMode,
                 },
             });
 

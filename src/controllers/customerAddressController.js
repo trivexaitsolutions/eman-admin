@@ -169,11 +169,13 @@ const buildAddressPayload = async (body, existingAddress = null) => {
     ? cleanText(body.landmark)
     : existingAddress?.landmark || null;
 
-  const cityId = hasValue(body.cityId)
+  // Null is an explicit instruction to clear legacy Naka/City selection.
+  // GPS-based addresses do not require a Naka dropdown.
+  const cityId = Object.prototype.hasOwnProperty.call(body, "cityId")
     ? parsePositiveId(body.cityId, "City")
     : existingAddress?.cityId || null;
 
-  const nakaId = hasValue(body.nakaId)
+  const nakaId = Object.prototype.hasOwnProperty.call(body, "nakaId")
     ? parsePositiveId(body.nakaId, "Naka")
     : existingAddress?.nakaId || null;
 
@@ -181,7 +183,7 @@ const buildAddressPayload = async (body, existingAddress = null) => {
     cityId,
     nakaId,
     city: hasValue(body.city) ? body.city : existingAddress?.city,
-    nakaName: hasValue(body.nakaName)
+    nakaName: Object.prototype.hasOwnProperty.call(body, "nakaName")
       ? body.nakaName
       : existingAddress?.nakaName,
   });
@@ -219,6 +221,10 @@ const buildAddressPayload = async (body, existingAddress = null) => {
   const locationSource = hasValue(body.locationSource)
     ? getSafeLocationSource(body.locationSource)
     : existingAddress?.locationSource || null;
+
+  if (["CURRENT_LOCATION", "MAP_PIN"].includes(locationSource) && (!latitude || !longitude)) {
+    throw new Error("GPS coordinates are required for the selected location.");
+  }
 
   return {
     title: hasValue(body.title)

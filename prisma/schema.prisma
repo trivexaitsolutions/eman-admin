@@ -581,6 +581,7 @@ model BookingSetting {
   poolDayEnd         String @default("20:00")
   poolReductionType  String @default("FIXED")
   poolReductionValue Float  @default(100)
+  poolTimerMode      String @default("USER_ENTRY")
 
   poolSlots PoolSlot[]
 
@@ -660,4 +661,34 @@ model SimulatorInstance {
   @@index([workerId])
   @@index([campaignId, deviceId])
   @@map("simulatorinstance")
+}
+
+// Encrypted singleton for admin-managed external service credentials.
+model ApiIntegrationSetting {
+  id               Int      @id @default(1)
+  encryptedPayload String   @db.LongText
+  updatedById      Int?
+  updatedAt        DateTime @updatedAt
+
+  @@map("api_integration_setting")
+}
+
+// Server-verified OTP for Field Agent client onboarding (not a Mitra schema rename).
+// Only a verified, unexpired challenge can be consumed to create a client.
+model FieldAgentClientOtp {
+  id         Int       @id @default(autoincrement())
+  mitraId    Int
+  draftId    Int
+  phone      String    @db.VarChar(20)
+  email      String?   @db.VarChar(191)
+  channel    String    @db.VarChar(20)
+  codeHash   String    @db.VarChar(191)
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([mitraId, draftId, createdAt])
+  @@map("field_agent_client_otp")
 }

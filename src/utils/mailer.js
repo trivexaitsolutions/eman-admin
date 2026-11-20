@@ -1,37 +1,27 @@
-// src/utils/mailer.js
+'use strict';
 const nodemailer = require('nodemailer');
+const { getSettings } = require('../services/apiIntegrations');
 
-// Gmail app password is read from server environment only.
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_APP_PASSWORD,
-    }
-});
-
-const sendOtpEmail = async (toEmail, otpCode) => {
+const sendOtpEmail = async (toEmail, otpCode, suppliedSettings) => {
     try {
-        const mailOptions = {
-            from: `"E-MAN App" <${process.env.MAIL_USER || ''}>`,
+        const config = suppliedSettings || await getSettings();
+        if (!config.mailUser || !config.mailAppPassword || !toEmail) {
+            console.error('[MAIL OTP] Sender credentials or recipient missing.');
+            return false;
+        }
+        const transporter = nodemailer.createTransport({
+            service: 'gmail', auth: { user: config.mailUser, pass: config.mailAppPassword }
+        });
+        await transporter.sendMail({
+            from: `"E-MAN App" <${config.mailUser}>`,
             to: toEmail,
-            subject: 'E-MAN Login OTP',
-            html: `
-                <div style="font-family: Arial; padding: 20px; text-align: center;">
-                    <h2>E-MAN App me aapka swagat hai!</h2>
-                    <p>Aapka Login/Register OTP niche diya gaya hai:</p>
-                    <h1 style="color: #0052CC; letter-spacing: 5px;">${otpCode}</h1>
-                    <p>Yeh OTP 10 minute ke liye valid hai.</p>
-                </div>
-            `
-        };
-
-        await transporter.sendMail(mailOptions);
+            subject: 'E-MAN Verification OTP',
+            html: `<div style="font-family:Arial;padding:20px;text-align:center"><h2>E-MAN App</h2><p>Aapka OTP:</p><h1 style="letter-spacing:5px;color:#0052CC">${otpCode}</h1><p>10 minutes valid.</p></div>`
+        });
         return true;
     } catch (error) {
-        console.error("Email bhejne me error:", error);
+        console.error('[MAIL OTP] Failed:', error?.message || error);
         return false;
     }
 };
-
 module.exports = { sendOtpEmail };

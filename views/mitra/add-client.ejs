@@ -332,8 +332,8 @@
                 <div class="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/20 rounded-full"></div>
                 <div class="relative z-10">
                   <p class="text-sm font-bold text-emerald-300">Final Step</p>
-                  <h2 class="text-2xl md:text-3xl font-black mt-1"><%= editMode ? "Review & Update" : "Verify Mobile Number" %></h2>
-                  <p class="text-sm md:text-base font-semibold text-gray-300 mt-2"><%= editMode ? "Details check karke client update karein." : "Client ke mobile par bheja gaya OTP verify karein." %></p>
+                  <h2 class="text-2xl md:text-3xl font-black mt-1"><%= editMode ? "Review & Update" : "Verify Client OTP" %></h2>
+                  <p class="text-sm md:text-base font-semibold text-gray-300 mt-2"><%= editMode ? "Details check karke client update karein." : "Admin ke selected Email, SMS ya WhatsApp provider se OTP bhejein aur verify karein." %></p>
                 </div>
               </div>
 
@@ -344,8 +344,9 @@
                 </div>
               <% } else { %>
                 <div class="section-card">
-                  <div class="flex items-center gap-3 mb-5"><div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">🔐</div><div><h3 class="text-lg font-black text-gray-900">OTP Verification</h3><p class="text-xs font-bold text-gray-500">Testing ke liye OTP 1234 use karo</p></div></div>
-                  <div class="rounded-[24px] bg-gray-50 border border-gray-100 p-5 text-center mb-5"><p class="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Enter 4 Digit OTP</p><input type="text" id="otpInput" maxlength="4" inputmode="numeric" class="w-full text-center tracking-[0.65em] text-3xl md:text-4xl bg-white border border-gray-200 text-gray-900 font-black rounded-[24px] px-4 py-6 focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 focus:outline-none" placeholder="----" /><p id="otpMessage" class="text-sm font-bold hidden"></p></div>
+                  <div class="flex items-center gap-3 mb-4"><div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">🔐</div><div><h3 class="text-lg font-black text-gray-900">Client OTP Verification</h3><p class="text-xs font-bold text-gray-600">OTP Admin ke active provider se bheja jayega. MAIL ke liye Step 1 mein Client Email required hai.</p></div></div>
+                  <button type="button" id="sendClientOtpBtn" class="w-full h-[54px] rounded-[20px] bg-emerald-600 text-white font-black shadow-sm mb-4 hover:bg-emerald-700">Send OTP</button>
+                  <div class="rounded-[24px] bg-gray-50 border border-gray-100 p-5 text-center mb-4"><label for="otpInput" class="block text-xs font-black text-gray-600 uppercase tracking-wider mb-3">Enter 6 Digit OTP</label><input type="text" id="otpInput" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" class="w-full text-center tracking-[0.45em] text-3xl md:text-4xl bg-white border border-gray-300 text-gray-900 font-black rounded-[24px] px-4 py-6 focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 focus:outline-none" placeholder="------" /><p id="otpMessage" role="status" aria-live="polite" class="text-sm font-bold mt-4 hidden"></p></div>
                   <button type="button" id="verifyOtpBtn" class="w-full h-[56px] rounded-[22px] bg-gray-900 text-white font-black shadow-lg active:bg-black transition">Verify OTP</button>
                 </div>
               <% } %>
@@ -409,7 +410,7 @@
     2: { title: "Site & Business Details", text: "Work location, company details aur requirement add karein." },
     3: isEditMode
       ? { title: "Review & Update", text: "Details check karke update karein." }
-      : { title: "OTP Verification", text: "Client ke mobile number par OTP verify karein." },
+      : { title: "OTP Verification", text: "Admin-selected Email, SMS ya WhatsApp par aaya OTP verify karein." },
   };
 
   const clientTypeRadios = document.querySelectorAll('input[name="clientType"]');
@@ -504,23 +505,98 @@
     }
   });
 
-  const verifyOtpBtn = document.getElementById("verifyOtpBtn");
-  if (verifyOtpBtn) {
-    verifyOtpBtn.addEventListener("click", () => {
-      const otpInput = document.getElementById("otpInput");
-      const otpMessage = document.getElementById("otpMessage");
-      otpMessage.classList.remove("hidden");
+  const sendClientOtpBtn = document.getElementById('sendClientOtpBtn');
+  const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+  const otpInput = document.getElementById('otpInput');
+  const otpMessage = document.getElementById('otpMessage');
+  let otpBusy = false;
+  let otpSent = false;
 
-      if (otpInput.value === "1234") {
-        otpMessage.textContent = "✓ Verified Successfully!";
-        otpMessage.className = "text-sm font-black text-emerald-600 mt-4";
+  function showOtpMessage(message, good = false) {
+    if (!otpMessage) return;
+    otpMessage.textContent = message;
+    otpMessage.className = `text-sm font-bold mt-4 ${good ? 'text-emerald-700' : 'text-red-700'}`;
+  }
+  async function otpRequest(path, payload) {
+    const response = await fetch(path, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) throw new Error(result.message || 'OTP service is unavailable.');
+    return result;
+  }
+  function resetOtpVerification() {
+    if (isEditMode || (!isOtpVerified && !otpSent)) return;
+    isOtpVerified = false;
+    otpSent = false;
+    if (otpInput) otpInput.value = '';
+    if (verifyOtpBtn) verifyOtpBtn.style.display = '';
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    showOtpMessage('Contact details badal gaye. Naya OTP bhejein.');
+  }
+  if (!isEditMode) {
+    for (const name of ['phone', 'email']) {
+      form.querySelector(`[name="${name}"]`)?.addEventListener('input', resetOtpVerification);
+    }
+  }
+  if (sendClientOtpBtn) {
+    sendClientOtpBtn.addEventListener('click', async () => {
+      if (otpBusy) return;
+      otpBusy = true;
+      sendClientOtpBtn.disabled = true;
+      sendClientOtpBtn.textContent = 'Sending OTP...';
+      try {
+        // A server-owned encrypted draft is mandatory. OTP target comes from
+        // this draft, not from arbitrary values sent in the request body.
+        if (!clientDraftWizard) throw new Error('Please start a new Client draft.');
+        await clientDraftWizard.save(3);
+        const draftId = clientDraftWizard.getId();
+        const result = await otpRequest('/field-agent/clients/otp/send', { draftId });
+        otpSent = true;
+        isOtpVerified = false;
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        if (otpInput) otpInput.value = '';
+        if (verifyOtpBtn) verifyOtpBtn.style.display = '';
+        showOtpMessage(result.message, true);
+      } catch (error) {
+        showOtpMessage(error.message || 'OTP nahi bheja gaya.');
+      } finally {
+        otpBusy = false;
+        sendClientOtpBtn.disabled = false;
+        sendClientOtpBtn.textContent = 'Send / Resend OTP';
+      }
+    });
+  }
+  if (verifyOtpBtn) {
+    verifyOtpBtn.addEventListener('click', async () => {
+      if (otpBusy) return;
+      const otp = (otpInput?.value || '').replace(/\D/g, '').slice(0, 6);
+      if (!/^\d{6}$/.test(otp)) {
+        showOtpMessage('Valid 6-digit OTP daalein.'); return;
+      }
+      if (!otpSent) { showOtpMessage('Pehle Send OTP karein.'); return; }
+      otpBusy = true;
+      verifyOtpBtn.disabled = true;
+      verifyOtpBtn.textContent = 'Verifying...';
+      try {
+        const draftId = clientDraftWizard?.getId();
+        const result = await otpRequest('/field-agent/clients/otp/verify', { draftId, otp });
         isOtpVerified = true;
         submitBtn.disabled = false;
-        submitBtn.classList.remove("opacity-50", "cursor-not-allowed");
-        verifyOtpBtn.style.display = "none";
-      } else {
-        otpMessage.textContent = "Invalid OTP. Testing ke liye 1234 use karein.";
-        otpMessage.className = "text-sm font-black text-red-600 mt-4";
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        verifyOtpBtn.style.display = 'none';
+        showOtpMessage(result.message, true);
+      } catch (error) {
+        isOtpVerified = false;
+        showOtpMessage(error.message || 'OTP verification failed.');
+      } finally {
+        otpBusy = false;
+        verifyOtpBtn.disabled = false;
+        verifyOtpBtn.textContent = 'Verify OTP';
       }
     });
   }

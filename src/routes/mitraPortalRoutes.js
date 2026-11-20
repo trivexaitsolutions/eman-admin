@@ -11,6 +11,7 @@ const workerController = require('../controllers/workerController');
 const mitraBouncer = require('../middlewares/mitraBouncer');
 const leaveController = require('../controllers/leaveController');
 const draftController = require('../controllers/fieldOfficerDraftController');
+const clientOtp = require('../services/fieldAgentClientOtp');
 const { validateWorkerUpi } = require('../controllers/upiValidationController');
 
 // Multer Storage for Video Consents.
@@ -160,6 +161,8 @@ router.post(
 router.get('/clients', mitraBouncer, mitraPortalController.listMitraClients);
 
 router.get('/clients/add', mitraBouncer, mitraPortalController.getAddClient);
+router.post('/clients/otp/send', mitraBouncer, express.json({ limit: '8kb' }), clientOtp.send);
+router.post('/clients/otp/verify', mitraBouncer, express.json({ limit: '8kb' }), clientOtp.verify);
 router.post('/clients/add', mitraBouncer, mitraPortalController.postAddClient);
 
 router.get('/clients/edit/:id', mitraBouncer, mitraPortalController.showEditClient);
