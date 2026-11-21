@@ -1,0 +1,212 @@
+<div class="max-w-5xl mx-auto space-y-5 pb-16">
+  <a href="/admin/translations" class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:underline">← Back to Translation Queue</a>
+  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 mb-2">TRANSLATION EDITOR</div>
+      <h1 class="text-2xl font-bold text-stone-900"><%= def.singular %> #<%= id %></h1>
+      <p class="mt-1 text-sm text-stone-500"><%= def.title(record) %> · Original record is read-only here. Enter translations without altering the actual source data.</p>
+    </div>
+  </div>
+  <% if (success) { %><div role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><%= success %></div><% } %>
+  <% if (error) { %><div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800"><%= error %></div><% } %>
+  <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>Safe fallback:</strong> Until a translation is published, or if the original value changes, the future app will show the original stored value. All original record values stay unchanged. Changes are applied to Android in Phase 2.</div>
+  <% if (!required.length) { %>
+    <div class="rounded-xl border border-stone-200 bg-white p-8 text-center text-stone-600">This record contains no translatable text.</div>
+  <% } else { %>
+    <div class="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+      <div class="flex flex-wrap gap-2 border-b border-stone-200 bg-stone-50 p-3" role="tablist" aria-label="Translation languages">
+        <button type="button" class="translation-tab rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white" data-tab="source" role="tab" aria-selected="true" onclick="showTranslationTab('source')">English · Source</button>
+        <% for (const lang of targets) { %>
+          <button type="button" class="translation-tab rounded-lg bg-white px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-100" data-tab="<%= lang.code %>" role="tab" aria-selected="false" onclick="showTranslationTab('<%= lang.code %>')"><%= lang.nativeName %> <span class="font-normal text-xs">· <%= lang.name %></span><% if (!lang.isActive) { %> <span class="text-amber-700">(Inactive)</span><% } %></button>
+        <% } %>
+      </div>
+      <section class="translation-panel p-5 sm:p-7" data-panel="source" role="tabpanel">
+        <h2 class="text-lg font-bold">Original saved details</h2>
+        <p class="mt-1 text-sm text-stone-500">Read-only source, assumed English unless the person entered another language. Edit from the original module.</p>
+        <div class="mt-5 space-y-4">
+          <% for (const key of (entityType === 'NAKA' ? Object.keys(def.fields) : required)) { %>
+            <div><label class="mb-1 block text-xs font-bold text-stone-600"><%= def.fields[key] %></label><div class="whitespace-pre-wrap break-words rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900"><%= String(record[key] ?? '') || '(Not entered in Naka Master)' %></div></div>
+          <% } %>
+          <% if (entityType === 'CUSTOMER') { %>
+            <div class="border-t border-stone-200 pt-5">
+              <h3 class="text-base font-bold text-stone-900">Saved work addresses (<%= (addressSources || []).length %>)</h3>
+              <% if (!(addressSources || []).length) { %>
+                <p class="mt-2 text-sm text-amber-800">No saved work address found for this customer. Add an address in the Customer module first.</p>
+              <% } %>
+              <% const ENTITY_ADDRESS_LABELS = { title: 'Title', addressLine: 'Address', addressDetail: 'Address detail', landmark: 'Landmark', city: 'City', nakaName: 'Naka', pincode: 'Pincode' }; %>
+              <% for (const address of (addressSources || [])) { %>
+                <div class="mt-3 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm">
+                  <div class="font-semibold">Address #<%= address.id %><%= address.isDefault ? ' · Default' : '' %></div>
+                  <% for (const key of Object.keys(ENTITY_ADDRESS_LABELS)) { if (address[key]) { %>
+                    <p class="mt-1 whitespace-pre-wrap break-words"><span class="text-stone-500"><%= ENTITY_ADDRESS_LABELS[key] %>:</span> <%= address[key] %></p>
+                  <% } } %>
+                  <p class="mt-2 text-xs text-stone-500">Pincode and GPS coordinates are not translated.</p>
+                </div>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+      </section>
+      <% for (const lang of targets) { %>
+        <section class="translation-panel hidden p-5 sm:p-7" data-panel="<%= lang.code %>" role="tabpanel">
+          <form method="post" action="/admin/translations/<%= entityType %>/<%= id %>" class="space-y-5">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input type="hidden" name="languageCode" value="<%= lang.code %>">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div><h2 class="text-lg font-bold"><%= lang.nativeName %> · <%= lang.name %></h2><p class="text-sm text-stone-500">Translate the fields below. English/source content stays visible for reference.</p></div>
+              <span class="rounded-full px-3 py-1 text-xs font-bold <%= lang.check.state==='COMPLETE' ? 'bg-emerald-100 text-emerald-800' : lang.check.state==='NEEDS_REVIEW' ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800' %>"><%= lang.check.state==='COMPLETE' ? 'Published' : lang.check.state==='NEEDS_REVIEW' ? 'Needs review' : 'Pending' %> (<%= lang.check.completed %>/<%= lang.check.total %>)</span>
+            </div>
+            <% if (lang.code === 'hi' && targets.some(target => target.code === 'mr')) { %>
+              <div class="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                <button type="button" onclick="copyFromMarathi('hi')" class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-bold text-indigo-800 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-300">Copy from Marathi</button>
+                <p class="text-xs leading-relaxed text-indigo-900">Copies Marathi text into Hindi fields, including saved work addresses. Review Hindi wording, then Save Draft or Publish. No automatic saving.</p>
+              </div>
+              <p id="copy-feedback-hi" role="status" aria-live="polite" class="hidden text-sm font-medium text-indigo-800"></p>
+            <% } %>
+            <% for (const field of lang.fields) { %>
+              <div class="rounded-xl border border-stone-200 p-4">
+                <div class="mb-2 flex items-center justify-between gap-2"><label class="text-sm font-bold text-stone-800" for="<%= lang.code %>-<%= field.key %>"><%= field.label %></label><% if (field.stale) { %><span class="rounded-full bg-orange-100 px-2 py-1 text-xs font-bold text-orange-800">Source changed — review</span><% } else if (field.savedStatus==='PUBLISHED') { %><span class="text-xs font-semibold text-emerald-700">Published</span><% } else if (field.savedStatus==='DRAFT') { %><span class="text-xs font-semibold text-amber-700">Draft</span><% } %></div>
+                <div class="mb-3 whitespace-pre-wrap break-words rounded-lg bg-stone-100 px-3 py-3 text-xs text-stone-600"><span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide">Source reference</span><%= field.original || '(Not entered yet)' %></div>
+                <% if (field.sourceEmpty) { %>
+                  <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">No source landmark is saved. Add the landmark in <a href="/admin/nakas" class="font-bold underline">Naka Master</a> first; this field will then become translatable.</p>
+                <% } %>
+                <input type="hidden" name="sourceHashes[<%= field.key %>]" value="<%= field.hash %>">
+                <textarea id="<%= lang.code %>-<%= field.key %>" name="translations[<%= field.key %>]" <%= field.sourceEmpty ? 'disabled' : '' %> data-translation-stale="<%= field.stale ? 'true' : 'false' %>" rows="<%= field.original.length > 90 ? 4 : 2 %>" maxlength="2000" placeholder="Enter <%= lang.name %> translation" class="w-full rounded-xl border <%= field.stale ? 'border-orange-400' : 'border-stone-300' %> bg-white px-4 py-3 text-sm leading-relaxed focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"><%= field.value %></textarea>
+              </div>
+            <% } %>
+            <div class="flex flex-wrap justify-end gap-3 border-t border-stone-100 pt-4">
+              <button type="submit" name="action" value="draft" class="rounded-xl border border-stone-300 bg-white px-5 py-3 text-sm font-bold text-stone-800 hover:bg-stone-50">Save Draft</button>
+              <button type="submit" name="action" value="publish" class="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">Publish <%= lang.name %><%= entityType === 'CUSTOMER' ? ' Customer Details' : '' %></button>
+            </div>
+            <p class="text-xs text-stone-500">Publish requires every non-empty source field to have a translation. Empty source fields are skipped.<% if (entityType === 'CUSTOMER') { %> Saved work addresses have their own Publish buttons below; the progress badge includes all of them.<% } %></p>
+          </form>
+          <% if (entityType === 'CUSTOMER') { %>
+            <div class="mt-7 border-t border-stone-200 pt-6 space-y-5">
+              <div>
+                <h3 class="text-lg font-bold text-stone-900">Customer saved addresses (<%= (lang.addresses || []).length %>)</h3>
+                <p class="mt-1 text-sm text-stone-500">These are saved separately from the customer profile. Translate each address here without editing original data. Each address has its own Save Draft / Publish actions.</p>
+              </div>
+              <% if (!(lang.addresses || []).length) { %>
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">This customer has no saved work address. Add the address from Customer registration/profile, then reload this page.</div>
+              <% } %>
+              <% for (const address of (lang.addresses || [])) { %>
+                <form method="post" action="/admin/translations/CUSTOMER_ADDRESS/<%= address.record.id %>" class="space-y-4 rounded-xl border border-stone-200 bg-stone-50/60 p-4 sm:p-5">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <input type="hidden" name="languageCode" value="<%= lang.code %>">
+                  <input type="hidden" name="returnCustomerId" value="<%= id %>">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div><h4 class="font-bold text-stone-900">Address #<%= address.record.id %><%= address.record.isDefault ? ' · Default' : '' %></h4>
+                    <p class="text-xs text-stone-500"><%= address.record.city || '' %><%= address.record.pincode ? ' · '+address.record.pincode : '' %></p></div>
+                    <span class="rounded-full px-3 py-1 text-xs font-bold <%= address.check.state==='COMPLETE' ? 'bg-emerald-100 text-emerald-800' : address.check.state==='NEEDS_REVIEW' ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800' %>"><%= address.check.state==='COMPLETE' ? 'Published' : address.check.state==='NEEDS_REVIEW' ? 'Needs review' : 'Pending' %> (<%= address.check.completed %>/<%= address.check.total %>)</span>
+                  </div>
+                  <% for (const field of address.fields) { %>
+                    <div>
+                      <label class="mb-2 block text-sm font-bold text-stone-800" for="addr-<%= address.record.id %>-<%= lang.code %>-<%= field.key %>"><%= field.label %></label>
+                      <div class="mb-2 whitespace-pre-wrap break-words rounded-lg bg-white px-3 py-3 text-xs text-stone-600"><span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide">Source reference</span><%= field.original %></div>
+                      <% if (field.stale) { %><p class="mb-1 text-xs text-orange-700">Original address changed — review translation.</p><% } %>
+                      <input type="hidden" name="sourceHashes[<%= field.key %>]" value="<%= field.hash %>">
+                      <textarea id="addr-<%= address.record.id %>-<%= lang.code %>-<%= field.key %>" name="translations[<%= field.key %>]" data-translation-stale="<%= field.stale ? 'true' : 'false' %>" rows="<%= field.original.length > 90 ? 4 : 2 %>" maxlength="2000" placeholder="Enter <%= lang.name %> translation" class="w-full rounded-xl border <%= field.stale ? 'border-orange-400' : 'border-stone-300' %> bg-white px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"><%= field.value %></textarea>
+                    </div>
+                  <% } %>
+                  <div class="flex flex-wrap justify-end gap-2 border-t border-stone-200 pt-3">
+                    <button type="submit" name="action" value="draft" class="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-bold text-stone-800 hover:bg-stone-100">Save Address Draft</button>
+                    <button type="submit" name="action" value="publish" class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Publish Address</button>
+                  </div>
+                </form>
+              <% } %>
+            </div>
+          <% } %>
+        </section>
+      <% } %>
+      <% if (!targets.length) { %><div class="p-6 text-sm text-stone-600">No target languages configured. Add one in <a href="/admin/languages" class="font-semibold text-emerald-700">Language Master</a>.</div><% } %>
+    </div>
+  <% } %>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const code = new URLSearchParams(window.location.search).get('tab');
+    if (code && Array.from(document.querySelectorAll('.translation-tab')).some((tab) => tab.dataset.tab === code)) {
+      showTranslationTab(code);
+    }
+  });
+  // UI-only copy helper: the Marathi and Hindi editor fields are already
+  // rendered on the page. No translation API or extra backend endpoint needed.
+  // It copies fields by form action + field name, so Customer addresses stay
+  // associated with the correct address record (also supports future forms).
+  function copyFromMarathi(targetCode) {
+    const source = document.querySelector('.translation-panel[data-panel="mr"]');
+    const target = Array.from(document.querySelectorAll('.translation-panel'))
+      .find(function (panel) { return panel.dataset.panel === targetCode; });
+    if (!source || !target || targetCode === 'mr') return;
+
+    const sourceForms = Array.from(source.querySelectorAll('form'));
+    const changes = [];
+    let staleCount = 0;
+    let unavailableCount = 0;
+    for (const targetForm of target.querySelectorAll('form')) {
+      const sourceForm = sourceForms.find(function (form) {
+        return form.getAttribute('action') === targetForm.getAttribute('action');
+      });
+      if (!sourceForm) continue;
+
+      const sourceInputs = Array.from(sourceForm.querySelectorAll('textarea[name]'));
+      for (const targetInput of targetForm.querySelectorAll('textarea[name]')) {
+        const sourceInput = sourceInputs.find(function (input) { return input.name === targetInput.name; });
+        if (!sourceInput || !sourceInput.value.trim()) { unavailableCount++; continue; }
+        if (sourceInput.dataset.translationStale === 'true') { staleCount++; continue; }
+        if (sourceInput.value === targetInput.value) continue;
+        changes.push({ input: targetInput, text: sourceInput.value });
+      }
+    }
+
+    const feedback = document.getElementById('copy-feedback-' + targetCode);
+    function showFeedback(message) {
+      if (feedback) {
+        feedback.textContent = message;
+        feedback.classList.remove('hidden');
+      } else {
+        window.alert(message);
+      }
+    }
+    if (!changes.length) {
+      showFeedback('Nothing new to copy. Fill Marathi translations first, or review existing Hindi fields.' +
+        (staleCount ? ' ' + staleCount + ' outdated Marathi field(s) skipped.' : ''));
+      return;
+    }
+
+    const existing = changes.filter(function (change) { return change.input.value.trim() !== ''; });
+    let overwriteExisting = false;
+    if (existing.length) {
+      overwriteExisting = window.confirm(
+        existing.length + ' Hindi field(s) already contain text.\n\n' +
+        'OK = overwrite those Hindi fields with Marathi.\n' +
+        'Cancel = keep existing Hindi text and fill only blank Hindi fields.'
+      );
+    }
+    let copied = 0;
+    let retained = 0;
+    for (const change of changes) {
+      if (change.input.value.trim() && !overwriteExisting) { retained++; continue; }
+      change.input.value = change.text;
+      change.input.dispatchEvent(new Event('input', { bubbles: true }));
+      copied++;
+    }
+    showFeedback(copied + ' Hindi field(s) filled from Marathi. ' +
+      (retained ? retained + ' existing Hindi field(s) kept. ' : '') +
+      (staleCount ? staleCount + ' outdated Marathi field(s) skipped. ' : '') +
+      'Please check the wording and click Save Draft / Publish for each section.');
+  }
+  function showTranslationTab(code) {
+    document.querySelectorAll('.translation-panel').forEach(function (panel) {
+      panel.classList.toggle('hidden', panel.dataset.panel !== code);
+    });
+    document.querySelectorAll('.translation-tab').forEach(function (tab) {
+      const active = tab.dataset.tab === code;
+      tab.classList.toggle('bg-emerald-600', active);
+      tab.classList.toggle('text-white', active);
+      tab.classList.toggle('bg-white', !active);
+      tab.classList.toggle('text-stone-700', !active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+</script>

@@ -65,6 +65,7 @@ app.get('/', (req, res) => {
 // Add these right above your Admin routes in server.js
 app.use('/api/worker', require('./src/routes/api/workerRoutes'));
 app.use('/api/user', require('./src/routes/api/userRoutes'));
+app.use('/api/i18n', require('./src/routes/api/languagePublicRoutes'));
 
 // Keep approved Field Agent leaves in sync with conflict assignment/reassignment.
 startLeaveReassignmentWatcher();

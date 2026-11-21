@@ -10,6 +10,7 @@ const icons = {
     skill: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a3 3 0 100-6 3 3 0 000 6zm7.4-3a7.4 7.4 0 00-.1-1l2-1.5-2-3.5-2.5 1a8 8 0 00-1.7-1L14.8 3h-4l-.4 2.7a8 8 0 00-1.7 1L6.2 5.8l-2 3.5 2 1.5a7.4 7.4 0 000 2.1l-2 1.5 2 3.5 2.5-1a8 8 0 001.7 1l.4 2.7h4l.4-2.7a8 8 0 001.7-1l2.5 1 2-3.5-2-1.5a7.4 7.4 0 00.1-1z"/>',
     city: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 21h16M6 21V9l6-4 6 4v12M9 12h1m4 0h1m-6 4h1m4 0h1"/>',
     state: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 100-18 9 9 0 000 18zM3.5 9h17M3.5 15h17M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>',
+    translations: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m4 0c0 6-3 10-7 13m-1-8c2 4 5 6 9 8M14 21l5-12 5 12m-8-4h6"/>',
     settings: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4M6 18v2m0-2a2 2 0 100-4m0 4a2 2 0 110-4m0 0V4m12 14v2m0-2a2 2 0 100-4m0 4a2 2 0 110-4m0 0V4"/>',
 };
 
@@ -53,6 +54,8 @@ const viewGlobals = (req, res, next) => {
                 { name: 'Skills', path: '/admin/skills', icon: icons.skill, roles: ['superadmin', 'admin'] },
                 { name: 'Cities', path: '/admin/cities', icon: icons.city, roles: ['superadmin', 'admin'] },
                 { name: 'States', path: '/admin/states', icon: icons.state, roles: ['superadmin', 'admin'] },
+                { name: 'Languages', path: '/admin/languages', icon: icons.translations, roles: ['superadmin', 'admin'] },
+                { name: 'Translations', path: '/admin/translations', icon: icons.translations, roles: ['superadmin', 'admin'] },
             ],
         },
         {

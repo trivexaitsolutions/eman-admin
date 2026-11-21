@@ -15,6 +15,8 @@ const skillRoutes = require('./skillRoutes');
 const workerRoutes = require('./workerRoutes');
 const bookingSettingRoutes = require('./bookingSettingRoutes');
 const apiIntegrationsRoutes = require('./apiIntegrationsRoutes');
+const languageAdminRoutes = require('./languageAdminRoutes');
+const translationAdminRoutes = require('./translationAdminRoutes');
 const adminBookingRoutes = require('./adminBookingRoutes');
 const adminDashboardController = require('../controllers/adminDashboardController');
 const leaveRoutes = require('./leaveRoutes');
@@ -43,6 +45,8 @@ router.use('/skills', authBouncer(['superadmin', 'admin']), skillRoutes);
 router.use('/simulator', authBouncer(['superadmin', 'admin']), adminSimulatorRoutes);
 router.use('/booking-settings', authBouncer(['superadmin', 'admin']), bookingSettingRoutes);
 router.use('/api-integrations', authBouncer(['superadmin', 'admin']), apiIntegrationsRoutes);
+router.use('/languages', authBouncer(['superadmin', 'admin']), languageAdminRoutes);
+router.use('/translations', authBouncer(['superadmin', 'admin']), translationAdminRoutes);
 router.use('/bookings', authBouncer(['superadmin', 'admin', 'employee']), adminBookingRoutes);
 
 router.get('/clients', authBouncer(['superadmin', 'admin', 'employee']), adminClientController.listClients);

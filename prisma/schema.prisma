@@ -692,3 +692,42 @@ model FieldAgentClientOtp {
   @@index([mitraId, draftId, createdAt])
   @@map("field_agent_client_otp")
 }
+
+// Phase 1: Admin-managed languages. Keep English active and the default.
+// Future app versions read the active language catalog; no existing business model changes.
+model AppLanguage {
+  code       String   @id @db.VarChar(12)
+  name       String   @db.VarChar(80)
+  nativeName String   @db.VarChar(80)
+  isActive   Boolean  @default(false)
+  isDefault  Boolean  @default(false)
+  sortOrder  Int      @default(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  translations ContentTranslation[]
+
+  @@map("app_language")
+}
+
+// Translation rows contain ONLY display values; original entity data is never replaced.
+// A changed original field is automatically stale when sourceHash no longer matches.
+model ContentTranslation {
+  id              Int      @id @default(autoincrement())
+  entityType      String   @db.VarChar(32)
+  entityId        Int
+  fieldKey        String   @db.VarChar(48)
+  languageCode    String   @db.VarChar(12)
+  language        AppLanguage @relation(fields: [languageCode], references: [code], onDelete: Restrict)
+  translatedValue String   @db.Text
+  sourceHash      String   @db.VarChar(64)
+  status          String   @default("DRAFT") @db.VarChar(16)
+  updatedById     Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([entityType, entityId, fieldKey, languageCode], name: "entity_field_language", map: "ct_entity_field_lang_uq")
+  @@index([entityType, entityId])
+  @@index([languageCode, status])
+  @@map("content_translation")
+}
